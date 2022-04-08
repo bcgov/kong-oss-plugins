@@ -1,6 +1,4 @@
 local BasePlugin = require "kong.plugins.base_plugin"
-local singletons = require "kong.singletons"
-local responses = require "kong.tools.responses"
 local kong_utils = require "kong.tools.utils"
 local constants = require "kong.constants"
 
@@ -17,40 +15,74 @@ function OidcConsumerHandler:new()
   OidcConsumerHandler.super.new(self, "oidc-consumer")
 end
 
-local function set_consumer(consumer)
-  ngx_set_header(constants.HEADERS.CONSUMER_ID, consumer.id)
-  ngx_set_header(constants.HEADERS.CONSUMER_CUSTOM_ID, consumer.custom_id)
-  ngx_set_header(constants.HEADERS.CONSUMER_USERNAME, consumer.username)
-  ngx.ctx.authenticated_consumer = consumer
-  ngx.ctx.authenticated_credential = { id = "oidc", username = consumer.username }
-  ngx_set_header(constants.HEADERS.ANONYMOUS, nil) -- in case of auth plugins concatenation 
-end
-
-local function load_consumer_by_username(consumer_username)
-  local result, err = singletons.db.consumers:select_by_username(consumer_username)
+local function load_consumer_by_username(username)
+  local result, err = kong.db.consumers:select_by_username(username)
   if not result then
-    if not err then
-      -- create consumer when not found in cache and no error occured
-      err = "OidcConsumerHandler No consumer found with username: " .. consumer_username
-      ngx.log(ngx.DEBUG, err)
-      
-      if create_consumer then 
-        consumer = singletons.db.consumers:insert {
-          id = kong_utils.uuid(),
-          username = consumer_username
-        }
-    
-        if consumer then 
-          ngx.log(ngx.DEBUG, "New consumer created from oidc userInfo")
-          return consumer
-        end
-      end
-      return nil, nil
-    end
-    return nil, err
+      return nil, err
   end
+  kong.log.info("Found consumer")
   return result
 end
+
+local function set_consumer(consumer, credential, token)
+  local set_header = kong.service.request.set_header
+  local clear_header = kong.service.request.clear_header
+
+  if consumer and consumer.id then
+      set_header(constants.HEADERS.CONSUMER_ID, consumer.id)
+  else
+      clear_header(constants.HEADERS.CONSUMER_ID)
+  end
+
+  if consumer and consumer.custom_id then
+      set_header(constants.HEADERS.CONSUMER_CUSTOM_ID, consumer.custom_id)
+  else
+      clear_header(constants.HEADERS.CONSUMER_CUSTOM_ID)
+  end
+
+  if consumer and consumer.username then
+      set_header(constants.HEADERS.CONSUMER_USERNAME, consumer.username)
+  else
+      clear_header(constants.HEADERS.CONSUMER_USERNAME)
+  end
+
+end
+
+local function match_consumer(consumer_id)
+  local consumer, err
+
+  local consumer_cache_key = "username_key_" .. consumer_id
+  kong.log.info('Cache key ' .. consumer_cache_key)
+  consumer, err = kong.cache:get(consumer_cache_key, nil, load_consumer_by_username, consumer_id)
+
+  if err then
+      kong.log.err(err)
+  end
+
+  if not consumer then
+    if create_consumer then 
+      consumer = kong.db.consumers:insert {
+        id = kong_utils.uuid(),
+        username = consumer_id
+      }
+  
+      if consumer then
+        ngx.log(ngx.DEBUG, "New consumer created from oidc userInfo")
+        return consumer
+      end
+    end
+
+    return false, { status = 401, message = "Unable to find consumer" }
+  end
+
+  if consumer then
+    ngx.log(ngx.DEBUG, "OidcConsumerHandler Setting consumer found")
+    set_consumer(consumer, nil, nil)
+  end
+
+  return true
+end
+
 
 local function handleOidcHeader(oidcUserInfo, config, ngx)
   local userInfo = utils.decodeUserInfo(oidcUserInfo, ngx)
@@ -64,19 +96,11 @@ local function handleOidcHeader(oidcUserInfo, config, ngx)
   local usernameForLookup = userInfo[usernameField]
   if usernameForLookup then 
     -- get consumer by the username if possible
-    local consumer_cache_key = singletons.db.consumers:cache_key(usernameForLookup)
-    local consumer, err = singletons.cache:get(consumer_cache_key, nil,
-                                                load_consumer_by_username,
-                                                usernameForLookup, true)
+    local ok, err = match_consumer(usernameForLookup)
 
-    if err then
-      return responses.send_HTTP_INTERNAL_SERVER_ERROR(err)
+    if not ok then
+      return kong.response.exit(err.status, err.errors or { message = err.message })
     end
-
-    if consumer then 
-      ngx.log(ngx.DEBUG, "OidcConsumerHandler Setting consumer found")
-      set_consumer(consumer)
-    end                    
   else
     ngx.log(ngx.DEBUG, "OidcConsumerHandler No username field found on decoded oidc userInfo header")
   end
