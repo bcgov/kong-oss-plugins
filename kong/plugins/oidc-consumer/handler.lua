@@ -8,7 +8,8 @@ local OidcConsumerHandler = BasePlugin:extend()
 local ngx_set_header = ngx.req.set_header
 local create_consumer = false
 
-OidcConsumerHandler.PRIORITY = 900
+
+OidcConsumerHandler.PRIORITY = 960
 
 
 function OidcConsumerHandler:new()
@@ -45,6 +46,8 @@ local function set_consumer(consumer, credential, token)
   else
       clear_header(constants.HEADERS.CONSUMER_USERNAME)
   end
+
+  kong.client.authenticate(consumer, credential)
 
 end
 
