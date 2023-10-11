@@ -1,20 +1,15 @@
-local BasePlugin = require "kong.plugins.base_plugin"
 local kong_utils = require "kong.tools.utils"
 local constants = require "kong.constants"
 
 local utils = require("kong.plugins.oidc-consumer.utils")
-local OidcConsumerHandler = BasePlugin:extend()
 
 local ngx_set_header = ngx.req.set_header
 local create_consumer = false
 
-
-OidcConsumerHandler.PRIORITY = 960
-
-
-function OidcConsumerHandler:new()
-  OidcConsumerHandler.super.new(self, "oidc-consumer")
-end
+local OidcConsumerHandler = {
+  PRIORITY = 960,
+  VERSION = "1.0.0",
+}
 
 local function load_consumer_by_username(username)
   local result, err = kong.db.consumers:select_by_username(username)
@@ -111,7 +106,6 @@ local function handleOidcHeader(oidcUserInfo, config, ngx)
 end
 
 function OidcConsumerHandler:access(config)
-  OidcConsumerHandler.super.access(self)
   local oidcUserInfoHeader = ngx.req.get_headers()["X-Userinfo"]
 
   if oidcUserInfoHeader then
