@@ -1,7 +1,7 @@
 local typedefs = require "kong.db.schema.typedefs"
 
 local schema = {
-  name = plugin_name,
+  name = "oidc-consumer",
   fields = {
     {
       consumer = typedefs.no_consumer
