@@ -1,0 +1,150 @@
+name: e2e
+
+networks:
+  net: {}
+
+services:
+  playwright:
+    image: playwright:e2e
+    build:
+      context: .
+      dockerfile: ./Dockerfile.playwright
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      kong:
+        condition: service_healthy
+    environment:
+      - BASE_URL=http://admin-api.localtest.me:8081
+    volumes: []
+    networks:
+      - net
+
+  kong:
+    image: kong:e2e
+    env_file:
+      - ./local/kong/.env.local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kong-migrations-up:
+        condition: service_completed_successfully
+    environment: []
+    volumes: []
+    ports:
+      - 5500:8000
+      - 5501:8001
+    networks:
+      net:
+        aliases:
+          - kong.localtest.me
+    healthcheck:
+      test: curl --fail http://localhost:8001/ || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  deck:
+    image: kong/deck:latest
+    depends_on:
+      kong:
+        condition: service_healthy
+    environment: []
+    volumes:
+      - ./local/kong:/tmp/kong
+    networks:
+      net:
+        aliases:
+          - kong.localtest.me
+    restart: no
+    command:
+      - gateway
+      - --kong-addr
+      - http://kong.localtest.me:8001
+      - sync
+      - /tmp/kong/kong.yaml
+
+  keycloak:
+    image: keycloak:e2e
+    build:
+      context: .
+      dockerfile: ./Dockerfile.keycloak
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      [
+        "start",
+        "--optimized",
+        "--hostname",
+        "http://keycloak.localtest.me:9081/auth",
+        "--db-url",
+        "jdbc:postgresql://db/keycloak",
+        "--db-username",
+        "keycloakuser",
+        "--db-password",
+        "keycloakuser",
+        "--http-enabled",
+        "true",
+        "--http-port",
+        "9081",
+        "--import-realm",
+      ]
+    volumes:
+      - ./local/keycloak/master-realm.json:/opt/keycloak/data/import/master-realm.json
+    ports:
+      - 9081:9081
+    networks:
+      net:
+        aliases:
+          - keycloak.localtest.me
+    healthcheck:
+      test: curl --fail http://localhost:9081/ || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:17
+    #    platform: linux/amd64
+    container_name: db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./local/postgres/init.sql:/docker-entrypoint-initdb.d/1-init.sql
+    networks:
+      - net
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kong-migrations:
+    image: kong:e2e
+    build:
+      # context up a level so that the Dockerfile can pull in plugin source
+      context: ../.
+      dockerfile: ./testsuite/Dockerfile.kong
+    platform: linux/amd64
+    command: kong migrations bootstrap
+    env_file:
+      - ./local/kong/.env.local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - net
+
+  kong-migrations-up:
+    image: kong:e2e
+    command: kong migrations up && kong migrations finish
+    env_file:
+      - ./local/kong/.env.local
+    depends_on:
+      kong-migrations:
+        condition: service_completed_successfully
+    networks:
+      - net

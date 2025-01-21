@@ -1,0 +1,17 @@
+FROM kong:2.8.5
+
+USER root
+
+RUN apk add --no-cache unzip
+
+WORKDIR /build
+
+COPY plugins/jwt-keycloak jwt-keycloak
+RUN (cd jwt-keycloak && luarocks make)
+
+COPY plugins/oidc oidc
+RUN (cd oidc && luarocks make)
+
+USER kong
+
+ENV KONG_PLUGINS="bundled, jwt-keycloak, oidc"

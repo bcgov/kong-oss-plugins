@@ -1,0 +1,162 @@
+{
+  "clientId": "sampler2",
+  "surrogateAuthRequired": false,
+  "enabled": true,
+  "alwaysDisplayInConsole": false,
+  "clientAuthenticatorType": "client-secret",
+  "secret": "8e1a17ed-cb93-4806-ac32-e303d1c86018",
+  "redirectUris": [
+    "http://*",
+    "https://*"
+  ],
+  "webOrigins": [
+    "*"
+  ],
+  "notBefore": 0,
+  "bearerOnly": false,
+  "consentRequired": false,
+  "standardFlowEnabled": true,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": true,
+  "serviceAccountsEnabled": true,
+  "publicClient": false,
+  "frontchannelLogout": false,
+  "protocol": "openid-connect",
+  "attributes": {
+    "saml.assertion.signature": "false",
+    "saml.force.post.binding": "false",
+    "saml.multivalued.roles": "false",
+    "saml.encrypt": "false",
+    "post.logout.redirect.uris": "+",
+    "saml.server.signature": "false",
+    "saml.server.signature.keyinfo.ext": "false",
+    "exclude.session.state.from.auth.response": "false",
+    "realm_client": "false",
+    "saml_force_name_id_format": "false",
+    "saml.client.signature": "false",
+    "tls.client.certificate.bound.access.tokens": "false",
+    "saml.authnstatement": "false",
+    "display.on.consent.screen": "false",
+    "saml.onetimeuse.condition": "false"
+  },
+  "authenticationFlowBindingOverrides": {},
+  "fullScopeAllowed": false,
+  "nodeReRegistrationTimeout": -1,
+  "protocolMappers": [
+    {
+      "name": "Client Host",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usersessionmodel-note-mapper",
+      "consentRequired": false,
+      "config": {
+        "user.session.note": "clientHost",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "claim.name": "clientHost",
+        "jsonType.label": "String",
+        "userinfo.token.claim": "true"
+      }
+    },
+    {
+      "name": "display_name",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-attribute-mapper",
+      "consentRequired": false,
+      "config": {
+        "user.attribute": "display_name",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "claim.name": "display_name",
+        "userinfo.token.claim": "true"
+      }
+    },
+    {
+      "name": "provider_user_guid",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-attribute-mapper",
+      "consentRequired": false,
+      "config": {
+        "user.attribute": "provider_user_guid",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "claim.name": "provider_user_guid",
+        "userinfo.token.claim": "true"
+      }
+    },
+    {
+      "name": "provider_username",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-attribute-mapper",
+      "consentRequired": false,
+      "config": {
+        "user.attribute": "provider_username",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "claim.name": "provider_username",
+        "userinfo.token.claim": "true"
+      }
+    },
+    {
+      "name": "identity_provider",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-attribute-mapper",
+      "consentRequired": false,
+      "config": {
+        "user.attribute": "identity_provider",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "claim.name": "identity_provider",
+        "userinfo.token.claim": "true"
+      }
+    },
+    {
+      "name": "Client ID",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usersessionmodel-note-mapper",
+      "consentRequired": false,
+      "config": {
+        "user.session.note": "clientId",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "claim.name": "clientId",
+        "jsonType.label": "String",
+        "userinfo.token.claim": "true"
+      }
+    },
+    {
+      "name": "Client IP Address",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usersessionmodel-note-mapper",
+      "consentRequired": false,
+      "config": {
+        "user.session.note": "clientAddress",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "claim.name": "clientAddress",
+        "jsonType.label": "String",
+        "userinfo.token.claim": "true"
+      }
+    }
+  ],
+  "defaultClientScopes": [
+    "web-origins",
+    "acr",
+    "Namespace.Create",
+    "Namespace.Admin",
+    "roles",
+    "profile",
+    "basic",
+    "email"
+  ],
+  "optionalClientScopes": [
+    "address",
+    "phone",
+    "offline_access",
+    "microprofile-jwt"
+  ],
+  "access": {
+    "view": true,
+    "configure": true,
+    "manage": true
+  }
+}
