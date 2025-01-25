@@ -1,15 +1,15 @@
 services:
-  - name: test-oidc-001
+  - name: test-001-oidc
     host: httpbin.org
     port: 443
     protocol: https
     routes:
-      - name: test-oidc-001-route
+      - name: test-001-oidc
         hosts:
           - kong.localtest.me
         paths:
-          - /
-        preserve_host: false
+          - /001
+        strip_path: true
         methods:
           - GET
         protocols:
@@ -31,7 +31,7 @@ services:
           disable_access_token_header: "no"
           disable_id_token_header: "no"
           disable_userinfo_header: "no"
-          discovery: http://keycloak.localtest.me:9081/auth/realms/master/.well-known/openid-configuration
+          discovery: http://keycloak.localtest.me:9081/auth/realms/e2e/.well-known/openid-configuration
           filters: null
           groups_claim: groups
           header_claims: []
@@ -39,7 +39,7 @@ services:
           id_token_header_name: X-ID-Token
           ignore_auth_filters: "no"
           introspection_cache_ignore: "no"
-          introspection_endpoint: http://keycloak.localtest.me:9081/auth/realms/master/protocol/openid-connect/token/introspect
+          introspection_endpoint: http://keycloak.localtest.me:9081/auth/realms/e2e/protocol/openid-connect/token/introspect
           introspection_endpoint_auth_method: null
           logout_path: /logout
           realm: kong
@@ -56,6 +56,8 @@ services:
           token_endpoint_auth_method: client_secret_post
           unauth_action: auth
           use_jwks: "yes"
+          use_nonce: "no"
+          use_pkce: "no"
           userinfo_header_name: X-USERINFO
           validate_scope: "no"
 
@@ -79,7 +81,7 @@ services:
       - name: jwt-keycloak
         config:
           allowed_iss:
-            - http://keycloak.localtest.me:9081/auth/realms/master
+            - http://keycloak.localtest.me:9081/auth/realms/e2e
           #allowed_aud: an-audience-ref
           #access_token_header: Authorization
           #realm: kong

@@ -1,4 +1,5 @@
-FROM kong:2.8.5
+ARG KONG_VERSION="2.8.5"
+FROM kong:${KONG_VERSION}
 
 USER root
 
@@ -12,6 +13,9 @@ RUN (cd jwt-keycloak && luarocks make)
 COPY plugins/oidc oidc
 RUN (cd oidc && luarocks make)
 
+COPY plugins/oidc-consumer oidc-consumer
+RUN (cd oidc-consumer && luarocks make)
+
 USER kong
 
-ENV KONG_PLUGINS="bundled, jwt-keycloak, oidc"
+ENV KONG_PLUGINS="bundled, jwt-keycloak, oidc, oidc-consumer"

@@ -4,21 +4,23 @@ networks:
   net: {}
 
 services:
-  playwright:
-    image: playwright:e2e
-    build:
-      context: .
-      dockerfile: ./Dockerfile.playwright
-    depends_on:
-      keycloak:
-        condition: service_healthy
-      kong:
-        condition: service_healthy
-    environment:
-      - BASE_URL=http://admin-api.localtest.me:8081
-    volumes: []
-    networks:
-      - net
+  # playwright:
+  #   image: playwright:e2e
+  #   build:
+  #     context: .
+  #     dockerfile: ./Dockerfile.playwright
+  #   depends_on:
+  #     keycloak:
+  #       condition: service_healthy
+  #     kong:
+  #       condition: service_healthy
+  #     deck:
+  #       condition: service_completed_successfully
+  #   environment:
+  #     - BASE_URL=http://admin-api.localtest.me:8081
+  #   volumes: []
+  #   networks:
+  #     - net
 
   kong:
     image: kong:e2e
@@ -72,6 +74,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: local
+      KC_BOOTSTRAP_ADMIN_PASSWORD: local
     command:
       [
         "start",
@@ -91,7 +96,7 @@ services:
         "--import-realm",
       ]
     volumes:
-      - ./local/keycloak/master-realm.json:/opt/keycloak/data/import/master-realm.json
+      - ./local/keycloak/e2e-realm.json:/opt/keycloak/data/import/e2e-realm.json
     ports:
       - 9081:9081
     networks:
