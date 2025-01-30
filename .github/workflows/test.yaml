@@ -26,13 +26,14 @@ jobs:
       - name: Build Docker Images
         working-directory: testsuite
         run: |
-          docker compose --profile keycloak-quarkus build
+          docker compose -f docker-compose.yml -f docker-compose-keycloak-quarkus.yml build
+          docker compose -f docker-compose.yml -f docker-compose-keycloak-spring.yml build
 
       - name: Spin up Kong and its dependencies and Run E2E Tests
         working-directory: testsuite
         run: |
           export CI=true
-          docker compose --profile keycloak-quarkus up -d
+          docker compose -f docker-compose.yml -f docker-compose-keycloak-quarkus.yml up -d
 
       - name: Execute Tests & Clean Up
         working-directory: testsuite
