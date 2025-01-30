@@ -38,11 +38,11 @@ jobs:
         working-directory: testsuite
         run: |
           # Start following logs in the background with continuous output
-          docker logs -f playwright-e2e 2>&1 &
+          docker logs -f playwright 2>&1 &
           LOG_PID=$!
 
           while true; do
-            if [ "$(docker ps -aq -f status=exited -f name=playwright-e2e)" ]; then
+            if [ "$(docker ps -aq -f status=exited -f name=playwright)" ]; then
               echo "E2E tests completed."
               # cleanup
               docker compose down
