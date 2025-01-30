@@ -1,8 +1,6 @@
 services:
-  keycloak-spring:
+  keycloak:
     image: keycloak-spring:e2e
-    container_name: keycloak
-    hostname: keycloak
     build:
       context: .
       dockerfile: ./Dockerfile.keycloak15
