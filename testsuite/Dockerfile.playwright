@@ -1,5 +1,7 @@
 FROM mcr.microsoft.com/playwright:v1.49.1-noble
 
+RUN npx playwright install chrome
+
 WORKDIR /e2e-playwright
 
 # Copy package.json and package-lock.json
