@@ -4,20 +4,21 @@ on:
   workflow_dispatch: {}
   push:
     branches: ["cleanup"]
-#     branches: ['test', 'cypress/*']
-#   pull_request:
-#     branches: ['dev']
 
-# env:
-#   EXECUTION_ENV: prod
-#   GIT_COMMIT_BRANCH: ${{ github.ref_name }}
-#   GIT_COMMIT_SHA: ${{ github.sha }}
-#   GIT_COMMIT_AUTHOR: ${{ github.actor }}
-#   GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-#   GIT_REPO_URL: ${{ github.repository }}
+env:
+  GIT_COMMIT_BRANCH: ${{ github.ref_name }}
+  GIT_COMMIT_SHA: ${{ github.sha }}
+  GIT_COMMIT_AUTHOR: ${{ github.actor }}
+  GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+  GIT_REPO_URL: ${{ github.repository }}
 
 jobs:
   playwright-run:
+    strategy:
+      matrix:
+        kong: ["3.9.0"]
+        keycloak: ["26.1.0"]
+
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -26,7 +27,10 @@ jobs:
       - name: Build Docker Images
         working-directory: testsuite
         run: |
-          docker compose -f docker-compose.yml -f docker-compose-keycloak-quarkus.yml build
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose-keycloak-quarkus.yml \
+            build
 
       - name: Spin up Kong and its dependencies and Run E2E Tests
         working-directory: testsuite
