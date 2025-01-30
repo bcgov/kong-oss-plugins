@@ -64,7 +64,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-json
-          path: ${{ github.workspace }}/testsuite/e2e-playwright/test-results
+          path: ${{ github.workspace }}/testsuite/e2e-playwright
 
       - name: Check for failed tests and create Issue
         env:
