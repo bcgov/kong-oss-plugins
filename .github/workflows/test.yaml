@@ -56,23 +56,27 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-html
-          path: ${{ github.workspace }}/e2e-playwright/playwright-report/index.html
+          path: ${{ github.workspace }}/testsuite/e2e-playwright/playwright-report/index.html
 
       - name: Upload E2E Test Results JSON Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results-json
-          path: ${{ github.workspace }}/e2e-playwright/test-results/.last-run.json
+          path: ${{ github.workspace }}/testsuite/e2e-playwright/test-results/.last-run.json
 
       - name: Check for failed tests and create Issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          FAILURE_COUNT=$(cat ${{ github.workspace }}/e2e-playwright/test-results/.last-run.json | jq '.failedTests')
+          FAILURE_COUNT=$(cat ${{ github.workspace }}/testsuite/e2e-playwright/test-results/.last-run.json | jq '.failedTests')
           if [[ "$FAILURE_COUNT" -gt 0 ]]; then
             echo -e "Run Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" > msg
             export MSG=$(cat msg)
             gh issue create --title "FAILED: Automated Tests($FAILURE_COUNT)" --body "$MSG" --label "automation" --assignee "${{ env.GIT_COMMIT_AUTHOR }}"
             exit 1
+          else
+            echo -e "Run Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" > msg
+            export MSG=$(cat msg)
+            gh issue create --title "PASSED: Automated Tests($FAILURE_COUNT)" --body "$MSG" --label "automation" --assignee "${{ env.GIT_COMMIT_AUTHOR }}"
           fi
