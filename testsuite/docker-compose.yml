@@ -21,7 +21,7 @@ services:
       - BASE_URL=http://admin-api.localtest.me:8081
       - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
     volumes:
-      - ./e2e-playwright/test-results:/e2e-playwright/playwright-results
+      - ./e2e-playwright/test-results:/e2e-playwright/test-results
       - ./e2e-playwright/playwright-report:/e2e-playwright/playwright-report
     networks:
       - net
