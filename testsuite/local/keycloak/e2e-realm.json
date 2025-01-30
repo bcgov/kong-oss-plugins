@@ -308,15 +308,15 @@
       "clientId": "app",
       "name": "E2E App",
       "description": "",
-      "rootUrl": "http://kong.localtest.me:5500/",
-      "adminUrl": "http://kong.localtest.me:5500/",
+      "rootUrl": "http://kong.localtest.me:8000/",
+      "adminUrl": "http://kong.localtest.me:8000/",
       "baseUrl": "",
       "surrogateAuthRequired": false,
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "http://kong.localtest.me:5500/*"
+        "http://kong.localtest.me:8000/*"
       ],
       "webOrigins": [
         ""

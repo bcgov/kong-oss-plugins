@@ -42,7 +42,7 @@ export default async function runE2Etest(
 
   // Use the new client setup to login
   const response = await page.goto(
-    `http://kong.localtest.me:5500${routePath}/headers`
+    `http://kong.localtest.me:8000${routePath}/headers`
   );
 
   if (response.status() >= 300) {

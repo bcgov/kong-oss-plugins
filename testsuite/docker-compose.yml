@@ -37,8 +37,8 @@ services:
     volumes:
       - ./local/kong:/tmp/kong
     ports:
-      - 5500:8000
-      - 5501:8001
+      - 8000:8000
+      - 8001:8001
     networks:
       net:
         aliases:

@@ -6,7 +6,7 @@
   "clientAuthenticatorType": "client-secret",
   "secret": "8e1a17ed-cb93-4806-ac32-e303d1c86018",
   "redirectUris": [
-    "http://kong.localtest.me:5500/*"
+    "http://kong.localtest.me:8000/*"
   ],
   "webOrigins": [],
   "notBefore": 0,

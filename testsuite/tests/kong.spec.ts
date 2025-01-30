@@ -10,7 +10,7 @@ test.describe("kong ready", () => {
         status,
         body: { tagline },
       },
-    } = await callAPI(request, `http:///kong.localtest.me:5501`, "GET");
+    } = await callAPI(request, `http:///kong.localtest.me:8001`, "GET");
     expect(status).toBe(200);
     expect(tagline).toBe("Welcome to kong");
   });

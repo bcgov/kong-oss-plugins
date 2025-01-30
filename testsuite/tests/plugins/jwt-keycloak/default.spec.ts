@@ -36,7 +36,7 @@ test.describe("jwt-keycloak plugin - happy paths", () => {
 
     const result = await callAPI(
       request,
-      `http://kong.localtest.me:5500${routePath}/headers`,
+      `http://kong.localtest.me:8000${routePath}/headers`,
       "GET"
     );
     expect(result.apiRes.status).toBe(200);
