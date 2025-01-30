@@ -27,7 +27,6 @@ jobs:
         working-directory: testsuite
         run: |
           docker compose -f docker-compose.yml -f docker-compose-keycloak-quarkus.yml build
-          docker compose -f docker-compose.yml -f docker-compose-keycloak-spring.yml build
 
       - name: Spin up Kong and its dependencies and Run E2E Tests
         working-directory: testsuite
