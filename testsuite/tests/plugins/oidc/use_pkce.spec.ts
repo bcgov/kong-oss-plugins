@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import runE2Etest from "../../../helpers/e2e-test";
+import runE2Etest, { checks } from "../../../helpers/e2e-test";
 import { URL } from "url";
 
 test.describe("oidc plugin - happy paths", () => {
@@ -18,7 +18,12 @@ test.describe("oidc plugin - happy paths", () => {
       {
         use_pkce: "yes",
         token_endpoint_auth_method: "none", // avoids client_secret being sent to TOKEN endpoint
-      }
+      },
+      [
+        checks.expected_headers,
+        checks.expected_cookies_exist,
+        checks.expected_cookie_config,
+      ]
     );
   });
 });
@@ -40,6 +45,11 @@ test.describe("oidc plugin - exception paths", () => {
         use_pkce: "false",
         token_endpoint_auth_method: "none", // avoids client_secret being sent to TOKEN endpoint
       },
+      [
+        checks.expected_headers,
+        checks.expected_cookies_exist,
+        checks.expected_cookie_config,
+      ],
       {
         onLoginError: async (response) => {
           console.log(response);

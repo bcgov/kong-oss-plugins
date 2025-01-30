@@ -1,0 +1,21 @@
+# emacs
+*~
+\#*\#
+.\#*
+lua_install
+luacov.stats.out
+venv/
+bin/venv/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Visual Studio Code
+.vscode/
+
+# IntelliJ IDEA
+*.iml
+.idea
+.dccache
+
+*.rock

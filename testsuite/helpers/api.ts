@@ -1,4 +1,4 @@
-import { APIRequestContext } from "@playwright/test";
+import { APIRequestContext, expect } from "@playwright/test";
 
 let requestBody: any = {};
 let headers: Record<string, string> = {
@@ -30,11 +30,19 @@ export async function callAPI(
 
   const response = await request.fetch(endpoint, options);
 
-  let responseBody;
+  //expect(response.status()).toBeLessThan(300);
+
+  let responseBody: any;
   try {
     responseBody = await response.json();
   } catch (e) {
     responseBody = null;
+  }
+
+  if (response.status() >= 300) {
+    const errors = await response.text();
+    console.error("failed to call", endpoint, method, errors);
+    throw new Error("failed to call " + endpoint);
   }
 
   return {

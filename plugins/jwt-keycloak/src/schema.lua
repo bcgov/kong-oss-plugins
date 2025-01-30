@@ -55,7 +55,7 @@ local schema = {
             elements = { type = "string" },
             default = { "authorization" },
           }, },
-
+          { allowed_aud = { type = "string", required = false }, },
           { algorithm = {  type = "string", default = "RS256" }, },
           { allowed_iss = { type = "set", elements = { type = "string" }, required = true }, },
           { iss_key_grace_period = { type = "number", default = 10, between = { 1, 60 }, }, },

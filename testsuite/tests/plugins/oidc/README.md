@@ -19,13 +19,5 @@
 - logout (revoke token on logout, redirects)
 - token info
 
-  - disable_access_token_header: "no",
-  - disable_id_token_header: "no",
-  - disable_userinfo_header: "no",
-  - id_token_header_name: "X-ID-Token",
-  - userinfo_header_name: "X-USERINFO",
-  - access_token_as_bearer: "no",
-  - access_token_header_name: "X-Access-Token"
-
 - scope, validate_scope
 - timeout

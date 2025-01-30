@@ -5,8 +5,9 @@
 - minimal
 - allowed_issuer : happy path, issuer missing
 - allowed_aud : happy path, missing
-- scope differences
 - anonymous
-- consumer matching
+- consumer matching / mapping
+- key rotation
 - algorithm differences
+- scope differences
 - client_roles / realm_roles

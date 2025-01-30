@@ -30,8 +30,8 @@ dependencies = {
 build = {
     type = "builtin",
     modules = {
-    ["kong.plugins.oidc-consumer.handler"] = "kong/plugins/oidc-consumer/handler.lua",
-    ["kong.plugins.oidc-consumer.schema"] = "kong/plugins/oidc-consumer/schema.lua",
-    ["kong.plugins.oidc-consumer.utils"] = "kong/plugins/oidc-consumer/utils.lua"
+    ["kong.plugins.oidc-consumer.handler"] = "src/handler.lua",
+    ["kong.plugins.oidc-consumer.schema"] = "src/schema.lua",
+    ["kong.plugins.oidc-consumer.utils"] = "src/utils.lua"
     }
 }

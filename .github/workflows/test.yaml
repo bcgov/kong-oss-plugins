@@ -1,0 +1,50 @@
+name: Playwright E2E Tests
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: ["cleanup"]
+#     branches: ['test', 'cypress/*']
+#   pull_request:
+#     branches: ['dev']
+
+# env:
+#   EXECUTION_ENV: prod
+#   GIT_COMMIT_BRANCH: ${{ github.ref_name }}
+#   GIT_COMMIT_SHA: ${{ github.sha }}
+#   GIT_COMMIT_AUTHOR: ${{ github.actor }}
+#   GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+#   GIT_REPO_URL: ${{ github.repository }}
+
+jobs:
+  playwright-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Build Docker Images
+        run: |
+          docker compose --profile keycloak-quarkus build
+
+      - name: Spin up Kong and its dependencies and Run E2E Tests
+        run: |
+          export CI=true
+          docker compose --profile keycloak-quarkus up -d
+
+      - name: Execute Tests & Clean Up
+        run: |
+          # Start following logs in the background with continuous output
+          docker logs -f playwright-e2e 2>&1 &
+          LOG_PID=$!
+
+          while true; do
+            if [ "$(docker ps -aq -f status=exited -f name=playwright-e2e)" ]; then
+              echo "E2E tests completed."
+              # cleanup
+              docker compose down
+              break
+            else
+              sleep 30s
+            fi
+          done

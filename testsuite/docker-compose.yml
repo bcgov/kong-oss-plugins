@@ -4,23 +4,23 @@ networks:
   net: {}
 
 services:
-  # playwright:
-  #   image: playwright:e2e
-  #   build:
-  #     context: .
-  #     dockerfile: ./Dockerfile.playwright
-  #   depends_on:
-  #     keycloak:
-  #       condition: service_healthy
-  #     kong:
-  #       condition: service_healthy
-  #     deck:
-  #       condition: service_completed_successfully
-  #   environment:
-  #     - BASE_URL=http://admin-api.localtest.me:8081
-  #   volumes: []
-  #   networks:
-  #     - net
+  playwright:
+    image: playwright:e2e
+    build:
+      context: .
+      dockerfile: ./Dockerfile.playwright
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      kong:
+        condition: service_healthy
+      deck:
+        condition: service_completed_successfully
+    environment:
+      - BASE_URL=http://admin-api.localtest.me:8081
+    volumes: []
+    networks:
+      - net
 
   kong:
     image: kong:e2e
@@ -29,10 +29,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      kong-session-store:
+        condition: service_started
       kong-migrations-up:
         condition: service_completed_successfully
     environment: []
-    volumes: []
+    volumes:
+      - ./local/kong:/tmp/kong
     ports:
       - 5500:8000
       - 5501:8001
@@ -42,9 +45,10 @@ services:
           - kong.localtest.me
     healthcheck:
       test: curl --fail http://localhost:8001/ || exit 1
+      # Kong 3 -- test: curl --fail http://localhost:8007/status/ready || exit 1
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 20
 
   deck:
     image: kong/deck:latest
@@ -66,11 +70,14 @@ services:
       - sync
       - /tmp/kong/kong.yaml
 
-  keycloak:
-    image: keycloak:e2e
+  keycloak-quarkus:
+    image: keycloak-quarkus:e2e
+    profiles: [kc_quarkus]
     build:
       context: .
       dockerfile: ./Dockerfile.keycloak
+      args:
+        - KC_VERSION=26.1.0
     depends_on:
       postgres:
         condition: service_healthy
@@ -104,7 +111,55 @@ services:
         aliases:
           - keycloak.localtest.me
     healthcheck:
-      test: curl --fail http://localhost:9081/ || exit 1
+      test: timeout 10s bash -c ':> /dev/tcp/localhost/9081'
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  keycloak-spring:
+    image: keycloak-spring:e2e
+    profiles: [kc_spring]
+    container_name: keycloak
+    hostname: keycloak
+    build:
+      context: .
+      dockerfile: ./Dockerfile.keycloak15
+      args:
+        - KC_VERSION=15
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      [
+        "-b",
+        "0.0.0.0",
+        "-Djboss.socket.binding.port-offset=1001",
+        "-Dkeycloak.migration.action=import",
+        "-Dkeycloak.migration.provider=singleFile",
+        "-Dkeycloak.migration.file=/tmp/realm-config/master-realm.json",
+        "-Dkeycloak.migration.strategy=OVERWRITE_EXISTING",
+        "-Dkeycloak.profile.feature.upload_scripts=enabled",
+      ]
+    ports:
+      - 9081:9081/tcp
+    environment:
+      # KC_BOOTSTRAP_ADMIN_USERNAME: local
+      # KC_BOOTSTRAP_ADMIN_PASSWORD: local
+      # KEYCLOAK_USER: local
+      # KEYCLOAK_PASSWORD: local
+      DB_VENDOR: POSTGRES
+      DB_SCHEMA: public
+      DB_ADDR: db:5432
+      DB_USER: keycloakuser
+      DB_PASSWORD: keycloakuser
+    volumes:
+      - ./local/keycloak/e2e-realm.json:/tmp/realm-config/master-realm.json
+    networks:
+      net:
+        aliases:
+          - keycloak.localtest.me
+    healthcheck:
+      test: timeout 10s bash -c ':> /dev/tcp/localhost/9081'
       interval: 5s
       timeout: 5s
       retries: 5
@@ -114,6 +169,7 @@ services:
     #    platform: linux/amd64
     container_name: db
     environment:
+      PGUSER: postgres
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
@@ -123,7 +179,7 @@ services:
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
 
@@ -132,7 +188,8 @@ services:
     build:
       # context up a level so that the Dockerfile can pull in plugin source
       context: ../.
-      dockerfile: ./testsuite/Dockerfile.kong
+      args:
+        - KONG_VERSION=2.8.5
     platform: linux/amd64
     command: kong migrations bootstrap
     env_file:
@@ -151,5 +208,11 @@ services:
     depends_on:
       kong-migrations:
         condition: service_completed_successfully
+    networks:
+      - net
+
+  kong-session-store:
+    image: redis:latest
+    container_name: kong-session-store
     networks:
       - net

@@ -1,1 +1,0 @@
-docker build --rm=true --force-rm=true -t oidc-kong .

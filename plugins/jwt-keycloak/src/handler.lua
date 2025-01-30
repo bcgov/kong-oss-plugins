@@ -5,11 +5,14 @@ local kong_meta = require "kong.meta"
 local socket = require "socket"
 local keycloak_keys = require("kong.plugins.jwt-keycloak.keycloak_keys")
 
+local validate_audience = require("kong.plugins.jwt-keycloak.validators.audience").validate_audience
 local validate_issuer = require("kong.plugins.jwt-keycloak.validators.issuers").validate_issuer
 local validate_scope = require("kong.plugins.jwt-keycloak.validators.scope").validate_scope
 local validate_roles = require("kong.plugins.jwt-keycloak.validators.roles").validate_roles
 local validate_realm_roles = require("kong.plugins.jwt-keycloak.validators.roles").validate_realm_roles
 local validate_client_roles = require("kong.plugins.jwt-keycloak.validators.roles").validate_client_roles
+
+local clear_header = kong.service.request.clear_header
 
 local re_gmatch = ngx.re.gmatch
 
@@ -77,6 +80,15 @@ local function custom_helper_issuer_get_keys(well_known_endpoint, cafile)
       keys = decoded_keys,
       updated_at = socket.gettime(),
   }
+end
+
+-- https://www.rfc-editor.org/rfc/rfc6750#section-3
+local function error_exit_headers(status, conf)
+  if conf.realm == nil or status == 403 then
+      return {}
+  else
+      return { ["WWW-Authenticate"] = 'Bearer realm="' .. conf.realm .. '"' }
+  end
 end
 
 -------------------------------------------------------------------------------
@@ -326,7 +338,7 @@ local function custom_match_consumer(conf, jwt)
   end
 
   if consumer then
-      set_consumer(consumer, nil, nil)
+      set_consumer(consumer, { id = jwt.claims["sub"] }, nil)
   end
 
   return true
@@ -340,7 +352,7 @@ local function do_authentication(conf)
   local token, err = retrieve_tokens(conf)
   if err then
     kong.log.err(err)
-    return kong.response.exit(500, { message = "An unexpected error occurred" })
+    return kong.response.exit(500, { message = "An unexpected auth error occurred" })
   end
 
   local token_type = type(token)
@@ -366,6 +378,10 @@ local function do_authentication(conf)
   -- Verify that the issuer is allowed
   if not validate_issuer(conf.allowed_iss, jwt.claims) then
     return false, { status = 401, message = "Token issuer not allowed" }
+  end
+
+  if not validate_audience(conf.allowed_aud, jwt.claims) then
+    return false, { status = 401, message = "Token audience not allowed" }
   end
 
   local algorithm = conf.algorithm or "HS256"
@@ -457,8 +473,16 @@ function JwtKeycloakHandler:access(conf)
       set_consumer(consumer)
 
     else
-      return kong.response.exit(err.status, err.errors or { message = err.message })
+            return kong.response.exit(err.status, err.errors or { message = err.message }, error_exit_headers(err.status, conf))
     end
+  end
+
+  if conf.disable_access_token_header then
+    local header_name = conf.access_token_header
+    if conf.access_token_header == nil then
+        header_name = "authorization"
+    end
+    clear_header (header_name)
   end
 end
 

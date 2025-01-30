@@ -46,6 +46,7 @@ export async function provisionNewService(
     ...base_route,
     ...{
       id: `${unqId}-0000-0000-0000-0000${newId}`,
+      // Kong 3 -- paths: [`~/${newId}/.*`],
       paths: [`/${newId}`],
       name: `svc-${unqId}-${newId}-route`,
       service: { id: service.id },
@@ -65,7 +66,7 @@ export async function provisionNewService(
     }
     pluginConfig.config["redirect_uri"] = `/${newId}/cb`;
   } else if (plugin.name == "jwt-keycloak") {
-    pluginConfig.config["allowed_aud"] = clientDetails.clientId;
+    // pluginConfig.config["allowed_aud"] = clientDetails.clientId;
   }
 
   await provisionKong(request, `${baseURL}/services`, service);
@@ -95,11 +96,13 @@ export async function provisionKong(
   try {
     responseBody = await response.json();
   } catch (e) {
+    console.log(e);
     responseBody = null;
   }
 
   if (response.status() >= 300) {
-    console.error("failed to provision kong", responseBody);
+    const errors = await response.text();
+    console.error("failed to provision kong", errors);
     throw new Error("failed to provision kong");
   }
 

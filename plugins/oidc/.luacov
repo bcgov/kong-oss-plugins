@@ -1,5 +1,5 @@
 return {
     ["include"] = {
-        'kong/plugins/oidc'
+        'src'
     },
 }
