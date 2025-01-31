@@ -33,7 +33,6 @@ test.describe("oidc plugin - happy paths", () => {
             expect(jsonData.headers).toHaveProperty(propName);
           }
         },
-        ,
         checks.expected_cookies_exist,
         checks.expected_cookie_config,
       ]
@@ -65,7 +64,6 @@ test.describe("oidc plugin - happy paths", () => {
             expect(jsonData.headers).not.toHaveProperty(propName);
           }
         },
-        ,
         checks.expected_cookies_exist,
         checks.expected_cookie_config,
       ]

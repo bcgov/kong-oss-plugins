@@ -74,7 +74,9 @@ export default async function runE2Etest(
   console.log(content);
   const jsonData = JSON.parse(content);
 
-  validators.forEach((val) => val(page, jsonData));
+  for (const validator of validators) {
+    await validator(page, jsonData);
+  }
 }
 
 export const checks: any = {
