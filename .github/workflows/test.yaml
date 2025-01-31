@@ -13,7 +13,7 @@ env:
   GIT_REPO_URL: ${{ github.repository }}
 
 jobs:
-  playwright-run:
+  plugin-tests:
     strategy:
       fail-fast: false
       matrix:
@@ -80,7 +80,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          FAILURE_COUNT=$(cat ${{ github.workspace }}/testsuite/playwright-results/test-results.json | jq '.failedTests')
+          FAILURE_COUNT=$(cat ${{ github.workspace }}/testsuite/playwright-results/test-results.json | jq '.stats.unexpected')
           echo "Fail count ${FAILURE_COUNT}"
           if [[ "$FAILURE_COUNT" -gt 0 ]]; then
             FAILED_TESTS=$(jq -r '
@@ -95,6 +95,6 @@ jobs:
             STATS=$(cat ${{ github.workspace }}/testsuite/playwright-results/test-results.json | jq -r '.stats | to_entries | map("\(.key)\t\(.value)") | .[]' | column -t)
             echo -e "Stats: $STATS\n\nFailed Tests:\n$FAILED_TESTS\n\nRun Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" > msg
             export MSG=$(cat msg)
-            gh issue create --title "FAILED: Automated Tests($FAILURE_COUNT)" --body "$MSG" --label "automation" --assignee "${{ env.GIT_COMMIT_AUTHOR }}"
+            gh issue create --title "FAILED: [kong-${{ matrix.kong }} keycloak-${{ matrix.keycloak }}] Automated Tests ($FAILURE_COUNT)" --body "$MSG" --label "automation" --assignee "${{ env.GIT_COMMIT_AUTHOR }}"
             exit 1
           fi
