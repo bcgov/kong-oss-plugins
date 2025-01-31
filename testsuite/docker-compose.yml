@@ -20,8 +20,8 @@ services:
     environment:
       - BASE_URL=http://admin-api.localtest.me:8081
     volumes:
-      - ./e2e-playwright/test-results:/e2e-playwright/test-results
-      - ./e2e-playwright/playwright-results:/e2e-playwright/playwright-results
+      - ./playwright-report:/e2e-playwright/playwright-report
+      - ./playwright-results:/e2e-playwright/playwright-results
     networks:
       - net
     profiles: ["tests"]
