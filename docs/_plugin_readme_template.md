@@ -1,4 +1,3 @@
-
 # Introduction
 
 ## Overview
@@ -20,4 +19,3 @@ The XYZ plugin lets you..
 ## Using the plugin
 
 ## Changelog
-
