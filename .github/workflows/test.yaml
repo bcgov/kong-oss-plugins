@@ -17,8 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kong: ["2.8.5", "3.9.0"]
-        keycloak: ["15.1.1", "26.1.0"]
+        kong: ["2.8.5"]
+        keycloak: ["15.0.2", "15.1.1", "26.1.0"]
 
     runs-on: ubuntu-latest
     env:
@@ -76,12 +76,12 @@ jobs:
           name: kong-${{ matrix.kong }}-keycloak-${{ matrix.keycloak }}-results-html
           path: ${{ github.workspace }}/testsuite/playwright-report/index.html
 
-      - name: Upload E2E Test Results JSON Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kong-${{ matrix.kong }}-keycloak-${{ matrix.keycloak }}-results-json
-          path: ${{ github.workspace }}/testsuite/playwright-results/test-results.json
+      # - name: Upload E2E Test Results JSON Report
+      #   if: always()
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: kong-${{ matrix.kong }}-keycloak-${{ matrix.keycloak }}-results-json
+      #     path: ${{ github.workspace }}/testsuite/playwright-results/test-results.json
 
       - name: Check for failed tests and create Issue
         env:

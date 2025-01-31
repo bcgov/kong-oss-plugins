@@ -52,7 +52,7 @@ services:
       # Kong 3 -- test: curl --fail http://localhost:8007/status/ready || exit 1
       interval: 10s
       timeout: 5s
-      retries: 20
+      retries: 4
 
   deck:
     image: kong/deck:latest
