@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: ./Dockerfile.keycloak
       args:
-        - KC_VERSION=26.1.0
+        - KC_VERSION=${KC_VERSION:-26.1.0}
     depends_on:
       postgres:
         condition: service_healthy
@@ -31,7 +31,7 @@ services:
         "--import-realm",
       ]
     volumes:
-      - ./local/keycloak/e2e-realm.json:/opt/keycloak/data/import/e2e-realm.json
+      - ./local/keycloak/e2e-realm-quarkus.json:/opt/keycloak/data/import/e2e-realm.json
     ports:
       - 9081:9081
     networks:

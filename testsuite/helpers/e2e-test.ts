@@ -66,7 +66,7 @@ export default async function runE2Etest(
 
   await page.locator("input[name=username]").fill("local");
   await page.locator("input[name=password]").fill("local");
-  await page.locator("button[type=submit]").click();
+  await page.locator("[type=submit]").click();
 
   await expect(page.locator("pre")).toBeInViewport();
 
@@ -90,38 +90,74 @@ export const checks: any = {
 
   expected_cookies_exist: async (page: Page, jsonData: any) => {
     const cookies = await page.context().cookies();
+    console.log(cookies);
 
-    expect(cookies.filter((c) => c.name == "AUTH_SESSION_ID").length).toBe(1);
-    expect(cookies.filter((c) => c.name == "KC_AUTH_SESSION_HASH").length).toBe(
-      1
-    );
-    expect(cookies.filter((c) => c.name == "KEYCLOAK_IDENTITY").length).toBe(1);
-    expect(cookies.filter((c) => c.name == "KEYCLOAK_SESSION").length).toBe(1);
-    expect(cookies.filter((c) => c.name == "session").length).toBe(1);
+    const keycloakQuarkus =
+      cookies.filter((c) => c.name == "AUTH_SESSION_ID").length == 1;
+
+    if (keycloakQuarkus) {
+      expect(cookies.filter((c) => c.name == "AUTH_SESSION_ID").length).toBe(1);
+      expect(
+        cookies.filter((c) => c.name == "KC_AUTH_SESSION_HASH").length
+      ).toBe(1);
+      expect(cookies.filter((c) => c.name == "KEYCLOAK_IDENTITY").length).toBe(
+        1
+      );
+      expect(cookies.filter((c) => c.name == "KEYCLOAK_SESSION").length).toBe(
+        1
+      );
+      expect(cookies.filter((c) => c.name == "session").length).toBe(1);
+      expect(cookies.length).toBe(5);
+    } else {
+      expect(
+        cookies.filter((c) => c.name == "AUTH_SESSION_ID_LEGACY").length
+      ).toBe(1);
+      expect(
+        cookies.filter((c) => c.name == "KEYCLOAK_IDENTITY_LEGACY").length
+      ).toBe(1);
+      expect(
+        cookies.filter((c) => c.name == "KEYCLOAK_SESSION_LEGACY").length
+      ).toBe(1);
+      expect(cookies.filter((c) => c.name == "session").length).toBe(1);
+
+      expect(cookies.length).toBe(4);
+    }
 
     //If redis, then the cookie size does not become too big
     //expect(cookies.filter((c) => c.name == "session_2").length).toBe(1);
-
-    expect(cookies.length).toBe(5);
   },
 
   expected_cookie_config: async (page: Page, jsonData: any) => {
     const cookies = await page.context().cookies();
 
-    const expectedCookieValues = {
-      AUTH_SESSION_ID:
-        '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
-      KC_AUTH_SESSION_HASH:
-        '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Strict"}',
-      KEYCLOAK_IDENTITY:
-        '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
-      KEYCLOAK_SESSION:
-        '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
-      session:
-        '{"domain":"kong.localtest.me","path":"/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
-      session_2:
-        '{"domain":"kong.localtest.me","path":"/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
-    };
+    const keycloakQuarkus =
+      cookies.filter((c) => c.name == "AUTH_SESSION_ID").length == 1;
+
+    const expectedCookieValues = keycloakQuarkus
+      ? {
+          AUTH_SESSION_ID:
+            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+          KC_AUTH_SESSION_HASH:
+            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Strict"}',
+          KEYCLOAK_IDENTITY:
+            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+          KEYCLOAK_SESSION:
+            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
+          session:
+            '{"domain":"kong.localtest.me","path":"/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+          session_2:
+            '{"domain":"kong.localtest.me","path":"/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+        }
+      : {
+          AUTH_SESSION_ID_LEGACY:
+            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+          KEYCLOAK_IDENTITY_LEGACY:
+            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+          KEYCLOAK_SESSION_LEGACY:
+            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
+          session:
+            '{"domain":"kong.localtest.me","path":"/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+        };
 
     for (const cookie of cookies) {
       const expected = expectedCookieValues[cookie.name];
@@ -134,7 +170,7 @@ export const checks: any = {
           sameSite,
         }))(cookie)
       );
-      expect(actual).toBe(expected);
+      expect(expected).toBe(actual);
     }
   },
 };

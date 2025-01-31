@@ -5,35 +5,32 @@ services:
       context: .
       dockerfile: ./Dockerfile.keycloak15
       args:
-        - KC_VERSION=15
+        - KC_VERSION=${KC_VERSION:-15}
     depends_on:
       postgres:
         condition: service_healthy
-    command:
-      [
+    command: [
         "-b",
         "0.0.0.0",
         "-Djboss.socket.binding.port-offset=1001",
         "-Dkeycloak.migration.action=import",
         "-Dkeycloak.migration.provider=singleFile",
-        "-Dkeycloak.migration.file=/tmp/realm-config/master-realm.json",
-        "-Dkeycloak.migration.strategy=OVERWRITE_EXISTING",
+        "-Dkeycloak.migration.file=/tmp/realm-config/e2e-realm.json",
+        # "-Dkeycloak.migration.strategy=OVERWRITE_EXISTING",
         "-Dkeycloak.profile.feature.upload_scripts=enabled",
       ]
     ports:
       - 9081:9081/tcp
     environment:
-      # KC_BOOTSTRAP_ADMIN_USERNAME: local
-      # KC_BOOTSTRAP_ADMIN_PASSWORD: local
-      # KEYCLOAK_USER: local
-      # KEYCLOAK_PASSWORD: local
+      KEYCLOAK_USER: local
+      KEYCLOAK_PASSWORD: local
       DB_VENDOR: POSTGRES
       DB_SCHEMA: public
       DB_ADDR: db:5432
       DB_USER: keycloakuser
       DB_PASSWORD: keycloakuser
     volumes:
-      - ./local/keycloak/e2e-realm.json:/tmp/realm-config/master-realm.json
+      - ./local/keycloak/e2e-realm-spring.json:/tmp/realm-config/e2e-realm.json
     networks:
       net:
         aliases:

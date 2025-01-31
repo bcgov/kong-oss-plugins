@@ -24,6 +24,7 @@ services:
       - ./e2e-playwright/playwright-report:/e2e-playwright/playwright-report
     networks:
       - net
+    profiles: ["tests"]
 
   kong:
     image: kong:e2e
@@ -98,7 +99,7 @@ services:
       # context up a level so that the Dockerfile can pull in plugin source
       context: ../.
       args:
-        - KONG_VERSION=2.8.5
+        - KONG_VERSION=${KONG_VERSION:-2.8.5}
     platform: linux/amd64
     command: kong migrations bootstrap
     env_file:

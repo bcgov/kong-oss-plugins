@@ -16,12 +16,14 @@ local schema = {
               type = "string",
               required = true,
               default = "email"
+              -- description = "The claim that should be used for populating the Consumer username."
             }
           },
           { create_consumer = {
             type = "boolean",
             required = true,
             default = false
+            -- description = "Boolean value on whether the consumer record should be created automatically."
           }
         },
       },

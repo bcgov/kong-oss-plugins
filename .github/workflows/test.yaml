@@ -16,8 +16,8 @@ jobs:
   playwright-run:
     strategy:
       matrix:
-        kong: ["3.9.0"]
-        keycloak: ["26.1.0"]
+        kong: ["2.8.5", "3.9.0"]
+        keycloak: ["15.1.1", "26.1.0"]
 
     runs-on: ubuntu-latest
     steps:
@@ -50,7 +50,7 @@ jobs:
               echo "E2E tests completed."
               # cleanup
               docker compose -f docker-compose.yml -f docker-compose-keycloak-quarkus.yml down
-              ls -l e2e-playwright/test-results
+              ls -la
               break
             else
               sleep 30s
@@ -68,20 +68,26 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-json
-          path: ${{ github.workspace }}/testsuite/e2e-playwright
+          path: ${{ github.workspace }}/testsuite/test-results.json
 
       - name: Check for failed tests and create Issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          FAILURE_COUNT=$(cat ${{ github.workspace }}/testsuite/e2e-playwright/test-results/.last-run.json | jq '.failedTests')
+          FAILURE_COUNT=$(cat ${{ github.workspace }}/testsuite/test-results.json | jq '.failedTests')
           if [[ "$FAILURE_COUNT" -gt 0 ]]; then
-            echo -e "Run Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" > msg
+            FAILED_TESTS=$(jq -r '
+              .results[] |
+              (.file | split("/") | .[2:] | join("/")) as $file |
+              .. | 
+              .tests? // empty | 
+              .[] | 
+              select(.fail == true) | 
+              "- " + $file + " - " + .title
+            ' ${{ github.workspace }}/testsuite/test-results.json)
+            STATS=$(cat ${{ github.workspace }}/testsuite/test-results.json | jq -r '.stats | to_entries | map("\(.key)\t\(.value)") | .[]' | column -t)
+            echo -e "Stats: $STATS\n\nFailed Tests:\n$FAILED_TESTS\n\nRun Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" > msg
             export MSG=$(cat msg)
             gh issue create --title "FAILED: Automated Tests($FAILURE_COUNT)" --body "$MSG" --label "automation" --assignee "${{ env.GIT_COMMIT_AUTHOR }}"
             exit 1
-          else
-            echo -e "Run Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" > msg
-            export MSG=$(cat msg)
-            gh issue create --title "PASSED: Automated Tests($FAILURE_COUNT)" --body "$MSG" --label "automation" --assignee "${{ env.GIT_COMMIT_AUTHOR }}"
           fi

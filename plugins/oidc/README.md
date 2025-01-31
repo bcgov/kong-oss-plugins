@@ -29,7 +29,11 @@ The diagram below shows the message exchange between the involved parties.
 The `X-Userinfo` header contains the payload from the Userinfo Endpoint
 
 ```json
-X-Userinfo: {"preferred_username":"alice","id":"60f65308-3510-40ca-83f0-e9c0151cc680","sub":"60f65308-3510-40ca-83f0-e9c0151cc680"}
+{
+  "preferred_username": "alice",
+  "id": "60f65308-3510-40ca-83f0-e9c0151cc680",
+  "sub": "60f65308-3510-40ca-83f0-e9c0151cc680"
+}
 ```
 
 The plugin also sets the `ngx.ctx.authenticated_credential` variable, which can be using in other Kong plugins:
@@ -55,7 +59,7 @@ Host: localhost:8001
 Content-Type: application/x-www-form-urlencoded
 Cache-Control: no-cache
 
-name=oidc&config.client_id=kong-oidc&config.client_secret=29d98bf7-168c-4874-b8e9-9ba5e7382fa0&config.discovery=https%3A%2F%2F<oidc_provider>%2F.well-known%2Fopenid-configuration
+"name=oidc&config.client_id=kong-oidc&config.client_secret=29d98bf7-168c-4874-b8e9-9ba5e7382fa0&config.discovery=https%3A%2F%2F<oidc_provider>%2F.well-known%2Fopenid-configuration"
 ```
 
 To enable the plugin globally:
@@ -66,7 +70,7 @@ Host: localhost:8001
 Content-Type: application/x-www-form-urlencoded
 Cache-Control: no-cache
 
-name=oidc&config.client_id=kong-oidc&config.client_secret=29d98bf7-168c-4874-b8e9-9ba5e7382fa0&config.discovery=https%3A%2F%2F<oidc_provider>%2F.well-known%2Fopenid-configuration
+"name=oidc&config.client_id=kong-oidc&config.client_secret=29d98bf7-168c-4874-b8e9-9ba5e7382fa0&config.discovery=https%3A%2F%2F<oidc_provider>%2F.well-known%2Fopenid-configuration"
 ```
 
 A successful response:
@@ -462,3 +466,35 @@ string | _required_ | **default** no
 ## Using the plugin
 
 ## Changelog
+
+### Version 1.5.0-1
+
+- Refresh README
+- Removed any scripting that did the build
+- Add integration testing using Playwright
+
+> This code is based on https://github.com/ikethecoder/kong-oidc.git and all commit history from that repo has been preserved for proper credit.
+
+**Credits:**
+
+```
+Adam Płaczek <trojan295@gmail.com>
+Damian Czaja <damian.czaja@nokia.com>
+Geoff Kassel <geoff.kassel@biarri.com>
+Gergely Csatari <gergely.csatari@nokia.com>
+Hannu Laurila <hanlaur@writeread.net>
+Joshua Erney <trojan295@gmail.com>
+Lars Wilhelmsen <lars@sral.org>
+Luka Lodrant <trojan295@gmail.com>
+Micah Silverman <micah@afitnerd.com>
+Michal Kulik <michal.kulik@nokia.com>
+Nazarii Makarenko <trojan295@gmail.com>
+Pavel Mikhalchuk <trojan295@gmail.com>
+pekka.hirvonen <pekka.hirvonen@nokia.com>
+The Gitter Badger <trojan295@gmail.com>
+Tom Milligan <trojan295@gmail.com>
+Trojan295 <trojan295@gmail.com>
+Tuomo Syrjanen <tuomo.syrjanen@nokia.com>
+Yoriyasu Yano <trojan295@gmail.com>
+Yuan Cheung <trojan295@gmail.com>
+```
