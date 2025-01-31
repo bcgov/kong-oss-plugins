@@ -28,6 +28,7 @@ jobs:
         working-directory: testsuite
         run: |
           docker compose \
+            --profile tests \
             -f docker-compose.yml \
             -f docker-compose-keycloak-quarkus.yml \
             build
@@ -36,7 +37,10 @@ jobs:
         working-directory: testsuite
         run: |
           export CI=true
-          docker compose -f docker-compose.yml -f docker-compose-keycloak-quarkus.yml up -d
+          docker compose --profile tests \
+            -f docker-compose.yml \
+            -f docker-compose-keycloak-quarkus.yml \
+            up -d
 
       - name: Execute Tests & Clean Up
         working-directory: testsuite
@@ -49,8 +53,9 @@ jobs:
             if [ "$(docker ps -aq -f status=exited -f name=playwright)" ]; then
               echo "E2E tests completed."
               # cleanup
-              docker compose -f docker-compose.yml -f docker-compose-keycloak-quarkus.yml down
+              docker compose --profile tests -f docker-compose.yml -f docker-compose-keycloak-quarkus.yml down
               ls -la
+              ls -la test-results
               break
             else
               sleep 30s
@@ -68,13 +73,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-json
-          path: ${{ github.workspace }}/testsuite/test-results.json
+          path: ${{ github.workspace }}/testsuite/e2e-playwright/playwright-results/test-results.json
 
       - name: Check for failed tests and create Issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          FAILURE_COUNT=$(cat ${{ github.workspace }}/testsuite/test-results.json | jq '.failedTests')
+          FAILURE_COUNT=$(cat ${{ github.workspace }}/testsuite/e2e-playwright/playwright-results/test-results.json | jq '.failedTests')
           if [[ "$FAILURE_COUNT" -gt 0 ]]; then
             FAILED_TESTS=$(jq -r '
               .results[] |
@@ -84,8 +89,8 @@ jobs:
               .[] | 
               select(.fail == true) | 
               "- " + $file + " - " + .title
-            ' ${{ github.workspace }}/testsuite/test-results.json)
-            STATS=$(cat ${{ github.workspace }}/testsuite/test-results.json | jq -r '.stats | to_entries | map("\(.key)\t\(.value)") | .[]' | column -t)
+            ' ${{ github.workspace }}/testsuite/e2e-playwright/playwright-results/test-results.json)
+            STATS=$(cat ${{ github.workspace }}/testsuite/e2e-playwright/playwright-results/test-results.json | jq -r '.stats | to_entries | map("\(.key)\t\(.value)") | .[]' | column -t)
             echo -e "Stats: $STATS\n\nFailed Tests:\n$FAILED_TESTS\n\nRun Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" > msg
             export MSG=$(cat msg)
             gh issue create --title "FAILED: Automated Tests($FAILURE_COUNT)" --body "$MSG" --label "automation" --assignee "${{ env.GIT_COMMIT_AUTHOR }}"
