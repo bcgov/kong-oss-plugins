@@ -21,6 +21,8 @@ jobs:
         keycloak: ["15.1.1", "26.1.0"]
 
     runs-on: ubuntu-latest
+    env:
+      DOCKER_COMPOSE_FILE: "${{ matrix.keycloak == '26.1.0' && 'docker-compose-keycloak-quarkus.yml' || 'docker-compose-keycloak-spring.yml' }}"
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -33,7 +35,7 @@ jobs:
           docker compose \
             --profile tests \
             -f docker-compose.yml \
-            -f docker-compose-keycloak-quarkus.yml \
+            -f ${DOCKER_COMPOSE_FILE} \
             build
 
       - name: Spin up Kong and its dependencies and run tests
@@ -42,7 +44,7 @@ jobs:
           export CI=true
           docker compose --profile tests \
             -f docker-compose.yml \
-            -f docker-compose-keycloak-quarkus.yml \
+            -f ${DOCKER_COMPOSE_FILE} \
             up -d
 
       - name: Wait for tests to finish & clean up
@@ -56,7 +58,10 @@ jobs:
             if [ "$(docker ps -aq -f status=exited -f name=playwright)" ]; then
               echo "E2E tests completed."
               # cleanup
-              docker compose --profile tests -f docker-compose.yml -f docker-compose-keycloak-quarkus.yml down
+              docker compose --profile tests \
+                -f docker-compose.yml \
+                -f ${DOCKER_COMPOSE_FILE} \
+                down
               ls -la
               ls -la playwright-results || echo
               break
