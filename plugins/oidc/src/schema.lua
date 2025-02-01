@@ -121,7 +121,7 @@ return {
             }
           },
           {
-            use_pkce  = {
+            use_pkce = {
               type = "string",
               required = true,
               default = "no"
@@ -314,7 +314,7 @@ return {
               required = false,
               elements = {
                 type = "string"
-              },
+              }
             }
           },
           {

@@ -39,7 +39,6 @@ local function validate_roles(allowed_roles, jwt_claims)
     for i, allowed in pairs(allowed_roles) do
         tmp_allowed[i] = jwt_claims.azp .. ":" .. allowed
     end
-    
     return validate_client_roles(tmp_allowed, jwt_claims)
 end
 

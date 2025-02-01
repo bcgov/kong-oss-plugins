@@ -5,7 +5,7 @@ local M = {}
 
 local function parseFilters(csvFilters)
   local filters = {}
-  if (not (csvFilters == nil)) and (not (csvFilters == ",")) then
+  if csvFilters ~= nil and csvFilters ~= "," then
     for pattern in string.gmatch(csvFilters, "[^,]+") do
       table.insert(filters, pattern)
     end
@@ -93,7 +93,7 @@ function M.get_options(config, ngx)
     header_names = config.header_names or {},
     header_claims = config.header_claims or {},
     proxy_opts = {
-      http_proxy  = config.http_proxy,
+      http_proxy = config.http_proxy,
       https_proxy = config.https_proxy
     }
   }
@@ -177,16 +177,18 @@ end
 
 function M.injectHeaders(header_names, header_claims, sources)
   if #header_names ~= #header_claims then
-    kong.log.err('Different number of elements provided in header_names and header_claims. Headers will not be added.')
+    kong.log.err("Different number of elements provided in header_names and header_claims. Headers will not be added.")
     return
   end
   for i = 1, #header_names do
-    local header, claim
+    local header,
+      claim
     header = header_names[i]
-    claim = header_claims[i] 
+    claim = header_claims[i]
     kong.service.request.clear_header(header)
     for j = 1, #sources do
-      local source, claim_value
+      local source,
+        claim_value
       source = sources[j]
       if source then
         claim_value = source[claim]
@@ -204,10 +206,10 @@ function M.injectHeaders(header_names, header_claims, sources)
 end
 
 function M.has_bearer_access_token()
-  local header = ngx.req.get_headers()['Authorization']
+  local header = ngx.req.get_headers()["Authorization"]
   if header and header:find(" ") then
-    local divider = header:find(' ')
-    if string.lower(header:sub(0, divider-1)) == string.lower("Bearer") then
+    local divider = header:find(" ")
+    if string.lower(header:sub(0, divider - 1)) == string.lower("Bearer") then
       return true
     end
   end
@@ -221,12 +223,11 @@ function M.has_common_item(t1, t2)
     return false
   end
   if type(t1) == "string" then
-    t1 = { t1 }
+    t1 = {t1}
   end
   if type(t2) == "string" then
-    t2 = { t2 }
+    t2 = {t2}
   end
-  local i1, i2
   for _, i1 in pairs(t1) do
     for _, i2 in pairs(t2) do
       if type(i1) == "string" and type(i2) == "string" and i1 == i2 then
