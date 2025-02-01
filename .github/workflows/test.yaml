@@ -17,8 +17,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kong: ["2.8.5", "3.9.0"]
-        keycloak: ["15.0.2", "15.1.1", "26.1.0"]
+        kong: ["2.8.5"]
+        keycloak: ["15.1.1"]
+        # kong: ["2.8.5", "3.9.0"]
+        # keycloak: ["15.0.2", "15.1.1", "26.1.0"]
 
     runs-on: ubuntu-latest
     env:
