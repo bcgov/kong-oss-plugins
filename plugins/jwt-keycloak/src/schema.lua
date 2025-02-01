@@ -91,7 +91,7 @@ local schema = {
       }
     }
   },
-  ecks = {
+  entity_checks = {
     {
       conditional = {
         if_field = "config.maximum_expiration",
