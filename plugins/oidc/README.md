@@ -143,20 +143,20 @@ _Note that the `openid` scope is a mandatory designator scope._
 
 #### Description of the standard claims
 
-| Claim                | Type           | Description                                                                                                                                                 |
-| -------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `iss`                | URI            | The Uniform Resource Identifier uniquely identifying the OpenID Connect Provider (_OP_)                                                                     |
-| `aud`                | string / array | The intended audiences. For ID tokens, the identity token is one or more clients. For Access tokens, the audience is typically one or more Resource Servers |
-| `nbf`                | integer        | _Not before_ timestamp in Unix Epoch time\*. May be omitted or set to 0 to indicate that the audience can disregard the claim                               |
-| `exp`                | integer        | _Expires_ timestamp in Unix Epoch time\*                                                                                                                    |
-| `name`               | string         | Preferred display name. Ex. `John Doe`                                                                                                                      |
-| `family_name`        | string         | Last name. Ex. `Doe`                                                                                                                                        |
-| `given_name`         | string         | First name. Ex. `John`                                                                                                                                      |
-| `middle_name`        | string         | Middle name. Ex. `Donald`                                                                                                                                   |
-| `nickname`           | string         | Nick name. Ex. `Johnny`                                                                                                                                     |
-| `preferred_username` | string         | Preferred user name. Ex. `johdoe`                                                                                                                           |
-| `picture`            | base64         | A Base-64 encoded picture (typically PNG or JPEG) of the subject                                                                                            |
-| `updated_at`         | integer        | A timestamp in Unix Epoch time\*                                                                                                                            |
+| Claim                | Type             | Description                                                                                                                                                 |
+| -------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `iss`                | URI              | The Uniform Resource Identifier uniquely identifying the OpenID Connect Provider (_OP_)                                                                     |
+| `aud`                | `string` / array | The intended audiences. For ID tokens, the identity token is one or more clients. For Access tokens, the audience is typically one or more Resource Servers |
+| `nbf`                | integer          | _Not before_ timestamp in Unix Epoch time\*. May be omitted or set to 0 to indicate that the audience can disregard the claim                               |
+| `exp`                | integer          | _Expires_ timestamp in Unix Epoch time\*                                                                                                                    |
+| `name`               | `string`         | Preferred display name. Ex. `John Doe`                                                                                                                      |
+| `family_name`        | `string`         | Last name. Ex. `Doe`                                                                                                                                        |
+| `given_name`         | `string`         | First name. Ex. `John`                                                                                                                                      |
+| `middle_name`        | `string`         | Middle name. Ex. `Donald`                                                                                                                                   |
+| `nickname`           | `string`         | Nick name. Ex. `Johnny`                                                                                                                                     |
+| `preferred_username` | `string`         | Preferred user name. Ex. `johdoe`                                                                                                                           |
+| `picture`            | base64           | A Base-64 encoded picture (typically PNG or JPEG) of the subject                                                                                            |
+| `updated_at`         | integer          | A timestamp in Unix Epoch time\*                                                                                                                            |
 
 `*` (Seconds since January 1st 1970).
 
@@ -183,235 +183,235 @@ Here's a list of all the config parameters which can be used in this plugin's co
 
 #### access_token_as_bearer
 
-string | _optional_ | **default** no
+`string` | _optional_ | **default** `no`
 
 > Indicates whether the access token should be used as a bearer token.
 
 #### access_token_header_name
 
-string | _optional_ | **default** X-Access-Token
+`string` | _optional_ | **default** `X-Access-Token`
 
 > The name of the header used to send the access token.
 
 #### bearer_jwt_auth_enable
 
-string | _optional_ | **default** no
+`string` | _optional_ | **default** `no`
 
 > Whether JWT-based bearer authentication is enabled.
 
 #### bearer_jwt_auth_allowed_auds
 
-array (string) | _optional_ |
+`set (string)` | _optional_ |
 
 > The allowed audiences for JWT bearer authentication.
 
 #### bearer_jwt_auth_signing_algs
 
-array (string) | _required_ | **default** RS256
+`set (string)` | _required_ | **default** `RS256`
 
 > The signing algorithms allowed for JWT bearer tokens.
 
 #### bearer_only
 
-string | _required_ | **default** no
+`string` | _required_ | **default** `no`
 
 > Specifies whether the service should only accept bearer tokens.
 
 #### client_id
 
-string | _required_ |
+`string` | _required_ |
 
 > The client ID used for authentication.
 
 #### client_secret
 
-string | _required_ |
+`string` | _required_ |
 
 > The client secret used for authentication.
 
 #### discovery
 
-string | _required_ | **default** https://.well-known/openid-configuration
+`string` | _required_ | **default** `https://.well-known/openid-configuration`
 
 > The URL for discovering OpenID Connect configuration.
 
 #### disable_access_token_header
 
-string | _optional_ | **default** no
+`string` | _optional_ | **default** `no`
 
 > Whether to disable the access token header.
 
 #### disable_id_token_header
 
-string | _optional_ | **default** no
+`string` | _optional_ | **default** `no`
 
 > Whether to disable the ID token header.
 
 #### disable_userinfo_header
 
-string | _optional_ | **default** no
+`string` | _optional_ | **default** `no`
 
 > Whether to disable the user info header.
 
 #### filters
 
-string | _optional_ |
+`string` | _optional_ |
 
 > A list of filters to be applied.
 
 #### groups_claim
 
-string | _optional_ | **default** groups
+`string` | _optional_ | **default** `groups`
 
 > The claim representing user groups.
 
 #### header_claims
 
-array (string) | _required_ | **default** {}
+`set (string)` | _required_ | **default** `{}`
 
 > A list of claims that should be included in the headers.
 
 #### header_names
 
-array (string) | _required_ | **default** {}
+`set (string)` | _required_ | **default** `{}`
 
 > The names of headers that should be included in the request.
 
 #### https_proxy
 
-string | _optional_ |
+`string` | _optional_ |
 
 > The HTTPS proxy server to use.
 
 #### http_proxy
 
-string | _optional_ |
+`string` | _optional_ |
 
 > The HTTP proxy server to use.
 
 #### ignore_auth_filters
 
-string | _optional_ |
+`string` | _optional_ |
 
 > A flag indicating whether authentication filters should be ignored.
 
 #### introspection_cache_ignore
 
-string | _required_ | **default** no
+`string` | _required_ | **default** `no`
 
 > Whether the introspection cache should be ignored.
 
 #### introspection_endpoint
 
-string | _optional_ |
+`string` | _optional_ |
 
 > The endpoint used for introspection of tokens.
 
 #### introspection_endpoint_auth_method
 
-string | _optional_ |
+`string` | _optional_ |
 
 > The authentication method used for introspection endpoint.
 
 #### logout_path
 
-string | _optional_ | **default** /logout
+`string` | _optional_ | **default** `/logout`
 
 > The URL path to redirect to after logout.
 
 #### post_logout_redirect_uri
 
-string | _optional_ |
+`string` | _optional_ |
 
 > The URI to redirect to after logout.
 
 #### realm
 
-string | _required_ | **default** kong
+`string` | _required_ | **default** `kong`
 
 > The realm or domain for authentication.
 
 #### recovery_page_path
 
-string | _optional_ |
+`string` | _optional_ |
 
 > The path for the recovery page.
 
 #### redirect_after_logout_uri
 
-string | _optional_ | **default** /
+`string` | _optional_ | **default** `/`
 
 > The URI to redirect to after logout.
 
 #### redirect_after_logout_with_id_token_hint
 
-string | _optional_ | **default** no
+`string` | _optional_ | **default** `no`
 
 > Whether to include an ID token hint after logout.
 
 #### redirect_uri
 
-string | _optional_ |
+`string` | _optional_ |
 
 > The URI where the user should be redirected.
 
 #### revoke_tokens_on_logout
 
-string | _optional_ | **default** no
+`string` | _optional_ | **default** `no`
 
 > Whether tokens should be revoked upon logout.
 
 #### scope
 
-string | _required_ | **default** openid
+`string` | _required_ | **default** `openid`
 
 > The scope of the request, typically used for authentication.
 
 #### session_check_addr
 
-string | _optional_ | **default** no
+`string` | _optional_ | **default** `no`
 
 > Whether to check the user's IP address during session validation.
 
 #### session_check_scheme
 
-string | _optional_ | **default** yes
+`string` | _optional_ | **default** `yes`
 
 > Whether to check the protocol scheme during session validation.
 
 #### session_check_ssi
 
-string | _optional_ | **default** no
+`string` | _optional_ | **default** `no`
 
 > Whether to check the session state index during session validation.
 
 #### session_check_ua
 
-string | _optional_ | **default** yes
+`string` | _optional_ | **default** `yes`
 
 > Whether to check the user agent during session validation.
 
 #### session_secure
 
-string | _optional_ | **default** no
+`string` | _optional_ | **default** `no`
 
 > Whether the session should be marked as secure.
 
 #### session_secret
 
-string | _optional_ |
+`string` | _optional_ |
 
 > The secret used to encrypt session data.
 
 #### session_samesite
 
-string | _optional_ |
+`string` | _optional_ |
 
 > The SameSite policy for session cookies.
 
 #### ssl_verify
 
-string | _required_ | **default** no
+`string` | _required_ | **default** `no`
 
 > Whether SSL verification is enabled.
 
@@ -423,47 +423,69 @@ number | _optional_ |
 
 #### token_endpoint_auth_method
 
-string | _required_ | **default** client_secret_post
+`string` | _required_ | **default** `client_secret_post`
 
 > The authentication method used at the token endpoint.
 
 #### unauth_action
 
-string | _optional_ | **default** auth
+`string` | _optional_ | **default** `auth`
 
 > The action to take when a user is not authenticated.
 
 #### use_jwks
 
-string | _required_ | **default** no
+`string` | _required_ | **default** `no`
 
 > Whether to use JWKS (JSON Web Key Set) for key management.
 
 #### use_nonce
 
-string | _required_ | **default** no
+`string` | _required_ | **default** `no`
 
 > Whether to use a nonce during authentication.
 
 #### use_pkce
 
-string | _required_ | **default** no
+`string` | _required_ | **default** `no`
 
 > Whether to use PKCE (Proof Key for Code Exchange) during authentication.
 
 #### userinfo_header_name
 
-string | _optional_ | **default** X-USERINFO
+`string` | _optional_ | **default** `X-USERINFO`
 
 > The name of the header that contains user information.
 
 #### validate_scope
 
-string | _required_ | **default** no
+`string` | _required_ | **default** `no`
 
 > Whether the scope should be validated.
 
 ## Using the plugin
+
+Example below uses the `deck` CLI for configuring Kong.
+
+```yaml
+services:
+- name: oidc-test
+  url: https://httpbin.org
+  routes:
+  - name: oidc-test
+    hosts:
+    - localhost
+  plugins:
+  - name: oidc
+    config:
+      discovery: https://<KEYCLOAK>/.well-known/openid-configuration
+      client_id: ""
+      client_secret: ""
+```
+
+Run the deck command passing the above config into stdin: `deck sync --state -`
+
+Go to: http://localhost:8000/headers
 
 ## Changelog
 
