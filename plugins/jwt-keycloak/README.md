@@ -158,7 +158,7 @@ services:
   - name: jwt-keycloak
     config:
       allowed_iss:
-      - https://dev.loginproxy.gov.bc.ca/auth/realms/standard
+      - https://<KEYCLOAK>/auth/realms/<REALM>
 ```
 
 Run the deck command passing the above config into stdin: `deck sync --state -`
