@@ -2,8 +2,6 @@
 
 ## Scope
 
-### TODO
-
 - default.spec.ts : try and prove tests that are setup
 - introspection
 - bearer_jwt_auth
@@ -15,7 +13,7 @@
   - skip_already_auth_requests: "no"
 
 - groups_claim
-- sessions (secret, secure, session*check*\*)
+- sessions (secret, secure, session check)
 - logout (revoke token on logout, redirects)
 - token info
 
