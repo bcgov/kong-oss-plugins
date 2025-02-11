@@ -1,0 +1,101 @@
+name: Playwright E2E Tests
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: ["main", "feature/*"]
+
+env:
+  GIT_COMMIT_BRANCH: ${{ github.ref_name }}
+  GIT_COMMIT_SHA: ${{ github.sha }}
+  GIT_COMMIT_AUTHOR: ${{ github.actor }}
+  GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+  GIT_REPO_URL: ${{ github.repository }}
+
+jobs:
+  plugin-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        kong: ["2.8.5"]
+        keycloak: ["15.1.1"]
+        # kong: ["2.8.5", "3.9.0"]
+        # keycloak: ["15.0.2", "15.1.1", "26.1.0"]
+
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_COMPOSE_FILE: "${{ matrix.keycloak == '26.1.0' && 'docker-compose-keycloak-quarkus.yml' || 'docker-compose-keycloak-spring.yml' }}"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Build Docker Images
+        working-directory: testsuite
+        run: |
+          KC_VERSION=${{ matrix.keycloak }} \
+          KONG_VERSION=${{ matrix.kong }} \
+          docker compose \
+            --profile tests \
+            -f docker-compose.yml \
+            -f ${DOCKER_COMPOSE_FILE} \
+            build
+
+      - name: Spin up Kong and its dependencies and run tests
+        working-directory: testsuite
+        run: |
+          export CI=true
+          docker compose --profile tests \
+            -f docker-compose.yml \
+            -f ${DOCKER_COMPOSE_FILE} \
+            up -d
+
+      - name: Wait for tests to finish & clean up
+        working-directory: testsuite
+        run: |
+          # Start following logs in the background with continuous output
+          docker logs -f e2e-playwright-1 2>&1 &
+          LOG_PID=$!
+
+          while true; do
+            if [ "$(docker ps -aq -f status=exited -f name=playwright)" ]; then
+              echo "E2E tests completed."
+              # cleanup
+              docker compose --profile tests \
+                -f docker-compose.yml \
+                -f ${DOCKER_COMPOSE_FILE} \
+                down
+              break
+            else
+              sleep 30s
+            fi
+          done
+
+      - name: Upload E2E Test Results HTML Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: kong-${{ matrix.kong }}-keycloak-${{ matrix.keycloak }}-results-html
+          path: ${{ github.workspace }}/testsuite/playwright-report/index.html
+
+      - name: Check for failed tests and create Issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FAILURE_COUNT=$(cat ${{ github.workspace }}/testsuite/playwright-results/test-results.json | jq '.stats.unexpected')
+          echo "Fail count ${FAILURE_COUNT}"
+          if [[ "$FAILURE_COUNT" -gt 0 ]]; then
+            FAILED_TESTS=""
+            # FAILED_TESTS=$(jq -r '
+            #   .results[] |
+            #   (.file | split("/") | .[2:] | join("/")) as $file |
+            #   .. | 
+            #   .tests? // empty | 
+            #   .[] | 
+            #   select(.fail == true) | 
+            #   "- " + $file + " - " + .title
+            # ' ${{ github.workspace }}/testsuite/playwright-results/test-results.json)
+            STATS=$(cat ${{ github.workspace }}/testsuite/playwright-results/test-results.json | jq -r '.stats | to_entries | map("\(.key)\t\(.value)") | .[]' | column -t)
+            echo -e "Stats: $STATS\n\nFailed Tests:\n$FAILED_TESTS\n\nRun Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" > msg
+            export MSG=$(cat msg)
+            gh issue create --title "FAILED: [kong-${{ matrix.kong }} keycloak-${{ matrix.keycloak }}] Automated Tests ($FAILURE_COUNT)" --body "$MSG" --label "automation" --assignee "${{ env.GIT_COMMIT_AUTHOR }}"
+            exit 1
+          fi

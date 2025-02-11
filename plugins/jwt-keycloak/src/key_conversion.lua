@@ -4,7 +4,7 @@ local string = string
 local b64 = ngx.encode_base64
 local unb64 = ngx.decode_base64
 
-local wrap = ('.'):rep(64)
+local wrap = ("."):rep(64)
 
 local function encode_length(length)
     if length < 0x80 then
@@ -36,7 +36,7 @@ end
 
 local function der2pem(data, typ)
     data = b64(data)
-    return data:gsub(wrap, '%0\n', (#data - 1) / 64)
+    return data:gsub(wrap, "%0\n", (#data - 1) / 64)
 end
 
 local function encode_binary_integer(bytes)
@@ -57,25 +57,32 @@ local function openidc_base64_url_decode(input)
     local reminder = #input % 4
     if reminder > 0 then
         local padlen = 4 - reminder
-        input = input .. string.rep('=', padlen)
+        input = input .. string.rep("=", padlen)
     end
-    input = input:gsub('-', '+'):gsub('_', '/')
+    input = input:gsub("-", "+"):gsub("_", "/")
     return unb64(input)
 end
 
 local function openidc_pem_from_rsa_n_and_e(n, e)
     local der_key = {
-        openidc_base64_url_decode(n), openidc_base64_url_decode(e)
+        openidc_base64_url_decode(n),
+        openidc_base64_url_decode(e)
     }
 
     local encoded_key = encode_sequence_of_integer(der_key)
-    local pem = der2pem(encode_sequence({
-        encode_sequence({
-        "\6\9\42\134\72\134\247\13\1\1\1" -- OID :rsaEncryption
-        .. "\5\0" -- ASN.1 NULL of length 0
-        }),
-        encode_bit_string(encoded_key)
-        }), "PUBLIC KEY"
+    local pem =
+        der2pem(
+        encode_sequence(
+            {
+                encode_sequence(
+                    {
+                        "\6\9\42\134\72\134\247\13\1\1\1" .. "\5\0" -- OID :rsaEncryption -- ASN.1 NULL of length 0
+                    }
+                ),
+                encode_bit_string(encoded_key)
+            }
+        ),
+        "PUBLIC KEY"
     )
 
     return pem

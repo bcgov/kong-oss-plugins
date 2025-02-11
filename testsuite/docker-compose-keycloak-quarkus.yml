@@ -1,0 +1,45 @@
+services:
+  keycloak:
+    image: keycloak-quarkus:e2e
+    build:
+      context: .
+      dockerfile: ./Dockerfile.keycloak
+      args:
+        - KC_VERSION=${KC_VERSION:-26.1.0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: local
+      KC_BOOTSTRAP_ADMIN_PASSWORD: local
+    command:
+      [
+        "start",
+        "--optimized",
+        "--hostname",
+        "http://keycloak.localtest.me:9081/auth",
+        "--db-url",
+        "jdbc:postgresql://db/keycloak",
+        "--db-username",
+        "keycloakuser",
+        "--db-password",
+        "keycloakuser",
+        "--http-enabled",
+        "true",
+        "--http-port",
+        "9081",
+        "--import-realm",
+      ]
+    volumes:
+      - ./local/keycloak/e2e-realm-quarkus.json:/opt/keycloak/data/import/e2e-realm.json
+    ports:
+      - 9081:9081
+    networks:
+      net:
+        aliases:
+          - keycloak.localtest.me
+    healthcheck:
+      test: timeout 10s bash -c ':> /dev/tcp/localhost/9081'
+      interval: 5s
+      timeout: 5s
+      retries: 5

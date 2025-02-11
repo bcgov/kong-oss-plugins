@@ -1,0 +1,16 @@
+FROM mcr.microsoft.com/playwright:v1.49.1-noble
+
+RUN npx playwright install chrome
+
+WORKDIR /e2e-playwright
+
+# Copy package.json and package-lock.json
+COPY . .
+
+# Install dependencies
+RUN npm ci
+
+# Create directories for results and reports
+RUN mkdir -p playwright-results playwright-reports
+
+CMD ["npx", "playwright", "test"]
