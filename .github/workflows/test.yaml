@@ -3,7 +3,7 @@ name: Playwright E2E Tests
 on:
   workflow_dispatch: {}
   push:
-    branches: ["cleanup"]
+    branches: ["main", "feature/*"]
 
 env:
   GIT_COMMIT_BRANCH: ${{ github.ref_name }}
