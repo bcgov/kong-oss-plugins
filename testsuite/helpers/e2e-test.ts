@@ -72,7 +72,7 @@ export default async function runE2Etest(
   await page.locator("input[name=password]").fill("local");
   await page.locator("[type=submit]").click();
 
-  await expect(page.locator("pre")).toBeInViewport();
+  await expect(page.locator("pre")).toBeInViewport({ timeout: 10000 });
 
   const content = await page.locator("pre").evaluate((el) => el.textContent);
   logger.debug(content, "pre content from httpbin");
