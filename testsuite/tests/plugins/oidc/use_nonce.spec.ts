@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import runE2Etest, { checks } from "../../../helpers/e2e-test";
 import { URL } from "url";
+import logger from "../../../helpers/logger";
 
 test.describe("oidc plugin - happy paths", () => {
   test("public client and use_nonce", async ({ page, request }) => {
@@ -28,7 +29,7 @@ test.describe("oidc plugin - happy paths", () => {
       {
         onLoginSuccess: async (response) => {
           const queryParams = new URL(response.request().url()).searchParams;
-          console.log(queryParams);
+          logger.debug(queryParams, "test login success query params");
           expect(queryParams.get("nonce")).not.toBeNull();
           expect(queryParams.get("code_challenge")).not.toBeNull();
           expect(queryParams.get("code_challenge_method")).toBe("S256");

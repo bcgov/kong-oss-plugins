@@ -4,6 +4,7 @@ import runE2Etest, { checks } from "../../../helpers/e2e-test";
 import prepare from "../../../helpers/prepare-client-and-service";
 import { clientLogin } from "../../../helpers/keycloak";
 import { callAPI, setHeaders } from "../../../helpers/api";
+import logger from "../../../helpers/logger";
 
 test.describe("jwt-keycloak plugin - happy paths", () => {
   test("using defaults", async ({ page, request }) => {
@@ -21,7 +22,7 @@ test.describe("jwt-keycloak plugin - happy paths", () => {
       ["admin", "viewer"]
     );
 
-    console.log(clientDetails);
+    logger.debug(clientDetails, "test client details");
 
     // login with client to get token
     const accessToken = await clientLogin(
@@ -43,7 +44,7 @@ test.describe("jwt-keycloak plugin - happy paths", () => {
 
     const upstreamRequestHeaders = result.apiRes.body.headers;
 
-    console.log(upstreamRequestHeaders);
+    logger.debug(upstreamRequestHeaders, "test upstream request headers");
     expect(upstreamRequestHeaders).toHaveProperty("Authorization");
   });
 });

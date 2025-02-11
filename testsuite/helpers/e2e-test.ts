@@ -8,6 +8,7 @@ import {
 import { provisionNewService } from "./kong";
 import { createClient } from "./keycloak";
 import prepare from "./prepare-client-and-service";
+import logger from "./logger";
 
 interface Hooks {
   onLoginError?: (response: Response) => Promise<void>;
@@ -17,7 +18,7 @@ interface Hooks {
 const defaultHooks: Hooks = {
   onLoginError: async (response: Response) => {
     const queryParams = new URL(response.request().url()).searchParams;
-    console.log(queryParams);
+    logger.debug(queryParams, "Login Error");
 
     expect(response.status()).toBeLessThan(300);
   },
@@ -46,10 +47,13 @@ export default async function runE2Etest(
   );
 
   if (response.status() >= 300) {
-    console.log(
-      response.status(),
-      response.statusText(),
-      response.request().url()
+    logger.debug(
+      {
+        status: response.status(),
+        statusText: response.statusText(),
+        url: response.request().url(),
+      },
+      "error status"
     );
 
     await (hooks.onLoginError ? hooks.onLoginError : defaultHooks.onLoginError)(
@@ -71,7 +75,7 @@ export default async function runE2Etest(
   await expect(page.locator("pre")).toBeInViewport();
 
   const content = await page.locator("pre").evaluate((el) => el.textContent);
-  console.log(content);
+  logger.debug(content, "pre content from httpbin");
   const jsonData = JSON.parse(content);
 
   for (const validator of validators) {
@@ -92,7 +96,7 @@ export const checks: any = {
 
   expected_cookies_exist: async (page: Page, jsonData: any) => {
     const cookies = await page.context().cookies();
-    console.log(cookies);
+    logger.debug(cookies, "page cookies");
 
     const keycloakQuarkus =
       cookies.filter((c) => c.name == "AUTH_SESSION_ID").length == 1;

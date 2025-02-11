@@ -7,6 +7,7 @@ import {
 } from "@playwright/test";
 import { provisionNewService } from "./kong";
 import { createClient } from "./keycloak";
+import logger from "./logger";
 
 export default async function prepare(
   request: APIRequestContext,
@@ -31,6 +32,9 @@ export default async function prepare(
     clientDetails
   );
 
-  console.log({ url: `http://kong.localtest.me:8000${routePath}/headers` });
+  logger.debug(
+    { url: `http://kong.localtest.me:8000${routePath}/headers` },
+    "new service url"
+  );
   return { routePath, clientDetails };
 }

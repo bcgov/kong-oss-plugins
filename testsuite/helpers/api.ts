@@ -1,4 +1,5 @@
 import { APIRequestContext, expect } from "@playwright/test";
+import logger from "./logger";
 
 let requestBody: any = {};
 let headers: Record<string, string> = {
@@ -41,7 +42,7 @@ export async function callAPI(
 
   if (response.status() >= 300) {
     const errors = await response.text();
-    console.error("failed to call", endpoint, method, errors);
+    logger.error({ endpoint, method, errors }, "failed to call");
     throw new Error("failed to call " + endpoint);
   }
 

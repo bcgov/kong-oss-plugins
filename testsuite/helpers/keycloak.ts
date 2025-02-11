@@ -4,6 +4,7 @@ import { callAPI, setRequestBody, setHeaders } from "./api";
 import { APIRequestContext } from "playwright";
 import { expect } from "@playwright/test";
 import { mergeDeep } from "./deep-merge";
+import logger from "./logger";
 
 export async function adminLogin() {
   const result = await fetch(
@@ -84,6 +85,6 @@ export async function createClient(
     expect(statusForRole).toBe(201);
   }
 
-  console.log(headers["location"]);
+  logger.debug(headers["location"], "location header");
   return { clientId: payload.clientId, clientSecret: payload.secret };
 }

@@ -1,4 +1,5 @@
 import { APIRequestContext } from "playwright";
+import logger from "./logger";
 
 const base_service = {
   id: "00000000-0000-0000-0000-00000000000",
@@ -96,13 +97,13 @@ export async function provisionKong(
   try {
     responseBody = await response.json();
   } catch (e) {
-    console.log(e);
+    logger.debug(e, "Error parsing json response");
     responseBody = null;
   }
 
   if (response.status() >= 300) {
     const errors = await response.text();
-    console.error("failed to provision kong", errors);
+    logger.error(errors, "failed to provision kong");
     throw new Error("failed to provision kong");
   }
 
