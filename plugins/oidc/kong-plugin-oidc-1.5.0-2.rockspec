@@ -1,5 +1,5 @@
 package = "kong-plugin-oidc"
-version = "1.5.0-1"
+version = "1.5.0-2"
 source = {
   url = "git://github.com/bcgov/kong-oss-plugins",
   tag = "main",
@@ -24,7 +24,7 @@ description = {
 }
 
 dependencies = {
-  "lua-resty-openidc ~> 1.7.6-3"
+  "lua-resty-openidc ~> 1.8.0-1"
 }
 
 build = {

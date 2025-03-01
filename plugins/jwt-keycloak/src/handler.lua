@@ -68,8 +68,11 @@ local function custom_helper_issuer_get_keys(well_known_endpoint, cafile)
   local keys,
     err = keycloak_keys.get_issuer_keys(well_known_endpoint, cafile)
   if err then
+    kong.log.error("Error getting public keys" .. err)
     return nil, err
   end
+
+  kong.log.debug("Got some public keys - " .. table.getn(keys))
 
   local decoded_keys = {}
   for i, key in ipairs(keys) do

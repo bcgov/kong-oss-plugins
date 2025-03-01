@@ -5,6 +5,9 @@ local ltn12 = require("ltn12")
 local cjson_safe = require "cjson.safe"
 local convert = require "kong.plugins.jwt-keycloak.key_conversion"
 
+local log = ngx.log
+local DEBUG = ngx.DEBUG
+
 local function get_request(req_url, scheme, port)
     local req
     if scheme == "https" then
@@ -43,6 +46,8 @@ local function get_wellknown_endpoint(well_known_template, issuer)
 end
 
 local function get_issuer_keys(well_known_endpoint)
+    log(DEBUG, "get_issuer_keys" .. well_known_endpoint)
+
     -- Get port of the request: This is done because keycloak 3.X.X does not play well with lua socket.http
     local req = url.parse(well_known_endpoint)
 

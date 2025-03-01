@@ -87,6 +87,7 @@ export async function provisionKong(
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      Connection: "close",
     },
     data: JSON.stringify(payload),
   };

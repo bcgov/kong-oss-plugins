@@ -5,6 +5,7 @@ let requestBody: any = {};
 let headers: Record<string, string> = {
   Accept: "application/json",
   "Content-Type": "application/json",
+  Connection: "close",
 };
 
 export function setRequestBody(body: any) {
@@ -18,7 +19,8 @@ export function setHeaders(newHeaders: Record<string, string>) {
 export async function callAPI(
   request: APIRequestContext,
   endpoint: string,
-  method: string
+  method: string,
+  retries: number = 0
 ) {
   const options: any = {
     method,
@@ -38,6 +40,10 @@ export async function callAPI(
     responseBody = await response.json();
   } catch (e) {
     responseBody = null;
+  }
+
+  if (response.status() == 404 && retries < 5) {
+    return callAPI(request, endpoint, method, retries + 1);
   }
 
   if (response.status() >= 300) {

@@ -20,7 +20,7 @@ const defaultHooks: Hooks = {
     const queryParams = new URL(response.request().url()).searchParams;
     logger.debug(queryParams, "Login Error");
 
-    expect(response.status()).toBeLessThan(300);
+    expect(response.status(), "Login Error").toBeLessThan(300);
   },
   onLoginSuccess: async (response: Response) => {},
 };
@@ -41,10 +41,25 @@ export default async function runE2Etest(
     ...pluginOverride,
   });
 
+  // await page.setExtraHTTPHeaders({
+  //   Connection: "close",
+  // });
+
   // Use the new client setup to login
-  const response = await page.goto(
-    `http://kong.localtest.me:8000${routePath}/headers`
-  );
+  async function do_page(retries: number = 0): Promise<null | Response> {
+    const response = await page.goto(
+      `http://kong.localtest.me:8000${routePath}/headers`
+    );
+
+    if (response.status() == 404 && retries < 10) {
+      console.warn("Retry attempt", retries + 1);
+      await page.waitForTimeout(500);
+      return do_page(retries + 1);
+    }
+    return response;
+  }
+
+  const response = await do_page();
 
   if (response.status() >= 300) {
     logger.debug(

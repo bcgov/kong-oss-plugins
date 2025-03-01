@@ -9,6 +9,10 @@ import { provisionNewService } from "./kong";
 import { createClient } from "./keycloak";
 import logger from "./logger";
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default async function prepare(
   request: APIRequestContext,
   clientOverrides: any,
@@ -31,6 +35,10 @@ export default async function prepare(
     },
     clientDetails
   );
+
+  // In Kong 3 there seems to be an async republish of routes
+  // which can result in the route not being live immediately
+  await sleep(2000);
 
   logger.debug(
     { url: `http://kong.localtest.me:8000${routePath}/headers` },
