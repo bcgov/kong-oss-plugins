@@ -35,10 +35,6 @@ test.describe("jwt-keycloak plugin - happy paths", () => {
       Authorization: "Bearer " + accessToken,
     });
 
-    // // In Kong 3 there seems to be an async republish of routes
-    // // which can result in the route not being live immediately
-    //await page.waitForTimeout(2000);
-
     const result = await callAPI(
       request,
       `http://kong.localtest.me:8000${routePath}/headers`,
