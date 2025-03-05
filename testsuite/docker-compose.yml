@@ -19,6 +19,7 @@ services:
         condition: service_completed_successfully
     environment:
       - BASE_URL=http://admin-api.localtest.me:8081
+      - KONG_VERSION=${KONG_VERSION:-2.8.5}
     volumes:
       - ./playwright-report:/e2e-playwright/playwright-report
       - ./playwright-results:/e2e-playwright/playwright-results
