@@ -72,7 +72,7 @@ export async function provisionNewService(
 
   await provisionKong(request, `${baseURL}/services`, service);
   await provisionKong(request, `${baseURL}/routes`, route);
-  //await provisionKong(request, `${baseURL}/plugins`, pluginConfig);
+  await provisionKong(request, `${baseURL}/plugins`, pluginConfig);
 
   return `/${newId}`;
 }

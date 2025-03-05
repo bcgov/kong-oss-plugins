@@ -11,7 +11,7 @@ For `Kong v.3.9.0` and `Keycloak v.15.1.1`, run the following:
 ```sh
 cd testsuite
 
-KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \
+KONG_VERSION=2.8.5 KC_VERSION=15.1.1 \
 docker compose \
   -f docker-compose.yml \
   -f docker-compose-keycloak-spring.yml build
@@ -78,10 +78,14 @@ docker run -ti --rm --net=host -v `pwd`:/work -w /work \
   openresty/openresty:focal /bin/bash
 
 apt-get update && apt-get install -y libssl-dev
+# apt-get install libyaml-dev
+# apt-get upgrade expat
 
 luarocks install busted
 luarocks install LuaSocket
 luarocks install luasec
+
+luarocks install kong --deps-mode none
 
 luarocks build
 

@@ -1,4 +1,5 @@
 local keycloak_keys = require("kong.plugins.jwt-keycloak.keycloak_keys")
+local jwt_decoder = require "kong.plugins.jwt.jwt_parser"
 
 describe(
   "keycloak_keys",

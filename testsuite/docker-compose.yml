@@ -48,8 +48,7 @@ services:
         aliases:
           - kong.localtest.me
     healthcheck:
-      # Kong 2 -- test: curl --fail http://localhost:8001/ || exit 1
-      test: ["CMD", "kong", "health"]
+      test: ["CMD", "/tmp/kong/${KONG_VERSION:-2.8.5}/health"]
       interval: 10s
       timeout: 5s
       retries: 4

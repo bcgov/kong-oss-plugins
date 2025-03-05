@@ -74,14 +74,8 @@ local function custom_helper_issuer_get_keys(well_known_endpoint, cafile)
 
   kong.log.debug("Got some public keys - " .. table.getn(keys))
 
-  local decoded_keys = {}
-  for i, key in ipairs(keys) do
-    decoded_keys[i] = jwt_decoder:base64_decode(key)
-  end
-
-  kong.log.debug("Number of keys retrieved: " .. table.getn(decoded_keys))
   return {
-    keys = decoded_keys,
+    keys = keys,
     updated_at = socket.gettime()
   }
 end
@@ -120,6 +114,7 @@ local function custom_validate_token_signature(conf, jwt, second_call)
 
   -- Verify signatures
   for _, k in ipairs(public_keys.keys) do
+    kong.log.debug("verify signature")
     if jwt:verify_signature(k) then
       kong.log.debug("JWT signature verified")
       return nil
