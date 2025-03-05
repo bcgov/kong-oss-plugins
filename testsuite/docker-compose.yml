@@ -6,7 +6,7 @@ networks:
 services:
   playwright:
     image: playwright:e2e
-    platform: linux/amd64
+    # platform: linux/amd64
     build:
       context: .
       dockerfile: ./Dockerfile.playwright
@@ -99,7 +99,7 @@ services:
       context: ../.
       args:
         - KONG_VERSION=${KONG_VERSION:-2.8.5}
-    platform: linux/amd64
+    # platform: linux/amd64
     command: kong migrations bootstrap
     env_file:
       - ./local/kong/.env.local
