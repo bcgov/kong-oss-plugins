@@ -85,8 +85,6 @@ export default async function runE2Etest(
   await page.locator("input[name=password]").fill("local");
   await page.locator("[type=submit]").click();
 
-  await page.waitForLoadState("networkidle");
-
   await expect(page.locator("pre")).toBeInViewport({ timeout: 20000 });
 
   const content = await page.locator("pre").evaluate((el) => el.textContent);
