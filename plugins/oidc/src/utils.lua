@@ -65,6 +65,7 @@ function M.get_options(config, ngx)
     use_nonce = config.use_nonce == "yes",
     session_secure = config.session_secure == "yes",
     session_samesite = config.session_samesite,
+    session_path = config.session_path,
     session_check_ssi = config.session_check_ssi == "yes",
     session_check_ua = config.session_check_ua == "yes",
     session_check_addr = config.session_check_addr == "yes",

@@ -72,7 +72,7 @@ test.describe("oidc plugin - happy paths", () => {
         checks.expected_headers,
         checks.expected_cookies_exist,
         checks.expected_cookie_config,
-        async (page: Page, jsonData: any) => {
+        async (routePath: string, page: Page, jsonData: any) => {
           expect(jsonData.headers).toHaveProperty("X-Sub");
         },
       ]

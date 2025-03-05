@@ -94,12 +94,12 @@ export default async function runE2Etest(
   const jsonData = JSON.parse(content);
 
   for (const validator of validators) {
-    await validator(page, jsonData);
+    await validator(routePath, page, jsonData);
   }
 }
 
 export const checks: any = {
-  expected_headers: async (page: Page, jsonData: any) => {
+  expected_headers: async (routePath: string, page: Page, jsonData: any) => {
     // Check for existence of upstream request headers
     expect(jsonData.headers["X-Credential-Identifier"]).toBe("local");
     expect(jsonData.headers["X-Forwarded-Host"]).toBe("kong.localtest.me");
@@ -109,7 +109,11 @@ export const checks: any = {
     }
   },
 
-  expected_cookies_exist: async (page: Page, jsonData: any) => {
+  expected_cookies_exist: async (
+    routePath: string,
+    page: Page,
+    jsonData: any
+  ) => {
     const cookies = await page.context().cookies();
     logger.debug(cookies, "page cookies");
 
@@ -148,7 +152,11 @@ export const checks: any = {
     //expect(cookies.filter((c) => c.name == "session_2").length).toBe(1);
   },
 
-  expected_cookie_config: async (page: Page, jsonData: any) => {
+  expected_cookie_config: async (
+    routePath: string,
+    page: Page,
+    jsonData: any
+  ) => {
     const cookies = await page.context().cookies();
 
     const keycloakQuarkus =
@@ -165,9 +173,13 @@ export const checks: any = {
           KEYCLOAK_SESSION:
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
           session:
-            '{"domain":"kong.localtest.me","path":"/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+            '{"domain":"kong.localtest.me","path":"' +
+            routePath +
+            '/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
           session_2:
-            '{"domain":"kong.localtest.me","path":"/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+            '{"domain":"kong.localtest.me","path":"' +
+            routePath +
+            '/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
         }
       : {
           AUTH_SESSION_ID_LEGACY:
@@ -177,7 +189,9 @@ export const checks: any = {
           KEYCLOAK_SESSION_LEGACY:
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
           session:
-            '{"domain":"kong.localtest.me","path":"/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+            '{"domain":"kong.localtest.me","path":"' +
+            routePath +
+            '/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
         };
 
     for (const cookie of cookies) {

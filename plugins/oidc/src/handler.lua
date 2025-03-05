@@ -68,8 +68,10 @@ local function make_oidc(oidcConfig)
   local session_opts = {
     cookie = {
       secure = oidcConfig.session_secure,
-      samesite = oidcConfig.session_samesite
+      path = oidcConfig.session_path
     },
+    cookie_path = oidcConfig.session_path,
+    cookie_same_site = oidcConfig.session_samesite,
     check = {
       ssi = oidcConfig.session_check_ssi,
       ua = oidcConfig.session_check_ua,
