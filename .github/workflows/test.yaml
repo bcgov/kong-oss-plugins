@@ -44,6 +44,7 @@ jobs:
         working-directory: testsuite
         run: |
           export CI=true
+          KONG_VERSION=${{ matrix.kong }} \
           docker compose --profile tests \
             -f docker-compose.yml \
             -f ${DOCKER_COMPOSE_FILE} \
