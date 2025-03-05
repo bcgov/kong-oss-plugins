@@ -27,4 +27,15 @@ test.describe("oidc plugin - happy paths", () => {
       }
     );
   });
+
+  test("samesite strict", async ({ page, request }) => {
+    await runE2Etest(
+      page,
+      request,
+      {},
+      {
+        session_samesite: "Strict",
+      }
+    );
+  });
 });
