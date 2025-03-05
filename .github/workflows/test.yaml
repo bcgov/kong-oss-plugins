@@ -53,7 +53,7 @@ jobs:
         working-directory: testsuite
         run: |
           # Start following logs in the background with continuous output
-          docker logs -f e2e-playwright-1 2>&1 &
+          docker compose logs -f 2>&1 &
           LOG_PID=$!
 
           while true; do
