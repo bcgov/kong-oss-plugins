@@ -45,6 +45,8 @@ export default async function runE2Etest(
   //   Connection: "close",
   // });
 
+  await page.context().clearCookies();
+
   // Use the new client setup to login
   async function do_page(retries: number = 0): Promise<null | Response> {
     const response = await page.goto(
@@ -162,6 +164,7 @@ export const checks: any = {
     const keycloakQuarkus =
       cookies.filter((c) => c.name == "AUTH_SESSION_ID").length == 1;
 
+    const cookiePath = "/"; // could be routePath - see kong.ts
     const expectedCookieValues = keycloakQuarkus
       ? {
           AUTH_SESSION_ID:
@@ -174,12 +177,12 @@ export const checks: any = {
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
           session:
             '{"domain":"kong.localtest.me","path":"' +
-            routePath +
-            '/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+            cookiePath +
+            '","httpOnly":true,"secure":false,"sameSite":"Lax"}',
           session_2:
             '{"domain":"kong.localtest.me","path":"' +
-            routePath +
-            '/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+            cookiePath +
+            '","httpOnly":true,"secure":false,"sameSite":"Lax"}',
         }
       : {
           AUTH_SESSION_ID_LEGACY:
@@ -190,8 +193,8 @@ export const checks: any = {
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
           session:
             '{"domain":"kong.localtest.me","path":"' +
-            routePath +
-            '/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+            cookiePath +
+            '","httpOnly":true,"secure":false,"sameSite":"Lax"}',
         };
 
     for (const cookie of cookies) {
