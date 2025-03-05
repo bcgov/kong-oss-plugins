@@ -18,6 +18,8 @@ test.describe("keycloak ready", () => {
 
     //await expect(page.getByTestId("dashboard-tabs")).toBeAttached();
 
+    await page.waitForLoadState("networkidle");
+
     await page.goto(
       "http:///keycloak.localtest.me:9081/auth/admin/master/console/#/realms/master/clients"
     );
