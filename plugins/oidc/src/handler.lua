@@ -74,7 +74,7 @@ local function make_oidc(oidcConfig)
       path = oidcConfig.session_path -- for resty openidc 1.7.6-3 library
     },
     storage = ngx.var.session_storage,
-    cookie_samesite = oidcConfig.session_samesite,
+    cookie_same_site = oidcConfig.session_samesite,
     cookie_path = oidcConfig.session_path,
     check = {
       ssi = oidcConfig.session_check_ssi,
@@ -83,6 +83,11 @@ local function make_oidc(oidcConfig)
       scheme = oidcConfig.session_check_scheme
     }
   }
+  if oidcConfig.session_secure == "yes" then
+    session_opts.cookie.secure = true
+    session_opts.cookie_secure = true
+  end
+
   if ngx.var.session_storage == "redis" then
     session_opts.redis = {
       host = ngx.var.session_redis_host,
