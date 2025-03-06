@@ -65,12 +65,15 @@ local function make_oidc(oidcConfig)
     unauth_action = "deny"
   end
 
+  ngx.log(ngx.DEBUG, "Session storage: " .. ngx.var.session_storage)
+
   local session_opts = {
     cookie = {
       secure = oidcConfig.session_secure,
       samesite = oidcConfig.session_samesite,
       path = oidcConfig.session_path -- for resty openidc 1.7.6-3 library
     },
+    storage = ngx.var.session_storage,
     cookie_samesite = oidcConfig.session_samesite,
     cookie_path = oidcConfig.session_path,
     check = {
@@ -80,6 +83,21 @@ local function make_oidc(oidcConfig)
       scheme = oidcConfig.session_check_scheme
     }
   }
+  if ngx.var.session_storage == "redis" then
+    session_opts.redis = {
+      host = ngx.var.session_redis_host,
+      port = ngx.var.session_redis_port,
+      password = ngx.var.session_redis_password,
+      db = ngx.var.session_redis_db,
+      uselocking = ngx.var.session_redis_uselocking,
+      timeout = ngx.var.session_redis_timeout,
+      session_redis_ssl = ngx.var.session_redis_ssl,
+      session_redis_ssl_verify = ngx.var.session_redis_ssl_verify,
+      ttl = ngx.var.session_redis_ttl,
+      key = ngx.var.session_redis_key
+    }
+  end
+
   local res,
     err = require("resty.openidc").authenticate(oidcConfig, ngx.var.request_uri, unauth_action, session_opts)
 
