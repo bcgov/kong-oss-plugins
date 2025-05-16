@@ -69,7 +69,9 @@ services:
       timeout: 5s
       retries: 4
     networks:
-      - net
+      net:
+        aliases:
+          - kong.localtest.me
 
   kong-dp:
     deploy:
