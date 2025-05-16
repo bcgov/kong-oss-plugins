@@ -68,11 +68,15 @@ local function make_oidc(oidcConfig)
   ngx.log(ngx.DEBUG, "Session storage: " .. ngx.var.session_storage)
 
   local session_opts = {
+    -- https://github.com/bungle/lua-resty-session/blob/v4.0.5/lib/resty/session.lua#L2558
+    -- ngx.var.session_secret is set globally or at plugin level - see session.lua
+    secret = ngx.var.session_secret,
+    storage = ngx.var.session_storage,
+
     cookie = {
       samesite = oidcConfig.session_samesite, -- for resty openidc 1.7.6-3 library
       path = oidcConfig.session_path -- for resty openidc 1.7.6-3 library
     },
-    storage = ngx.var.session_storage,
     cookie_samesite = oidcConfig.session_samesite,
     cookie_path = oidcConfig.session_path,
     check = {

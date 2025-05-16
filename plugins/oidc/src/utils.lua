@@ -63,6 +63,7 @@ function M.get_options(config, ngx)
     use_jwks = config.use_jwks,
     use_pkce = config.use_pkce == "yes",
     use_nonce = config.use_nonce == "yes",
+    session_secret = config.session_secret,
     session_secure = config.session_secure == "yes",
     session_samesite = config.session_samesite,
     session_path = config.session_path,
