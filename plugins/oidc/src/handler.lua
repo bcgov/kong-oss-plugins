@@ -75,9 +75,9 @@ local function make_oidc(oidcConfig)
 
     cookie = {
       samesite = oidcConfig.session_samesite, -- for resty openidc 1.7.6-3 library
-      path = oidcConfig.session_path -- for resty openidc 1.7.6-3 library
+      path = oidcConfig.session_path -- for resty openidc 1.7.6-3 (session 2.8) library
     },
-    cookie_samesite = oidcConfig.session_samesite,
+    cookie_same_site = oidcConfig.session_samesite, -- for resty openidc 1.8.0-1 (session 4.0) library
     cookie_path = oidcConfig.session_path,
     check = {
       ssi = oidcConfig.session_check_ssi,

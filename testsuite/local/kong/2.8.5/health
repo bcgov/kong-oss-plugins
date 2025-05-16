@@ -2,4 +2,4 @@
 
 set -e
 
-curl --fail http://localhost:8001/ || exit 1
+curl --fail http://localhost:8007/status || exit 1

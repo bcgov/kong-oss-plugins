@@ -4,23 +4,46 @@
 
 There are various configurations for testing to cover different versions of Keycloak and Kong.
 
-For `Kong v.3.9.0` and `Keycloak v.15.1.1`, run the following:
+### Running
 
-### Build
+#### Kong 2.x
+
+For `Kong v.2.8.5` and `Keycloak v.15.1.1`, run the following:
 
 ```sh
 cd testsuite
 
 KONG_VERSION=2.8.5 KC_VERSION=15.1.1 \
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose-keycloak-spring.yml build
+```
+
+```sh
+KONG_VERSION=2.8.5 KC_VERSION=15.1.1 \
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose-keycloak-spring.yml up
+```
+
+- Admin: http://localhost:8001
+- Proxy: http://localhost:8000
+
+#### Kong 3.x
+
+For `Kong v.3.9.0` and `Keycloak v.15.1.1`, run the following:
+
+```sh
+cd testsuite
+
 KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \
 docker compose \
   -f docker-compose.yml \
   -f docker-compose-keycloak-spring.yml build
 ```
 
-### Run
-
 ```sh
+KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \
 docker compose \
   -f docker-compose.yml \
   -f docker-compose-keycloak-spring.yml up
@@ -30,6 +53,12 @@ docker compose \
 - Proxy: http://localhost:8000
 
 ### Playright Tests
+
+```sh
+npm run test:ui
+```
+
+To run the test suite headless, use docker compose:
 
 ```sh
 KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \

@@ -137,7 +137,7 @@ services:
       context: ../.
       args:
         - KONG_VERSION=${KONG_VERSION:-2.8.5}
-    # platform: linux/amd64
+    # platform: linux/amd64 # Needed for 3.8.5 if on Apple silicon
     command: kong migrations bootstrap
     volumes:
       - ./local/kong:/tmp/kong

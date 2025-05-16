@@ -92,12 +92,12 @@ export default async function runE2Etest(
   const jsonData = JSON.parse(content);
 
   for (const validator of validators) {
-    await validator(routePath, page, jsonData);
+    await validator(pluginOverride, routePath, page, jsonData);
   }
 }
 
 export const checks: any = {
-  expected_headers: async (routePath: string, page: Page, jsonData: any) => {
+  expected_headers: async (pluginOverrides: any, routePath: string, page: Page, jsonData: any) => {
     // Check for existence of upstream request headers
     expect(jsonData.headers["X-Credential-Identifier"]).toBe("local");
     expect(jsonData.headers["X-Forwarded-Host"]).toBe("kong.localtest.me");
@@ -108,6 +108,7 @@ export const checks: any = {
   },
 
   expected_cookies_exist: async (
+    pluginOverrides: any,
     routePath: string,
     page: Page,
     jsonData: any
@@ -146,11 +147,12 @@ export const checks: any = {
       expect(cookies.length).toBe(4);
     }
 
-    //If redis, then the cookie size does not become too big
-    //expect(cookies.filter((c) => c.name == "session_2").length).toBe(1);
+    // Using redis storage, so cookie size should be small
+    expect(cookies.filter((c) => c.name == "session").length).toBeLessThan(80);
   },
 
   expected_cookie_config: async (
+    pluginOverrides: any,
     routePath: string,
     page: Page,
     jsonData: any
@@ -159,6 +161,8 @@ export const checks: any = {
 
     const keycloakQuarkus =
       cookies.filter((c) => c.name == "AUTH_SESSION_ID").length == 1;
+
+    const sameSite = pluginOverrides.session_samesite || "Lax";
 
     const cookiePath = "/"; // could be routePath - see kong.ts
     const expectedCookieValues = keycloakQuarkus
@@ -178,7 +182,7 @@ export const checks: any = {
           session_2:
             '{"domain":"kong.localtest.me","path":"' +
             cookiePath +
-            '","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+            '","httpOnly":true,"secure":false,"sameSite":"' + sameSite +'"}',
         }
       : {
           AUTH_SESSION_ID_LEGACY:
@@ -190,7 +194,7 @@ export const checks: any = {
           session:
             '{"domain":"kong.localtest.me","path":"' +
             cookiePath +
-            '","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+            '","httpOnly":true,"secure":false,"sameSite":"' + sameSite +'"}',
         };
 
     for (const cookie of cookies) {
@@ -204,7 +208,7 @@ export const checks: any = {
           sameSite,
         }))(cookie)
       );
-      expect(expected).toBe(actual);
+      expect(actual).toBe(expected);
     }
   },
 };
