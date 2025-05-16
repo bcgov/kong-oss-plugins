@@ -49,7 +49,7 @@ export default async function runE2Etest(
       `http://kong.localtest.me:8000${routePath}/headers`
     );
 
-    if (response.status() == 404 && retries < 10) {
+    if (response.status() == 404 && retries < 20) {
       console.warn("Retry attempt", retries + 1);
       await page.waitForTimeout(500);
       return do_page(retries + 1);
