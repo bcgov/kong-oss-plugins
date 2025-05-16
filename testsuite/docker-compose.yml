@@ -27,7 +27,7 @@ services:
       - net
     profiles: ["tests"]
 
-  kong:
+  kong-cp:
     image: kong:e2e
     env_file:
       - ./local/kong/.env.local
@@ -42,8 +42,8 @@ services:
     volumes:
       - ./local/kong:/tmp/kong
     ports:
-      - 8000:8000
       - 8001:8001
+      - 8005:8005
     networks:
       net:
         aliases:
@@ -54,6 +54,43 @@ services:
       timeout: 5s
       retries: 4
 
+  kong:
+    image: nginx:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./local/nginx:/etc/nginx/conf.d
+    depends_on:
+      kong-dp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "service", "nginx", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 4
+    networks:
+      - net
+
+  kong-dp:
+    deploy:
+      replicas: 3
+    image: kong:e2e
+    env_file:
+      - ./local/kong/.env.dp.local
+    depends_on:
+      kong-cp:
+        condition: service_healthy
+    environment: []
+    volumes:
+      - ./local/kong:/tmp/kong
+    healthcheck:
+      test: ["CMD", "/tmp/kong/${KONG_VERSION:-2.8.5}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 4
+    networks:
+      - net
+
   deck:
     image: kong/deck:latest
     depends_on:
@@ -62,10 +99,6 @@ services:
     environment: []
     volumes:
       - ./local/kong:/tmp/kong
-    networks:
-      net:
-        aliases:
-          - kong.localtest.me
     restart: no
     command:
       - gateway
@@ -73,6 +106,8 @@ services:
       - http://kong.localtest.me:8001
       - sync
       - /tmp/kong/kong.yaml
+    networks:
+      - net
 
   postgres:
     image: postgres:17
@@ -84,14 +119,14 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - ./local/postgres/init.sql:/docker-entrypoint-initdb.d/1-init.sql
-    networks:
-      - net
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - net
 
   kong-migrations:
     image: kong:e2e
@@ -102,6 +137,8 @@ services:
         - KONG_VERSION=${KONG_VERSION:-2.8.5}
     # platform: linux/amd64
     command: kong migrations bootstrap
+    volumes:
+      - ./local/kong:/tmp/kong
     env_file:
       - ./local/kong/.env.local
     depends_on:
@@ -113,6 +150,8 @@ services:
   kong-migrations-up:
     image: kong:e2e
     command: kong migrations up && kong migrations finish
+    volumes:
+      - ./local/kong:/tmp/kong
     env_file:
       - ./local/kong/.env.local
     depends_on:
