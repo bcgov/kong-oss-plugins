@@ -54,6 +54,11 @@ export default async function runE2Etest(
       await page.waitForTimeout(500);
       return do_page(retries + 1);
     }
+
+    // if we are waiting for kong to propagate the new service, we need to wait longer
+    if (retries > 5) {
+      await page.waitForTimeout(5000);
+    }
     return response;
   }
 
