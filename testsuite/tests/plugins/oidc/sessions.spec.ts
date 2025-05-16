@@ -42,11 +42,6 @@ test.describe("oidc plugin - happy paths", () => {
   });
 
   test("samesite strict", async ({ page, request }) => {
-    if ((process.env.KONG_VERSION || "").startsWith("2.")) {
-      console.warn("Skipping test - test fails for Kong 2");
-      return;
-    }
-
     await runE2Etest(
       page,
       request,
