@@ -41,8 +41,6 @@ local MtlsAuth = {
 }
 
 function MtlsAuth:access(config)
-    MtlsAuth.super.access(self)
-
     if ngx.var.ssl_client_verify ~= "SUCCESS" then
         kong.response.exit(config.error_response_code, [[{"error":"invalid_request", "error_description": "mTLS client not provided or invalid"}]], {
             ["Content-Type"] = "application/json"
