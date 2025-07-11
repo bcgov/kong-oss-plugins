@@ -8,9 +8,9 @@ version = package_version .. "-" .. rockspec_revision
 supported_platforms = { "linux", "macosx" }
 
 source = {
-  url = "git://github.com/callistaenterprise/kong-plugin-mtls-auth",
+  url = "git://github.com/bcgov/kong-oss-plugins",
   tag = "v1.0.0",
-  dir = "kong-plugin-mtls-auth"
+  dir = "plugins/mtls-auth/src"
 }
 
 description = {
@@ -33,7 +33,7 @@ dependencies = {
 build = {
   type = "builtin",
   modules = {
-    ["kong.plugins."..plugin_name..".handler"] = "kong/plugins/"..plugin_name.."/handler.lua",
-    ["kong.plugins."..plugin_name..".schema"] = "kong/plugins/"..plugin_name.."/schema.lua",
+    ["kong.plugins."..plugin_name..".handler"] = "src/handler.lua",
+    ["kong.plugins."..plugin_name..".schema"] = "src/schema.lua",
   }
 }
