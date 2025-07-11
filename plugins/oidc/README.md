@@ -391,6 +391,12 @@ Here's a list of all the config parameters which can be used in this plugin's co
 
 > Whether to check the user agent during session validation.
 
+#### session_path
+
+`string` | _optional_ | **default** `/`
+
+> The cookie path for the session.
+
 #### session_secure
 
 `string` | _optional_ | **default** `no`
@@ -401,7 +407,7 @@ Here's a list of all the config parameters which can be used in this plugin's co
 
 `string` | _optional_ |
 
-> The secret used to encrypt session data.
+> The secret used to encrypt session data.  Base64 encoded 32 character string.
 
 #### session_samesite
 

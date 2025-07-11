@@ -66,6 +66,7 @@ export async function provisionNewService(
       pluginConfig.config["client_secret"] = clientDetails.clientSecret;
     }
     pluginConfig.config["redirect_uri"] = `/${newId}/cb`;
+    //pluginConfig.config["session_path"] = `/${newId}`;
   } else if (plugin.name == "jwt-keycloak") {
     // pluginConfig.config["allowed_aud"] = clientDetails.clientId;
   }
@@ -87,6 +88,7 @@ export async function provisionKong(
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      Connection: "close",
     },
     data: JSON.stringify(payload),
   };

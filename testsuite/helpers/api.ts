@@ -1,10 +1,12 @@
-import { APIRequestContext, expect } from "@playwright/test";
+import { APIRequestContext, APIResponse, expect } from "@playwright/test";
 import logger from "./logger";
+import { Serializable } from "worker_threads";
 
 let requestBody: any = {};
 let headers: Record<string, string> = {
   Accept: "application/json",
   "Content-Type": "application/json",
+  Connection: "close",
 };
 
 export function setRequestBody(body: any) {
@@ -18,7 +20,8 @@ export function setHeaders(newHeaders: Record<string, string>) {
 export async function callAPI(
   request: APIRequestContext,
   endpoint: string,
-  method: string
+  method: string,
+  retries: number = 0
 ) {
   const options: any = {
     method,
@@ -29,16 +32,28 @@ export async function callAPI(
     options.data = JSON.stringify(requestBody);
   }
 
-  const response = await request.fetch(endpoint, options);
+  // Use the new client setup to login
+  async function do_call(
+    retries: number = 0
+  ): Promise<null | { response: APIResponse; responseBody: any }> {
+    const response = await request.fetch(endpoint, options);
 
-  //expect(response.status()).toBeLessThan(300);
+    let responseBody: any;
+    try {
+      responseBody = await response.json();
+    } catch (e) {
+      responseBody = null;
+    }
 
-  let responseBody: any;
-  try {
-    responseBody = await response.json();
-  } catch (e) {
-    responseBody = null;
+    if (response.status() == 404 && retries < 10) {
+      console.warn("Retry attempt", retries + 1);
+      await sleep(500);
+      return await do_call(retries + 1);
+    }
+    return { response, responseBody };
   }
+
+  const { response, responseBody } = await do_call();
 
   if (response.status() >= 300) {
     const errors = await response.text();
@@ -53,4 +68,8 @@ export async function callAPI(
       headers: response.headers(),
     },
   };
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

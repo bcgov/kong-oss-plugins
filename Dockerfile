@@ -13,7 +13,12 @@ WORKDIR /build
 COPY plugins plugins
 
 RUN (cd plugins/jwt-keycloak && luarocks make)
-RUN (cd plugins/oidc && luarocks make)
+RUN (cd plugins/oidc && luarocks make kong-plugin-oidc-1.5.0-2.rockspec)
+RUN (cd plugins/oidc && \
+    case "${KONG_VERSION}" in \
+        (3*) luarocks build --deps-only kong-plugin-oidc-deps-k3-1.5.0-2.rockspec;; \
+        (*)  luarocks build --deps-only kong-plugin-oidc-deps-k2-1.5.0-2.rockspec;; \
+    esac)
 RUN (cd plugins/oidc-consumer && luarocks make)
 
 USER kong

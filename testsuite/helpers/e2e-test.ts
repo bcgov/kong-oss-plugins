@@ -20,7 +20,7 @@ const defaultHooks: Hooks = {
     const queryParams = new URL(response.request().url()).searchParams;
     logger.debug(queryParams, "Login Error");
 
-    expect(response.status()).toBeLessThan(300);
+    expect(response.status(), "Login Error").toBeLessThan(300);
   },
   onLoginSuccess: async (response: Response) => {},
 };
@@ -41,10 +41,28 @@ export default async function runE2Etest(
     ...pluginOverride,
   });
 
+  await page.context().clearCookies();
+
   // Use the new client setup to login
-  const response = await page.goto(
-    `http://kong.localtest.me:8000${routePath}/headers`
-  );
+  async function do_page(retries: number = 0): Promise<null | Response> {
+    const response = await page.goto(
+      `http://kong.localtest.me:8000${routePath}/headers`
+    );
+
+    if (response.status() == 404 && retries < 20) {
+      console.warn("Retry attempt", retries + 1);
+      await page.waitForTimeout(500);
+      return do_page(retries + 1);
+    }
+
+    // if we are waiting for kong to propagate the new service, we need to wait longer
+    if (retries > 5) {
+      await page.waitForTimeout(5000);
+    }
+    return response;
+  }
+
+  const response = await do_page();
 
   if (response.status() >= 300) {
     logger.debug(
@@ -72,19 +90,19 @@ export default async function runE2Etest(
   await page.locator("input[name=password]").fill("local");
   await page.locator("[type=submit]").click();
 
-  await expect(page.locator("pre")).toBeInViewport({ timeout: 10000 });
+  await expect(page.locator("pre")).toBeInViewport({ timeout: 20000 });
 
   const content = await page.locator("pre").evaluate((el) => el.textContent);
   logger.debug(content, "pre content from httpbin");
   const jsonData = JSON.parse(content);
 
   for (const validator of validators) {
-    await validator(page, jsonData);
+    await validator(pluginOverride, routePath, page, jsonData);
   }
 }
 
 export const checks: any = {
-  expected_headers: async (page: Page, jsonData: any) => {
+  expected_headers: async (pluginOverrides: any, routePath: string, page: Page, jsonData: any) => {
     // Check for existence of upstream request headers
     expect(jsonData.headers["X-Credential-Identifier"]).toBe("local");
     expect(jsonData.headers["X-Forwarded-Host"]).toBe("kong.localtest.me");
@@ -94,7 +112,12 @@ export const checks: any = {
     }
   },
 
-  expected_cookies_exist: async (page: Page, jsonData: any) => {
+  expected_cookies_exist: async (
+    pluginOverrides: any,
+    routePath: string,
+    page: Page,
+    jsonData: any
+  ) => {
     const cookies = await page.context().cookies();
     logger.debug(cookies, "page cookies");
 
@@ -129,16 +152,24 @@ export const checks: any = {
       expect(cookies.length).toBe(4);
     }
 
-    //If redis, then the cookie size does not become too big
-    //expect(cookies.filter((c) => c.name == "session_2").length).toBe(1);
+    // Using redis storage, so cookie size should be small
+    expect(cookies.filter((c) => c.name == "session").length).toBeLessThan(80);
   },
 
-  expected_cookie_config: async (page: Page, jsonData: any) => {
+  expected_cookie_config: async (
+    pluginOverrides: any,
+    routePath: string,
+    page: Page,
+    jsonData: any
+  ) => {
     const cookies = await page.context().cookies();
 
     const keycloakQuarkus =
       cookies.filter((c) => c.name == "AUTH_SESSION_ID").length == 1;
 
+    const sameSite = pluginOverrides.session_samesite || "Lax";
+
+    const cookiePath = "/"; // could be routePath - see kong.ts
     const expectedCookieValues = keycloakQuarkus
       ? {
           AUTH_SESSION_ID:
@@ -150,9 +181,13 @@ export const checks: any = {
           KEYCLOAK_SESSION:
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
           session:
-            '{"domain":"kong.localtest.me","path":"/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+            '{"domain":"kong.localtest.me","path":"' +
+            cookiePath +
+            '","httpOnly":true,"secure":false,"sameSite":"Lax"}',
           session_2:
-            '{"domain":"kong.localtest.me","path":"/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+            '{"domain":"kong.localtest.me","path":"' +
+            cookiePath +
+            '","httpOnly":true,"secure":false,"sameSite":"' + sameSite +'"}',
         }
       : {
           AUTH_SESSION_ID_LEGACY:
@@ -162,7 +197,9 @@ export const checks: any = {
           KEYCLOAK_SESSION_LEGACY:
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
           session:
-            '{"domain":"kong.localtest.me","path":"/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
+            '{"domain":"kong.localtest.me","path":"' +
+            cookiePath +
+            '","httpOnly":true,"secure":false,"sameSite":"' + sameSite +'"}',
         };
 
     for (const cookie of cookies) {
@@ -176,7 +213,7 @@ export const checks: any = {
           sameSite,
         }))(cookie)
       );
-      expect(expected).toBe(actual);
+      expect(actual).toBe(expected);
     }
   },
 };

@@ -1,10 +1,18 @@
 -- Taken from https://github.com/zmartzone/lua-resty-openidc/blob/master/lib/resty/openidc.lua
 
 local string = string
+
+local ngx = ngx
 local b64 = ngx.encode_base64
-local unb64 = ngx.decode_base64
+local b64url = require("ngx.base64").encode_base64url
+local unb64url = require("ngx.base64").decode_base64url
+
+local log = ngx.log
+local DEBUG = ngx.DEBUG
 
 local wrap = ("."):rep(64)
+
+local envelope = "-----BEGIN %s-----\n%s\n-----END %s-----\n"
 
 local function encode_length(length)
     if length < 0x80 then
@@ -35,8 +43,9 @@ local function encode_sequence(array, of)
 end
 
 local function der2pem(data, typ)
+    typ = typ:upper() or "CERTIFICATE"
     data = b64(data)
-    return data:gsub(wrap, "%0\n", (#data - 1) / 64)
+    return string.format(envelope, typ, data:gsub(wrap, "%0\n", (#data - 1) / 64), typ)
 end
 
 local function encode_binary_integer(bytes)
@@ -53,20 +62,12 @@ local function encode_sequence_of_integer(array)
     return encode_sequence(array, encode_binary_integer)
 end
 
-local function openidc_base64_url_decode(input)
-    local reminder = #input % 4
-    if reminder > 0 then
-        local padlen = 4 - reminder
-        input = input .. string.rep("=", padlen)
-    end
-    input = input:gsub("-", "+"):gsub("_", "/")
-    return unb64(input)
-end
-
 local function openidc_pem_from_rsa_n_and_e(n, e)
+    log(DEBUG, "getting PEM public key from n and e parameters of json public key")
+
     local der_key = {
-        openidc_base64_url_decode(n),
-        openidc_base64_url_decode(e)
+        unb64url(n),
+        unb64url(e)
     }
 
     local encoded_key = encode_sequence_of_integer(der_key)
@@ -84,7 +85,7 @@ local function openidc_pem_from_rsa_n_and_e(n, e)
         ),
         "PUBLIC KEY"
     )
-
+    log(DEBUG, "Generated pem key from n and e: ", pem)
     return pem
 end
 

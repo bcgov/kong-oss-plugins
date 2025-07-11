@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kong: ["2.8.5"]
+        kong: ["2.8.5", "3.9.0"]
         keycloak: ["15.1.1"]
         # kong: ["2.8.5", "3.9.0"]
         # keycloak: ["15.0.2", "15.1.1", "26.1.0"]
@@ -44,6 +44,7 @@ jobs:
         working-directory: testsuite
         run: |
           export CI=true
+          KONG_VERSION=${{ matrix.kong }} \
           docker compose --profile tests \
             -f docker-compose.yml \
             -f ${DOCKER_COMPOSE_FILE} \
@@ -53,7 +54,7 @@ jobs:
         working-directory: testsuite
         run: |
           # Start following logs in the background with continuous output
-          docker logs -f e2e-playwright-1 2>&1 &
+          docker compose logs -f 2>&1 &
           LOG_PID=$!
 
           while true; do

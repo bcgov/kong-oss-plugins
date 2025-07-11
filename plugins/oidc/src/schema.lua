@@ -154,6 +154,13 @@ return {
             }
           },
           {
+            session_path = {
+              type = "string",
+              required = false,
+              default = "/"
+            }
+          },
+          {
             session_check_ssi = {
               type = "string",
               required = false,

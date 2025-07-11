@@ -16,14 +16,38 @@ test.describe("oidc plugin - happy paths", () => {
         session_check_scheme: "yes",
         session_check_ssi: "yes",
         session_check_ua: "yes",
-        //session_samesite: "Strict", // Lax, Strict, None
-        //session_secret: btoa(secret),
-        // oidc/session.lua:10: variable "session_secret" not found for writing;
-        // maybe it is a built-in variable that is not changeable or you forgot
-        // to use "set $session_secret ''
+      }
+    );
+  });
 
+  test("session secret", async ({ page, request }) => {
+    const secret = uuidv4().replace(/-/g, "").toUpperCase().substring(0, 32);
+
+    await runE2Etest(
+      page,
+      request,
+      {},
+      {
+        session_check_addr: "yes",
+        session_check_scheme: "yes",
+        session_check_ssi: "yes",
+        session_check_ua: "yes",
+        session_secret: btoa(secret),
+        session_samesite: "Strict", // Lax, Strict, None
+
+        // secure=yes will fail in automated testing because we are not using https
         //session_secure: "yes",
-        // request to the redirect_uri path but there's no session state found
+      }
+    );
+  });
+
+  test("samesite strict", async ({ page, request }) => {
+    await runE2Etest(
+      page,
+      request,
+      {},
+      {
+        session_samesite: "Strict",
       }
     );
   });

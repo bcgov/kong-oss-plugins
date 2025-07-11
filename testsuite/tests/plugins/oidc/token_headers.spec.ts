@@ -18,7 +18,7 @@ test.describe("oidc plugin - happy paths", () => {
         userinfo_header_name: "Y-USERINFO",
       },
       [
-        async (page: Page, jsonData: any) => {
+        async (pluginOverrides: any, routePath: string, page: Page, jsonData: any) => {
           // Check for existence of upstream request headers
           expect(jsonData.headers["X-Credential-Identifier"]).toBe("local");
           expect(jsonData.headers["X-Forwarded-Host"]).toBe(
@@ -49,7 +49,7 @@ test.describe("oidc plugin - happy paths", () => {
         disable_userinfo_header: "yes",
       },
       [
-        async (page: Page, jsonData: any) => {
+        async (pluginOverrides: any, routePath: string, page: Page, jsonData: any) => {
           // Check for existence of upstream request headers
           expect(jsonData.headers["X-Credential-Identifier"]).toBe("local");
           expect(jsonData.headers["X-Forwarded-Host"]).toBe(

@@ -13,4 +13,5 @@ RUN npm ci
 # Create directories for results and reports
 RUN mkdir -p playwright-results playwright-reports
 
-CMD ["npx", "playwright", "test"]
+# --workers=1 : Run tests in a single worker - due to keycloak sessions
+CMD ["npx", "playwright", "test", "--workers=1"]

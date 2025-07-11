@@ -42,6 +42,14 @@ local function get_wellknown_endpoint(well_known_template, issuer)
     return string.format(well_known_template, issuer)
 end
 
+local function get_issuer_key_from_jwks_content(jwks_content)
+    local keys = {}
+    for i, key in ipairs(jwks_content["keys"]) do
+        keys[i] = convert.convert_kc_key(key)
+    end
+    return keys, nil
+end
+
 local function get_issuer_keys(well_known_endpoint)
     -- Get port of the request: This is done because keycloak 3.X.X does not play well with lua socket.http
     local req = url.parse(well_known_endpoint)
@@ -58,15 +66,12 @@ local function get_issuer_keys(well_known_endpoint)
         return nil, err
     end
 
-    local keys = {}
-    for i, key in ipairs(res["keys"]) do
-        keys[i] = string.gsub(convert.convert_kc_key(key), "[\r\n]+", "")
-    end
-    return keys, nil
+    return get_issuer_key_from_jwks_content(res)
 end
 
 return {
     get_request = get_request,
     get_issuer_keys = get_issuer_keys,
-    get_wellknown_endpoint = get_wellknown_endpoint
+    get_wellknown_endpoint = get_wellknown_endpoint,
+    get_issuer_key_from_jwks_content = get_issuer_key_from_jwks_content
 }
