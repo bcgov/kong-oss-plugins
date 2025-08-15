@@ -1,4 +1,4 @@
-local plugin_name = "mtls-auth"
+local plugin_name = "openid-authzen"
 local package_name = "kong-plugin-"..plugin_name
 local package_version = "0.0.1"
 local rockspec_revision = "0"
@@ -14,16 +14,11 @@ source = {
 }
 
 description = {
-  summary = "Kong Gateway plugin used to authenticate clients using mTLS",
+  summary = "Kong Gateway plugin used to do a callout to a policy decision point",
   detailed = [[
-      kong-plugin-mtls-auth is a Kong Gateway plugin for authenticating clients using mTLS.
-	  It is similar (but simpler) than the mTLS plugin provided in Kong Enterprise edition.
-      
-	  Information extracted from the mTLS client certificate can be made available using headers for
-	  the upstream service, or used by other plugins (such as the kong-plugin-mtls-acl plugin)
-	  to further limit access. 
+      See https://openid.net/wg/authzen/specifications/
   ]],
-  homepage = "https://github.com/bcgov/kong-oss-plugins/plugins/mtls-auth",
+  homepage = "https://github.com/bcgov/kong-oss-plugins/plugins/openid-authzen",
   license = "Apache 2.0",
 }
 

@@ -14,6 +14,8 @@ COPY plugins plugins
 
 RUN (cd plugins/jwt-keycloak && luarocks make)
 RUN (cd plugins/mtls-auth && luarocks make)
+RUN (cd plugins/mtls-acl && luarocks make)
+RUN (cd plugins/openid-authzen && luarocks make)
 RUN (cd plugins/oidc && luarocks make kong-plugin-oidc-1.5.0-2.rockspec)
 RUN (cd plugins/oidc && \
     case "${KONG_VERSION}" in \
@@ -25,4 +27,4 @@ RUN (cd plugins/oidc-consumer && luarocks make)
 USER kong
 WORKDIR /
 
-ENV KONG_PLUGINS="bundled, jwt-keycloak, oidc, oidc-consumer"
+ENV KONG_PLUGINS="bundled, jwt-keycloak, oidc, oidc-consumer, mtls-auth, mtls-acl, openid-authzen"
