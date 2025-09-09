@@ -15,7 +15,7 @@ const base_route = {
   hosts: ["kong.localtest.me"],
   paths: ["/001"],
   strip_path: true,
-  methods: ["GET"],
+  methods: ["GET","POST"],
   service: {
     id: "",
   },
