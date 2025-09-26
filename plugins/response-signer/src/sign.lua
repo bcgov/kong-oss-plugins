@@ -79,9 +79,9 @@ local function encode_jwt_token(conf, payload, key)
   local header = {
     typ = "JWT",
     alg = "RS256",
-    x5c = {
-      b64_encode(get_kong_key("pubder", get_public_key_location(conf)))
-    }
+    -- x5c = {
+    --   b64_encode(get_kong_key("pubder", get_public_key_location(conf)))
+    -- }
   }
   if conf.key_id then
     header.kid = conf.key_id
