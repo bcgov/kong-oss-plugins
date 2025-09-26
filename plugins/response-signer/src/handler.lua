@@ -30,20 +30,14 @@ end
 
 function ResponseSignerHandler:body_filter(conf)
 
-  if not is_body_transform_set(conf)
-    or not is_json_body(kong.response.get_header("Content-Type"))
-  then
-    return
-  end
-
   local body = kong.response.get_raw_body()
   if body then
-    local json_body, err = transform_json_body(conf, body)
+    local jwt_body, err = transform_json_body(conf, body)
     if err then
       kong.log.warn("body transform failed: " .. err)
       return
     end
-    return kong.response.set_raw_body(json_body)
+    return kong.response.set_raw_body(jwt_body)
   end
 end
 

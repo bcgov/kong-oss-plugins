@@ -6,7 +6,8 @@ local json = require "cjson"
 local openssl_digest = require "resty.openssl.digest"
 local openssl_pkey = require "resty.openssl.pkey"
 local table_concat = table.concat
-local encode_base64 = ngx.encode_base64
+local base64 = require "ngx.base64"
+local encode_base64url = base64.encode_base64url
 local env_private_key_location = os.getenv("KONG_SSL_CERT_KEY")
 local env_public_key_location = os.getenv("KONG_SSL_CERT_DER")
 local utils = require "kong.tools.utils"
@@ -36,8 +37,8 @@ end
 -- @param input String to base64 encode
 -- @return Base64 encoded string
 local function b64_encode(input)
-  local result = encode_base64(input)
-  result = result:gsub("+", "-"):gsub("/", "_"):gsub("=", "")
+  local result = encode_base64url(input)
+  -- result = result:gsub("+", "-"):gsub("/", "_"):gsub("=", "")
   return result
 end
 
