@@ -118,66 +118,15 @@ function _M.transform_json_body(conf, buffered_data)
     return nil, "failed parsing json body"
   end
 
-  local encoded_body = cjson_encode(json_body)
-  
   -- add signing key to body
   local sign = require "kong.plugins.response-signer.sign"
   local sign_jwt = sign.sign_jwt
-  local jwt_token, err = sign_jwt(conf, encoded_body)
+  local jwt_token, err = sign_jwt(conf, json_body)
   if err then
     return nil, "failed signing jwt: " .. err
   end
-  local new_body = {}
-  new_body["signature"] = jwt_token
-  new_body["document"] = json_body
-  new_body["doc_text"] = encoded_body
-  json_body = new_body
 
-  -- remove key:value to body
-  for _, name in iter(conf.remove.json) do
-    json_body[name] = nil
-  end
-
-  -- rename key to body
-  for _, old_name, new_name in iter(conf.rename.json) do
-    if json_body[old_name] ~= nil and new_name then
-      local value = json_body[old_name]
-      json_body[new_name] = value
-      json_body[old_name] = nil
-    end
-  end
-
-  -- replace key:value to body
-  local replace_json_types = conf.replace.json_types
-  for i, name, value in iter(conf.replace.json) do
-    local v = json_value(value, replace_json_types and replace_json_types[i])
-
-    if json_body[name] and v ~= nil then
-      json_body[name] = v
-    end
-  end
-
-  -- add new key:value to body
-  local add_json_types = conf.add.json_types
-  for i, name, value in iter(conf.add.json) do
-    local v = json_value(value, add_json_types and add_json_types[i])
-
-    if not json_body[name] and v ~= nil then
-      json_body[name] = v
-    end
-  end
-
-  -- append new key:value or value to existing key
-  local append_json_types = conf.append.json_types
-  for i, name, value in iter(conf.append.json) do
-    local v = json_value(value, append_json_types and append_json_types[i])
-
-    if v ~= nil then
-      json_body[name] = append_value(json_body[name], v)
-    end
-  end
-
-  return cjson_encode(json_body)
+  return jwt_token
 end
 
 

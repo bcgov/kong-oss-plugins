@@ -114,11 +114,11 @@ end
 -- @param conf the configuration
 -- @param payload_hash the payload hash
 -- @return the JWT payload (table)
-local function build_jwt_payload(conf, payload_hash)
+local function build_jwt_payload(conf, req_json_body)
   local current_time = ngx.time() -- Much better performance improvement over os.time()
   local payload = {
     jti = utils.uuid(),
-    payloadhash = payload_hash
+    data = req_json_body
   }
 
   if conf.issuer then
@@ -140,9 +140,9 @@ local function build_jwt_payload(conf, payload_hash)
 end
 
 -- Encode the JWT token
-function _M.sign_jwt(conf, req_body)
-  local payload_hash = build_payload_hash(req_body)
-  local jwt_payload = build_jwt_payload(conf, payload_hash)
+function _M.sign_jwt(conf, req_json_body)
+  -- local payload_hash = build_payload_hash(req_body)
+  local jwt_payload = build_jwt_payload(conf, req_json_body)
   local kong_private_key = get_kong_key("pkey", get_private_key_location(conf))
   local jwt = encode_jwt_token(conf, jwt_payload, kong_private_key)
   return jwt

@@ -19,7 +19,9 @@ local ResponseSignerHandler = {
 
 
 function ResponseSignerHandler:header_filter(conf)
-  transform_headers(conf, kong.response.get_headers())
+  -- transform_headers(conf, kong.response.get_headers())
+  kong.response.set_header("X-Response-Signer", "v" .. kong_meta.version)
+  kong.response.set_header("Content-Type", "application/jws+jwt");
 end
 
 
