@@ -33,6 +33,17 @@ local function get_public_key_location(conf)
   return conf.public_key_location
 end
 
+function pem_to_x5c(pem_cert)
+    -- Remove PEM headers and footers
+    local cert_data = pem_cert:gsub("%-%-%-%-%-BEGIN CERTIFICATE%-%-%-%-%-", "")
+    cert_data = cert_data:gsub("%-%-%-%-%-END CERTIFICATE%-%-%-%-%-", "")
+    
+    -- Remove all whitespace (newlines, spaces, tabs)
+    cert_data = cert_data:gsub("%s", "")
+    
+    return cert_data
+end
+
 --- base 64 encoding
 -- @param input String to base64 encode
 -- @return Base64 encoded string
@@ -79,9 +90,9 @@ local function encode_jwt_token(conf, payload, key)
   local header = {
     typ = "JWT",
     alg = "RS256",
-    -- x5c = {
-    --   b64_encode(get_kong_key("pubder", get_public_key_location(conf)))
-    -- }
+    x5c = {
+      pem_to_x5c(get_kong_key("pubder", get_public_key_location(conf)))
+    }
   }
   if conf.key_id then
     header.kid = conf.key_id
