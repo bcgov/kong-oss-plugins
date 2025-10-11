@@ -8,8 +8,8 @@ local openssl_pkey = require "resty.openssl.pkey"
 local table_concat = table.concat
 local base64 = require "ngx.base64"
 local encode_base64url = base64.encode_base64url
-local env_private_key_location = os.getenv("KONG_SSL_CERT_KEY")
-local env_public_key_location = os.getenv("KONG_SSL_CERT_DER")
+local env_private_key_location = os.getenv("KONG_SIGNING_CERT_KEY")
+local env_public_key_location = os.getenv("KONG_SIGNING_CERT")
 local utils = require "kong.tools.utils"
 local _M = {}
 
