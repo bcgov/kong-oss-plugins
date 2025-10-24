@@ -33,7 +33,7 @@ local function get_public_key_location(conf)
   return conf.public_key_location
 end
 
-function pem_to_x5c(pem_cert)
+local function pem_to_x5c(pem_cert)
     -- Remove PEM headers and footers
     local cert_data = pem_cert:gsub("%-%-%-%-%-BEGIN CERTIFICATE%-%-%-%-%-", "")
     cert_data = cert_data:gsub("%-%-%-%-%-END CERTIFICATE%-%-%-%-%-", "")

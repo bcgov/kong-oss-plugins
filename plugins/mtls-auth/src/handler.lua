@@ -77,6 +77,11 @@ function MtlsAuth:access(config)
         set_header(config.upstream_cert_org_header, cert_dn["O"])
     end
 
+    set_header("X-Tls-Server-Name", ngx.var.ssl_server_name)
+
+    if ngx.var.ssl_client_verify then
+        set_header("X-Tls-Client-Verify", ngx.var.ssl_client_verify)
+    end
 end
 
 return MtlsAuth
