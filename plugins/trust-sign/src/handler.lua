@@ -9,13 +9,45 @@ local TrustSignHandler = {
 }
 
 function TrustSignHandler:access(conf)
-  kong.log.warn("Trust Sign")
+  if conf.direction ~= "request" then
+    return
+  end
+
+  local request = kong.service.request
+
+  kong.log.warn("Trust Sign - Access for Request")
+
+  local headers = kong.request.get_headers()
+
+  local tag = "trust-sign"
+  local keyid = conf.keyid
+  local kong_request = kong.request
+  local signature_label = conf.signature_label
+  local signature_input = conf.signature_label .. "=" .. conf.signature_input .. ";created=" .. (ngx.now() * 1000) .. ";keyid=\"" .. keyid .. "\";tag=\"" .. tag .. "\""
+
+  request.set_header("Signature-Input", signature_input)
+
+  local input_message, err = filter.get_signature_base(headers, kong_request, signature_label, signature_input)
+  if not input_message then
+    request.set_header("X-Trust-Sign-Error", "Signature Base Error - " .. err)
+    return
+  end
+
+  local algorithm = conf.algorithm
+  local signature = filter.sign(conf, input_message, algorithm)
+  if signature then
+    request.set_header("Signature", signature_label .. "=:" .. btoa(signature) .. ":")
+  end
 end
 
 function TrustSignHandler:header_filter(conf)
+  if conf.direction ~= "response" then
+    return
+  end
+
   kong.log.warn("Trust Sign - Header Filter")
 
-  local headers = kong.request.get_headers()
+  local headers = kong.response.get_headers()
 
   local tag = "trust-sign"
   local keyid = conf.keyid
@@ -36,10 +68,6 @@ function TrustSignHandler:header_filter(conf)
   if signature then
     kong.response.set_header("Signature", signature_label .. "=:" .. btoa(signature) .. ":")
   end
-end
-
-function TrustSignHandler:body_filter(conf)
-  kong.log.warn("Trust Sign - Body Filter")
 end
 
 return TrustSignHandler

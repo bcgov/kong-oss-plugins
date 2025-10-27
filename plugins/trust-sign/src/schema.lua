@@ -9,6 +9,15 @@ return {
         type = "record",
         fields = {
           {
+            direction = {
+              type = "string",
+              one_of = {
+                "request",
+                "response",
+              }           
+            }
+          },
+          {
             signature_label = {
               type = "string",
               required = true,
