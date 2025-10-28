@@ -22,25 +22,26 @@ local TrustVerifyDigestHandler = {
 
 function TrustVerifyDigestHandler:access(conf)
   local request = kong.service.request
+  local response = kong.response
 
   if conf.direction == "request" then
     local body = kong.request.get_raw_body()
     if not body or body == "" then
-      request.set_header("X-Trust-Verify-Digest-Error", "Empty Body")
+      response.set_header("X-Trust-Verify-Digest-Status", "NoBody")
       return
     end
 
     local headers = kong.request.get_headers()
     local content_digest = headers["Content-Digest"]
     if not content_digest then
-      request.set_header("X-Trust-Verify-Digest-Error", "Missing Content-Digest Header")
+      response.set_header("X-Trust-Verify-Digest-Error", "Missing Content-Digest Header")
       return send_error_response(401, "invalid_content_digest")
     end
 
     local alg, digest_bytes, err = digest_mod.parse(content_digest)
     if err then
       kong.log.warn("Error parsing Content-Digest header: " .. err)
-      request.set_header("X-Trust-Verify-Digest-Error", "Invalid Content-Digest Header")
+      response.set_header("X-Trust-Verify-Digest-Error", "Invalid Content-Digest Header")
       return send_error_response(401, "invalid_content_digest")
     end
 
@@ -48,10 +49,10 @@ function TrustVerifyDigestHandler:access(conf)
 
     if digest_bytes ~= match then
       kong.log.warn("Digest Mismatch! Header: " .. str.to_hex(digest_bytes) .. " Computed: " .. str.to_hex(digest))
-      request.set_header("X-Trust-Verify-Digest-Error", "Digest Mismatch")
+      response.set_header("X-Trust-Verify-Digest-Error", "Digest Mismatch")
       return send_error_response(401, "invalid_content_digest")
     end
-    kong.response.set_header("X-Trust-Verify-Digest-Status", "Pass")
+    response.set_header("X-Trust-Verify-Digest-Status", "Pass")
   end
 end
 
