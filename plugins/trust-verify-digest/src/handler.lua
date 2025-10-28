@@ -34,16 +34,24 @@ function TrustVerifyDigestHandler:access(conf)
     local content_digest = headers["Content-Digest"]
     if not content_digest then
       request.set_header("X-Trust-Verify-Digest-Error", "Missing Content-Digest Header")
-      return
+      return send_error_response(401, "invalid_content_digest")
     end
 
-    request.set_header("X-Trust-Verify-Digest", "TBD")
+    local alg, digest_bytes, err = digest_mod.parse(content_digest)
+    if err then
+      kong.log.warn("Error parsing Content-Digest header: " .. err)
+      request.set_header("X-Trust-Verify-Digest-Error", "Invalid Content-Digest Header")
+      return send_error_response(401, "invalid_content_digest")
+    end
 
-    local calc_digest = digest.digest(body, "sha256")
+    local match = digest_mod.digest(body, alg)
 
-    -- Here you would add the logic to verify the digest against the body
-    -- For demonstration, we will just log the content digest
-    kong.log.warn("Verifying Content-Digest: " .. content_digest)
+    if digest_bytes ~= match then
+      kong.log.warn("Digest Mismatch! Header: " .. str.to_hex(digest_bytes) .. " Computed: " .. str.to_hex(digest))
+      request.set_header("X-Trust-Verify-Digest-Error", "Digest Mismatch")
+      return send_error_response(401, "invalid_content_digest")
+    end
+    kong.response.set_header("X-Trust-Verify-Digest-Status", "Pass")
   end
 end
 
@@ -63,7 +71,7 @@ function TrustVerifyDigestHandler:body_filter(conf)
     local headers = kong.response.get_headers()
     local content_digest = headers["Content-Digest"]
     if not content_digest then
-      return
+      return send_error_response(401, "missing_content_digest")
     end
 
     local alg, digest_bytes, err = digest_mod.parse(content_digest)
@@ -75,8 +83,6 @@ function TrustVerifyDigestHandler:body_filter(conf)
 
     local match = digest_mod.digest(body, alg)
 
-    assert(digest_bytes == match)
-    
     if digest_bytes ~= match then
       kong.log.warn("Digest Mismatch! Header: " .. str.to_hex(digest_bytes) .. " Computed: " .. str.to_hex(digest))
       kong.response.set_header("X-Trust-Verify-Digest-Error", "Digest Mismatch")
