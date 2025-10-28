@@ -22,6 +22,8 @@ RUN (cd plugins/token-exchange && luarocks make)
 RUN (cd plugins/trust-ledger && luarocks make)
 RUN (cd plugins/trust-sign && luarocks make)
 RUN (cd plugins/trust-timestamp && luarocks make)
+RUN (cd plugins/trust-verify-digest && luarocks make)
+RUN (cd plugins/trust-verify-signature && luarocks make)
 RUN (cd plugins/oidc && luarocks make kong-plugin-oidc-1.5.0-2.rockspec)
 RUN (cd plugins/oidc && \
     case "${KONG_VERSION}" in \
@@ -33,4 +35,4 @@ RUN (cd plugins/oidc-consumer && luarocks make)
 USER kong
 WORKDIR /
 
-ENV KONG_PLUGINS="bundled, dpop, jwt-keycloak, oidc, oidc-consumer, mtls-auth, mtls-acl, openid-authzen, response-signer, token-exchange, trust-ledger, trust-sign, trust-timestamp"
+ENV KONG_PLUGINS="bundled, dpop, jwt-keycloak, oidc, oidc-consumer, mtls-auth, mtls-acl, openid-authzen, response-signer, token-exchange, trust-ledger, trust-sign, trust-timestamp, trust-verify-digest, trust-verify-signature"
