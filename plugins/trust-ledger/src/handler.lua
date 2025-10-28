@@ -20,6 +20,10 @@ local TrustLedgerHandler = {
   Reference: https://github.com/sigstore/rekor
 ]]
 function TrustLedgerHandler:header_filter(conf)
+  if kong.response.get_source() ~= "service" then
+    return
+  end
+
   kong.log.warn("Ledger processing")
   local rfc3161_artifact = kong.ctx.shared.rfc3161_artifact
   if not rfc3161_artifact then

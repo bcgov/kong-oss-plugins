@@ -146,6 +146,10 @@ end
   The plugin adds the trusted timestamp to the response headers for downstream verification.
 ]]
 function TrustTimestampHandler:header_filter(conf)
+  if kong.response.get_source() ~= "service" then
+    return
+  end
+
   local artifact = kong.request.get_header("X-Artifact")
   local tsr_der = call_ts_authority(conf.endpoint_url, conf.policy_oid, artifact)
 

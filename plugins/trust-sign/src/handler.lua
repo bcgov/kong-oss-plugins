@@ -45,6 +45,10 @@ function TrustSignHandler:header_filter(conf)
     return
   end
 
+  if kong.response.get_source() ~= "service" then
+    return
+  end
+
   kong.log.warn("Trust Sign - Header Filter")
 
   local headers = kong.response.get_headers()
