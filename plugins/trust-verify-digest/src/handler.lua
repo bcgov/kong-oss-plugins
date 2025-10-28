@@ -1,13 +1,24 @@
-local json = require("cjson")
+local digest_mod = require("kong.plugins.trust-verify-digest.digest")
 local https = require("ssl.https")
 local btoa = ngx.encode_base64
 local kong_meta = require "kong.meta"
 local kong = kong
 
+local function send_error_response(status, error_code, description)
+  kong.response.set_status(status)
+  kong.response.set_header("Content-Type", "application/json")
+  local body = {
+    error = error_code,
+    error_description = description
+  }
+  return kong.response.exit(status, body)
+end
+
 local TrustVerifyDigestHandler = {
   PRIORITY = 710,
   VERSION = kong_meta.version
 }
+
 
 function TrustVerifyDigestHandler:access(conf)
   local request = kong.service.request
@@ -27,6 +38,8 @@ function TrustVerifyDigestHandler:access(conf)
     end
 
     request.set_header("X-Trust-Verify-Digest", "TBD")
+
+    local calc_digest = digest.digest(body, "sha256")
 
     -- Here you would add the logic to verify the digest against the body
     -- For demonstration, we will just log the content digest
@@ -53,9 +66,23 @@ function TrustVerifyDigestHandler:body_filter(conf)
       return
     end
 
-    -- Here you would add the logic to verify the digest against the body
-    -- For demonstration, we will just log the content digest
-    kong.log.warn("Verifying Content-Digest: " .. content_digest)
+    local alg, digest_bytes, err = digest_mod.parse(content_digest)
+    if err then
+      kong.log.warn("Error parsing Content-Digest header: " .. err)
+      kong.response.set_header("X-Trust-Verify-Digest-Error", "Invalid Content-Digest Header")
+      return send_error_response(401, "invalid_content_digest")
+    end
+
+    local match = digest_mod.digest(body, alg)
+
+    assert(digest_bytes == match)
+    
+    if digest_bytes ~= match then
+      kong.log.warn("Digest Mismatch! Header: " .. str.to_hex(digest_bytes) .. " Computed: " .. str.to_hex(digest))
+      kong.response.set_header("X-Trust-Verify-Digest-Error", "Digest Mismatch")
+      return send_error_response(401, "invalid_content_digest")
+    end
+    kong.response.set_header("X-Trust-Verify-Digest-Status", "Pass")
   end
 end
 
