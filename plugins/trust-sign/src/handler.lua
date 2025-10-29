@@ -10,11 +10,15 @@ local TrustSignHandler = {
 }
 
 function TrustSignHandler:access(conf)
+  local request = kong.service.request
+
+  -- Enable request buffering to read the full body
+  -- in the header_filter phase
+  request.enable_buffering()
+
   if conf.direction ~= "request" then
     return
   end
-
-  local request = kong.service.request
 
   kong.log.warn("Trust Sign - Access for Request")
 
@@ -50,17 +54,20 @@ function TrustSignHandler:header_filter(conf)
     return
   end
 
-  local body = kong.service.response.get_raw_body()
-  if body == nil then
-    kong.log.warn("Body is nil - no raw body available")
-  elseif body == "" then
-    kong.log.warn("Body is empty string")
-  else
-    local alg = "sha-256"
-    local dig = digest_mod.digest(body, alg)
-    kong.response.set_header("Content-Digest", alg .. "=:" .. btoa(dig) .. ":")
-  end 
-
+  if kong.response.get_header("Content-Digest") == nil then
+    kong.log.warn("Content-Digest header not present, generating digest")
+    local body = kong.service.response.get_raw_body()
+    if body == nil then
+      kong.log.warn("Body is nil - no raw body available")
+    elseif body == "" then
+      kong.log.warn("Body is empty string")
+    else
+      local alg = "sha-256"
+      local dig = digest_mod.digest(body, alg)
+      kong.response.set_header("Content-Digest", alg .. "=:" .. btoa(dig) .. ":")
+    end 
+  end
+  
   kong.log.warn("Trust Sign - Header Filter")
 
   local headers = kong.response.get_headers()
