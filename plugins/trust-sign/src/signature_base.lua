@@ -43,6 +43,8 @@ function M.get_signature_base(headers, kong_request, signature_label, signature_
             local header_value = headers[component]
             if header_value then
                 table.insert(message_parts, '"' .. component .. '": ' .. header_value)
+            elseif kong_request.get_header(component) then
+                table.insert(message_parts, '"' .. component .. '": ' .. kong_request.get_header(component))
             else
                 return nil, "Missing required header: " .. component
             end
