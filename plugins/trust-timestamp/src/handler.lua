@@ -54,8 +54,8 @@ local function der_boolean(val)
     return string.char(0x01, 0x01, val and 0xFF or 0x00)
 end
 
-function create_timestamp_request(data)
-    -- Step 1: Create SHA-256 hash
+function create_timestamp_query(data)
+    -- Step 1: Create SHA-512 hash
     local d = digest.new("sha512")
     d:update(data)
     local hash = d:final()
@@ -91,14 +91,14 @@ function create_timestamp_request(data)
     local cert_req = der_boolean(true)
     
     -- TimeStampReq SEQUENCE
-    local ts_req = der_sequence(
+    local tsq_der = der_sequence(
         version,
         message_imprint,
         nonce,
         cert_req
     )
     
-    return ts_req, nonce_bytes
+    return tsq_der, nonce_bytes
 end
 
 --[[
@@ -113,7 +113,7 @@ end
     }
 ]]
 local function call_ts_authority(tsa_url, policy_oid, artifact)
-  local tsq_der, nonce = create_timestamp_request(artifact)
+  local tsq_der, nonce = create_timestamp_query(artifact)
   local response_body = {}
   local res,
     status_code,
@@ -136,7 +136,7 @@ local function call_ts_authority(tsa_url, policy_oid, artifact)
     return nil
   end
   if res then
-    return table.concat(response_body)
+    return tsq_der, table.concat(response_body)
   end
 end
 
@@ -150,9 +150,16 @@ function TrustTimestampHandler:header_filter(conf)
     return
   end
 
-  local artifact = kong.request.get_header("X-Artifact")
-  local tsr_der = call_ts_authority(conf.endpoint_url, conf.policy_oid, artifact)
+  local artifact = kong.response.get_header("Signature")
+  local tsq_der, tsr_der = call_ts_authority(conf.endpoint_url, conf.policy_oid, artifact)
 
+  if tsq_der == nil or tsr_der == nil then
+    kong.log.err("Failed to obtain trusted timestamp from authority")
+    kong.response.set_header("X-Trust-Timestamp-Error", "Failed to obtain trusted timestamp")
+    return
+  end
+
+  kong.response.set_header("X-Trust-Timestamp-Tsq", btoa(tsq_der))
   kong.response.set_header("X-Trust-Timestamp", btoa(tsr_der))
 
   kong.ctx.shared.rfc3161_artifact = btoa(tsr_der)
