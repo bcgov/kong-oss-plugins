@@ -1,3 +1,4 @@
+local digest_mod = require("kong.plugins.trust-sign.digest")
 local filter = require("kong.plugins.trust-sign.signature_base")
 local kong_meta = require "kong.meta"
 local btoa = ngx.encode_base64
@@ -49,6 +50,17 @@ function TrustSignHandler:header_filter(conf)
     return
   end
 
+  local body = kong.service.response.get_raw_body()
+  if body == nil then
+    kong.log.warn("Body is nil - no raw body available")
+  elseif body == "" then
+    kong.log.warn("Body is empty string")
+  else
+    local alg = "sha-256"
+    local dig = digest_mod.digest(body, alg)
+    kong.response.set_header("Content-Digest", alg .. "=:" .. btoa(dig) .. ":")
+  end 
+
   kong.log.warn("Trust Sign - Header Filter")
 
   local headers = kong.response.get_headers()
@@ -66,6 +78,8 @@ function TrustSignHandler:header_filter(conf)
     kong.response.set_header("X-Trust-Sign-Error", "Signature Base Error - " .. err)
     return
   end
+
+  kong.response.set_header("Signature-Debug", btoa(input_message))
 
   local algorithm = conf.algorithm
   local signature = filter.sign(conf, input_message, algorithm)

@@ -69,7 +69,7 @@ function create_timestamp_query(data)
     -- SHA-512 OID: 2.16.840.1.101.3.4.2.3
     local sha512_oid = "\x60\x86\x48\x01\x65\x03\x04\x02\x03"
 
-    -- AlgorithmIdentifier for SHA-256
+    -- AlgorithmIdentifier for SHA-512
     local algorithm_id = der_sequence(
         der_oid(sha512_oid),
         string.char(0x05, 0x00)  -- NULL
