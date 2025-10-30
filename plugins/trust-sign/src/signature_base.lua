@@ -98,11 +98,16 @@ function M.sign(conf, input, algorithm)
   kong.log.warn("Signing with algorithm: ", algorithm)
   kong.log.warn("Signing with key: ", get_private_key_location(conf))
 
-  local digest = openssl_digest.new(algorithm)
-  assert(digest:update(input))
-  local digest_bytes = digest:final()
+  local digest,
+    err = openssl_digest.new(algorithm)
+  if err then
+    kong.log.err("Failed to create digest: ", err)
+    return nil
+  end
 
-  local signature = assert(openssl_pkey.new(kong_private_key):sign(digest_bytes))
+  assert(digest:update(input))
+
+  local signature = assert(openssl_pkey.new(kong_private_key):sign(digest))
 
   kong.log.warn("Signature length: ", #signature)
   return signature

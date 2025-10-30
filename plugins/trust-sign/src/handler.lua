@@ -28,11 +28,14 @@ function TrustSignHandler:access(conf)
   local keyid = conf.keyid
   local kong_request = kong.request
   local signature_label = conf.signature_label
-  local signature_input = conf.signature_label .. "=" .. conf.signature_input .. ";created=" .. (ngx.now() * 1000) .. ";keyid=\"" .. keyid .. "\";tag=\"" .. tag .. "\""
+  local signature_input =
+    conf.signature_label ..
+    "=" .. conf.signature_input .. ";created=" .. (ngx.now() * 1000) .. ';keyid="' .. keyid .. '";tag="' .. tag .. '"'
 
   request.set_header("Signature-Input", signature_input)
 
-  local input_message, err = filter.get_signature_base(headers, kong_request, signature_label, signature_input)
+  local input_message,
+    err = filter.get_signature_base(headers, kong_request, signature_label, signature_input)
   if not input_message then
     request.set_header("X-Trust-Sign-Error", "Signature Base Error - " .. err)
     return
@@ -65,9 +68,9 @@ function TrustSignHandler:header_filter(conf)
       local alg = "sha-256"
       local dig = digest_mod.digest(body, alg)
       kong.response.set_header("Content-Digest", alg .. "=:" .. btoa(dig) .. ":")
-    end 
+    end
   end
-  
+
   kong.log.warn("Trust Sign - Header Filter")
 
   local headers = kong.response.get_headers()
@@ -76,15 +79,20 @@ function TrustSignHandler:header_filter(conf)
   local keyid = conf.keyid
   local kong_request = kong.request
   local signature_label = conf.signature_label
-  local signature_input = conf.signature_label .. "=" .. conf.signature_input .. ";created=" .. (ngx.now() * 1000) .. ";keyid=\"" .. keyid .. "\";tag=\"" .. tag .. "\""
+  local signature_input =
+    conf.signature_label ..
+    "=" .. conf.signature_input .. ";created=" .. (ngx.now() * 1000) .. ';keyid="' .. keyid .. '";tag="' .. tag .. '"'
 
   kong.response.set_header("Signature-Input", signature_input)
 
-  local input_message, err = filter.get_signature_base(headers, kong_request, signature_label, signature_input)
+  local input_message,
+    err = filter.get_signature_base(headers, kong_request, signature_label, signature_input)
   if not input_message then
     kong.response.set_header("X-Trust-Sign-Error", "Signature Base Error - " .. err)
     return
   end
+
+  kong.log.warn("Signature Base Message: \n" .. input_message)
 
   kong.response.set_header("Signature-Debug", btoa(input_message))
 
