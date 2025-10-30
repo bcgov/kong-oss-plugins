@@ -107,9 +107,18 @@ function M.sign(conf, input, algorithm)
 
   assert(digest:update(input))
 
-  local signature = assert(openssl_pkey.new(kong_private_key):sign(digest))
+  local pk = openssl_pkey.new(kong_private_key)
 
+  local signature = assert(pk:sign(digest))
   kong.log.warn("Signature length: ", #signature)
+
+  local vdigest = openssl_digest.new(algorithm)
+  assert(vdigest:update(input))
+
+  local ok,
+    err = pk:verify(signature, vdigest)
+  kong.log.warn("Verify: ", ok, err)
+
   return signature
 end
 
