@@ -93,13 +93,18 @@ local function get_kong_key(key, location)
 end
 
 function M.sign(conf, input, algorithm)
-  local kong_private_key = get_kong_key("pkey", get_private_key_location(conf))
+  local kong_private_key = get_kong_key("trust-sign-pkey", get_private_key_location(conf))
+
+  kong.log.warn("Signing with algorithm: ", algorithm)
+  kong.log.warn("Signing with key: ", get_private_key_location(conf))
 
   local digest = openssl_digest.new(algorithm)
   assert(digest:update(input))
   local digest_bytes = digest:final()
 
   local signature = assert(openssl_pkey.new(kong_private_key):sign(digest_bytes))
+
+  kong.log.warn("Signature length: ", #signature)
   return signature
 end
 
