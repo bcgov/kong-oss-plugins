@@ -90,7 +90,6 @@ end
 -- @return the encoded JWT token
 local function encode_jwt_token(conf, payload, key)
   local header = {
-    typ = "JWT",
     alg = conf.alg
     -- x5c = {
     --   pem_to_x5c(get_kong_key("pubder", get_public_key_location(conf)))
@@ -104,10 +103,18 @@ local function encode_jwt_token(conf, payload, key)
     b64_encode(json.encode(payload))
   }
   local signing_input = table_concat(segments, ".")
-  local digest = openssl_digest.new("sha256")
-  assert(digest:update(signing_input))
-  local signature = assert(openssl_pkey.new(key):sign(digest))
-  -- local signature = openssl_pkey.new(key):sign(openssl_digest.new("sha256"):update(signing_input))
+
+  local signature =
+    assert(
+    openssl_pkey.new(key):sign(
+      signing_input,
+      conf.hash_alg,
+      nil,
+      {
+        ecdsa_use_raw = true
+      }
+    )
+  )
   segments[#segments + 1] = b64_encode(signature)
   return table_concat(segments, ".")
 end
@@ -130,21 +137,17 @@ end
 -- @return the JWT payload (table)
 local function build_jwt_payload(conf, payload)
   payload.jti = utils.uuid()
+  payload.iat = ngx.time()
 
-  if conf.issuer then
-    payload.iat = ngx.time()
-    payload.iss = conf.issuer
-  end
+  -- if ngx.ctx.service then
+  --   payload.aud = ngx.ctx.service.name
+  -- end
 
-  if ngx.ctx.service then
-    payload.aud = ngx.ctx.service.name
-  end
-
-  local consumer = kong.client.get_consumer()
-  if consumer then
-    payload.consumerid = consumer.id
-    payload.consumername = consumer.username
-  end
+  -- local consumer = kong.client.get_consumer()
+  -- if consumer then
+  --   payload.consumerid = consumer.id
+  --   payload.consumername = consumer.username
+  -- end
 
   return payload
 end
@@ -152,7 +155,7 @@ end
 -- Encode the JWT token
 function _M.sign_jwt(conf, manifest)
   local jwt_payload = build_jwt_payload(conf, manifest)
-  local kong_private_key = get_kong_key("trust_sign_pkey", get_private_key_location(conf))
+  local kong_private_key = get_kong_key("trust_sign_pkey_" .. conf.private_key_location, get_private_key_location(conf))
   local jwt = encode_jwt_token(conf, jwt_payload, kong_private_key)
   return jwt
 end

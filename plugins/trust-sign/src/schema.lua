@@ -42,7 +42,7 @@ return {
             }
           },
           {
-            signing_key_location = {
+            private_key_location = {
               type = "string",
               required = true
             }

@@ -58,7 +58,7 @@ function M.get_signature_base(headers, kong_request, signature_label, signature_
 end
 
 local function get_private_key_location(conf)
-  return conf.signing_key_location
+  return conf.private_key_location
 end
 
 --- Read contents of file from given location
@@ -92,14 +92,14 @@ local function get_kong_key(key, location)
   return pkey
 end
 
-function M.sign(conf, input, algorithm)
+function M.sign(conf, input, hash_alg)
   local kong_private_key = get_kong_key("trust-sign-pkey", get_private_key_location(conf))
 
-  kong.log.warn("Signing with algorithm: ", algorithm)
+  kong.log.warn("Signing with hash algorithm: ", hash_alg)
   kong.log.warn("Signing with key: ", get_private_key_location(conf))
 
   local digest,
-    err = openssl_digest.new(algorithm)
+    err = openssl_digest.new(hash_alg)
   if err then
     kong.log.err("Failed to create digest: ", err)
     return nil
@@ -112,12 +112,17 @@ function M.sign(conf, input, algorithm)
   local signature = assert(pk:sign(digest))
   kong.log.warn("Signature length: ", #signature)
 
-  local vdigest = openssl_digest.new(algorithm)
+  local vdigest = openssl_digest.new(hash_alg)
   assert(vdigest:update(input))
 
   local ok,
     err = pk:verify(signature, vdigest)
   kong.log.warn("Verify: ", ok, err)
+
+  if not ok then
+    kong.log.err("Signature verification failed: ", err)
+    return nil
+  end
 
   return signature
 end

@@ -42,8 +42,8 @@ function TrustSignHandler:access(conf)
     return
   end
 
-  local algorithm = conf.hash_alg
-  local signature = filter.sign(conf, input_message, algorithm)
+  local hash_alg = conf.hash_alg
+  local signature = filter.sign(conf, input_message, hash_alg)
   if signature then
     request.set_header("Signature", signature_label .. "=:" .. btoa(signature) .. ":")
   end
