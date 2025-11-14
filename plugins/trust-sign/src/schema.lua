@@ -13,8 +13,8 @@ return {
               type = "string",
               one_of = {
                 "request",
-                "response",
-              }           
+                "response"
+              }
             }
           },
           {
@@ -23,7 +23,7 @@ return {
               required = true,
               default = "sig1"
             }
-          },          
+          },
           {
             signature_input = {
               type = "string",
@@ -37,6 +37,11 @@ return {
             }
           },
           {
+            signature_header_key = {
+              type = "string"
+            }
+          },
+          {
             signing_key_location = {
               type = "string",
               required = true
@@ -47,8 +52,8 @@ return {
               type = "string",
               one_of = {
                 "sha256",
-                "sha512",
-              }           
+                "sha512"
+              }
             }
           }
         }

@@ -1,5 +1,6 @@
 local digest_mod = require("kong.plugins.trust-sign.digest")
 local filter = require("kong.plugins.trust-sign.signature_base")
+local jwk_sign = require("kong.plugins.trust-sign.sign")
 local kong_meta = require "kong.meta"
 local btoa = ngx.encode_base64
 local kong = kong
@@ -46,6 +47,10 @@ function TrustSignHandler:access(conf)
   if signature then
     request.set_header("Signature", signature_label .. "=:" .. btoa(signature) .. ":")
   end
+
+  local manifest = {}
+  local jwt = jwk_sign.sign_jwt(conf, manifest)
+  request.set_header(conf.signature_header_key, jwt)
 end
 
 function TrustSignHandler:header_filter(conf)

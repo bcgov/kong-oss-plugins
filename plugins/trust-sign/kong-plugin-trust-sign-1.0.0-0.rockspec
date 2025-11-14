@@ -32,6 +32,7 @@ build = {
     ["kong.plugins."..plugin_name..".digest"] = "src/digest.lua",
     ["kong.plugins."..plugin_name..".handler"] = "src/handler.lua",
     ["kong.plugins."..plugin_name..".schema"] = "src/schema.lua",
+    ["kong.plugins."..plugin_name..".sign"] = "src/sign.lua",
     ["kong.plugins."..plugin_name..".signature_base"] = "src/signature_base.lua",
   }
 }
