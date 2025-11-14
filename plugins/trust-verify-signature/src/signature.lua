@@ -1,9 +1,10 @@
 local jwks = require("kong.plugins.trust-verify-signature.jwks")
+local cjson = require("cjson.safe")
 
-local function cache_helper_issuer_get_keys(well_known_endpoint, cafile)
+local function cache_helper_issuer_get_keys(well_known_endpoint)
   kong.log.debug("Getting public keys from token issuer")
   local keys,
-    err = jwks.get_issuer_keys(well_known_endpoint, cafile)
+    err = jwks.get_issuer_keys(well_known_endpoint)
   if err then
     return nil, err
   end
@@ -18,7 +19,7 @@ local function verify_jwt_signature(conf, jwt, second_call)
   local jwks_cache_key = "trust_verify_signature_keys"
 
   local public_keys,
-    err = kong.cache:get(jwks_cache_key, nil, cache_helper_issuer_get_keys, conf.jwks_endpoint)
+    err = kong.cache:get(jwks_cache_key, {ttl = 15}, cache_helper_issuer_get_keys, conf.jwks_endpoint)
 
   if not public_keys then
     if err then
@@ -29,12 +30,24 @@ local function verify_jwt_signature(conf, jwt, second_call)
 
   local matching_jwk = public_keys.keys[jwt.header.kid]
   if matching_jwk then
-    if jwt:verify_signature(matching_jwk) then
-      return true
-    else
-      kong.log.warn("JWT signature verification failed for key ID: ", jwt.header.kid)
+    kong.log.warn("Found matching JWK for key ID: ", cjson.encode(matching_jwk))
+    local success,
+      message =
+      pcall(
+      function()
+        return jwt:verify_signature(cjson.encode(matching_jwk))
+      end
+    )
+
+    if not success then
+      kong.log.warn("JWT signature verification failed for key ID: ", jwt.header.kid, message)
       return false, {status = 401, message = "Signature public key mismatch"}
     end
+
+    return true
+  else
+    kong.log.warn("No matching JWK found for key ID: ", jwt.header.kid)
+    return false, {status = 401, message = "Signature public key not found"}
   end
 
   -- -- We could not validate signature, try to get a new keyset?

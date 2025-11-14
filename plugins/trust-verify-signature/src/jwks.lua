@@ -41,7 +41,7 @@ end
 local function get_issuer_key_from_jwks_content(jwks_content)
     local keys = {}
     for i, key in ipairs(jwks_content["keys"]) do
-        keys[key.kid] = convert.convert_kc_key(key)
+        keys[key.kid] = key
     end
     return keys, nil
 end
