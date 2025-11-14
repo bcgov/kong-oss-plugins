@@ -91,7 +91,7 @@ end
 local function encode_jwt_token(conf, payload, key)
   local header = {
     typ = "JWT",
-    alg = "RS256"
+    alg = conf.alg
     -- x5c = {
     --   pem_to_x5c(get_kong_key("pubder", get_public_key_location(conf)))
     -- }

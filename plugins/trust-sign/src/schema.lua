@@ -48,7 +48,18 @@ return {
             }
           },
           {
-            algorithm = {
+            alg = {
+              type = "string",
+              one_of = {
+                "RS256",
+                "RS512",
+                "ES256",
+                "ES512"
+              }
+            }
+          },
+          {
+            hash_alg = {
               type = "string",
               one_of = {
                 "sha256",

@@ -42,7 +42,7 @@ function TrustSignHandler:access(conf)
     return
   end
 
-  local algorithm = conf.algorithm
+  local algorithm = conf.hash_alg
   local signature = filter.sign(conf, input_message, algorithm)
   if signature then
     request.set_header("Signature", signature_label .. "=:" .. btoa(signature) .. ":")
@@ -101,7 +101,7 @@ function TrustSignHandler:header_filter(conf)
 
   kong.response.set_header("Signature-Debug", btoa(input_message))
 
-  local algorithm = conf.algorithm
+  local algorithm = conf.hash_alg
   local signature = filter.sign(conf, input_message, algorithm)
   if signature then
     kong.response.set_header("Signature", signature_label .. "=:" .. btoa(signature) .. ":")
