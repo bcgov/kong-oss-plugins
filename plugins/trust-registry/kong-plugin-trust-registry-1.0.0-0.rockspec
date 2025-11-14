@@ -1,4 +1,4 @@
-local plugin_name = "trust-verify-signature"
+local plugin_name = "trust-registry"
 local package_name = "kong-plugin-"..plugin_name
 local package_version = "1.0.0"
 local rockspec_revision = "0"
@@ -10,15 +10,15 @@ supported_platforms = { "linux", "macosx" }
 source = {
   url = "git://github.com/bcgov/kong-oss-plugins",
   tag = "v1.0.0",
-  dir = "plugins/trust-verify-signature/src"
+  dir = "plugins/dpop/src"
 }
 
 description = {
-  summary = "Kong Gateway plugin used to verify a Signature using Signature Inputs",
+  summary = "Kong Gateway plugin used to output a JWKS from the keys setup in Kong",
   detailed = [[
-      kong-plugin-trust-verify-signature is an Open Source plugin which verifies a Signature
+      kong-plugin-trust-registry is an Open Source plugin which returns a list of keys in JWKS format.
   ]],
-  homepage = "https://github.com/bcgov/kong-oss-plugins/plugins/trust-verify-signature",
+  homepage = "https://github.com/bcgov/kong-oss-plugins/plugins/trust-registry",
   license = "Apache 2.0",
 }
 
@@ -29,9 +29,7 @@ build = {
   type = "builtin",
   modules = {
     ["kong.plugins."..plugin_name..".handler"] = "src/handler.lua",
-    ["kong.plugins."..plugin_name..".jwks"] = "src/jwks.lua",
-    ["kong.plugins."..plugin_name..".key_conversion"] = "src/key_conversion.lua",
     ["kong.plugins."..plugin_name..".schema"] = "src/schema.lua",
-    ["kong.plugins."..plugin_name..".signature"] = "src/signature.lua",
+    ["kong.plugins."..plugin_name..".pem_to_jwks"] = "src/pem_to_jwks.lua",
   }
 }

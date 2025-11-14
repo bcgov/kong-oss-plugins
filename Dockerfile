@@ -20,6 +20,7 @@ RUN (cd plugins/openid-authzen && luarocks make)
 RUN (cd plugins/response-signer && luarocks make)
 RUN (cd plugins/token-exchange && luarocks make)
 RUN (cd plugins/trust-ledger && luarocks make)
+RUN (cd plugins/trust-registry && luarocks make)
 RUN (cd plugins/trust-sign && luarocks make)
 RUN (cd plugins/trust-timestamp && luarocks make)
 RUN (cd plugins/trust-verify-digest && luarocks make)
@@ -35,4 +36,4 @@ RUN (cd plugins/oidc-consumer && luarocks make)
 USER kong
 WORKDIR /
 
-ENV KONG_PLUGINS="bundled, dpop, jwt-keycloak, oidc, oidc-consumer, mtls-auth, mtls-acl, openid-authzen, response-signer, token-exchange, trust-ledger, trust-sign, trust-timestamp, trust-verify-digest, trust-verify-signature"
+ENV KONG_PLUGINS="bundled, dpop, jwt-keycloak, oidc, oidc-consumer, mtls-auth, mtls-acl, openid-authzen, response-signer, token-exchange, trust-ledger, trust-registry, trust-sign, trust-timestamp, trust-verify-digest, trust-verify-signature"

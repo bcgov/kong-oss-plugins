@@ -9,12 +9,22 @@ return {
         type = "record",
         fields = {
           {
+            jwks_endpoint = {
+              type = "string"
+            }
+          },
+          {
+            signature_header_key = {
+              type = "string"
+            }
+          },
+          {
             direction = {
               type = "string",
               one_of = {
                 "request",
-                "response",
-              }           
+                "response"
+              }
             }
           }
         }

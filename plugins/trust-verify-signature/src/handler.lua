@@ -1,5 +1,7 @@
 local json = require("cjson")
 local https = require("ssl.https")
+local jwt_decoder = require "kong.plugins.jwt.jwt_parser"
+local signature = require("kong.plugins.trust-verify-signature.signature")
 local btoa = ngx.encode_base64
 local kong_meta = require "kong.meta"
 local kong = kong
@@ -9,13 +11,35 @@ local TrustVerifySignatureHandler = {
   VERSION = kong_meta.version
 }
 
+local function verify_jwt_signature(conf, token)
+  local jwt,
+    err = jwt_decoder:new(token)
+  if err then
+    return false, {status = 401, message = "Bad token; " .. tostring(err)}
+  end
+
+  return signature.validate_token_signature(conf, jwt)
+end
+
 function TrustVerifySignatureHandler:access(conf)
   local request = kong.service.request
 
   if conf.direction == "request" then
     local headers = kong.request.get_headers()
 
-    request.set_header("X-Trust-Verify-Signature-Req", "TBD")
+    local sig = headers[conf.signature_header_key]
+    if not sig then
+      return kong.response.exit(401, {message = "Missing Signature in " .. conf.signature_header_key})
+    end
+
+    local ok,
+      err = verify_jwt_signature(conf, sig)
+
+    if not ok then
+      return kong.response.exit(err.status, {message = err.message})
+    end
+
+    request.set_header("X-Trust-Verify-Signature-Req", "OK")
   end
 end
 
