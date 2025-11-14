@@ -18,7 +18,20 @@ local function verify_jwt_signature(conf, token)
     return false, {status = 401, message = "Bad token; " .. tostring(err)}
   end
 
-  return signature.validate_token_signature(conf, jwt)
+  if conf.manifest_type == "signature-only" then
+    -- no additional checks
+  elseif conf.manifest_type == "content-digest" then
+    local payload = jwt.claims
+    if not payload or not payload["cd"] then
+      return false, {status = 401, message = "Signature missing content digest manifest (cd)"}
+    end
+
+    if kong.service.request.get_header("Content-Digest") ~= payload["cd"] then
+      return false, {status = 401, message = "Content-Digest header does not match signature manifest"}
+    end
+  end
+
+  return signature.verify_jwt_signature(conf, jwt)
 end
 
 function TrustVerifySignatureHandler:access(conf)

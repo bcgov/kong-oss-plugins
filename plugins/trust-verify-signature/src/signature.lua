@@ -1,6 +1,6 @@
 local jwks = require("kong.plugins.trust-verify-signature.jwks")
 
-local function custom_helper_issuer_get_keys(well_known_endpoint, cafile)
+local function cache_helper_issuer_get_keys(well_known_endpoint, cafile)
   kong.log.debug("Getting public keys from token issuer")
   local keys,
     err = jwks.get_issuer_keys(well_known_endpoint, cafile)
@@ -14,11 +14,11 @@ local function custom_helper_issuer_get_keys(well_known_endpoint, cafile)
   }
 end
 
-local function validate_token_signature(conf, jwt, second_call)
+local function verify_jwt_signature(conf, jwt, second_call)
   local jwks_cache_key = "trust_verify_signature_keys"
 
   local public_keys,
-    err = kong.cache:get(jwks_cache_key, nil, custom_helper_issuer_get_keys, conf.jwks_endpoint)
+    err = kong.cache:get(jwks_cache_key, nil, cache_helper_issuer_get_keys, conf.jwks_endpoint)
 
   if not public_keys then
     if err then
@@ -45,12 +45,12 @@ local function validate_token_signature(conf, jwt, second_call)
     -- invalidate the old keys in kong cache and do a current lookup to the signature keys
     -- of the token issuer
     kong.cache:invalidate_local(jwks_cache_key)
-    return validate_token_signature(conf, jwt, true)
+    return verify_jwt_signature(conf, jwt, true)
   end
 
   return false, {status = 401, message = "Invalid trust signature"}
 end
 
 return {
-  validate_token_signature = validate_token_signature
+  verify_jwt_signature = verify_jwt_signature
 }

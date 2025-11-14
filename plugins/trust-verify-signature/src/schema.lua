@@ -26,6 +26,15 @@ return {
                 "response"
               }
             }
+          },
+          {
+            manifest_type = {
+              type = "string",
+              one_of = {
+                "signature-only",
+                "content-digest"
+              }
+            }
           }
         }
       }
