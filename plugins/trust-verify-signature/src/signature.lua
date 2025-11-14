@@ -32,15 +32,22 @@ local function verify_jwt_signature(conf, jwt, second_call)
   if matching_jwk then
     kong.log.warn("Found matching JWK for key ID: ", cjson.encode(matching_jwk))
     local success,
+      sig_ok,
       message =
       pcall(
       function()
         return jwt:verify_signature(cjson.encode(matching_jwk))
       end
     )
+    kong.log.warn("JWT signature verification result for key ID: ", jwt.header.kid, success, sig_ok, message)
 
     if not success then
       kong.log.warn("JWT signature verification failed for key ID: ", jwt.header.kid, message)
+      return false, {status = 401, message = "Public key format error"}
+    end
+
+    if not sig_ok then
+      kong.log.warn("JWT signature invalid for key ID: ", jwt.header.kid)
       return false, {status = 401, message = "Signature public key mismatch"}
     end
 
