@@ -62,7 +62,9 @@ function TrustSignHandler:header_filter(conf)
     return
   end
 
-  if kong.response.get_header("Content-Digest") == nil then
+  local body_digest = kong.response.get_header("Content-Digest")
+
+  if body_digest == nil then
     kong.log.warn("Content-Digest header not present, generating digest")
     local body = kong.service.response.get_raw_body()
     if body == nil then
@@ -72,7 +74,8 @@ function TrustSignHandler:header_filter(conf)
     else
       local alg = "sha-256"
       local dig = digest_mod.digest(body, alg)
-      kong.response.set_header("Content-Digest", alg .. "=:" .. btoa(dig) .. ":")
+      body_digest = alg .. "=:" .. btoa(dig) .. ":"
+      kong.response.set_header("Content-Digest", body_digest)
     end
   end
 
@@ -107,7 +110,9 @@ function TrustSignHandler:header_filter(conf)
     kong.response.set_header("Signature", signature_label .. "=:" .. btoa(signature) .. ":")
   end
 
-  local manifest = {}
+  local manifest = {
+    content_digest = body_digest
+  }
   local jwt = jwk_sign.sign_jwt(conf, manifest)
   kong.response.set_header(conf.signature_header_key, jwt)
 end
