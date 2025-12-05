@@ -106,6 +106,10 @@ function TrustSignHandler:header_filter(conf)
   if signature then
     kong.response.set_header("Signature", signature_label .. "=:" .. btoa(signature) .. ":")
   end
+
+  local manifest = {}
+  local jwt = jwk_sign.sign_jwt(conf, manifest)
+  kong.response.set_header(conf.signature_header_key, jwt)
 end
 
 return TrustSignHandler
