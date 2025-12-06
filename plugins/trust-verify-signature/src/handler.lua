@@ -73,7 +73,7 @@ function TrustVerifySignatureHandler:header_filter(conf)
       return kong.response.exit(err.status, {message = err.message})
     end
 
-    request.set_header("X-Trust-Verify-Signature-Res", "OK")
+    kong.response.set_header("X-Trust-Verify-Signature-Res", "OK")
   end
 end
 
