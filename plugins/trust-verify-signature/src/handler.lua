@@ -60,6 +60,20 @@ function TrustVerifySignatureHandler:header_filter(conf)
   if conf.direction == "response" then
     kong.log.warn("X-Trust-Verify-Signature-Res")
     local headers = kong.response.get_headers()
+
+    local sig = headers[conf.signature_header_key]
+    if not sig then
+      return kong.response.exit(401, {message = "Missing Signature in " .. conf.signature_header_key})
+    end
+
+    local ok,
+      err = verify_jwt_signature(conf, sig)
+
+    if not ok then
+      return kong.response.exit(err.status, {message = err.message})
+    end
+
+    request.set_header("X-Trust-Verify-Signature-Res", "OK")
   end
 end
 
