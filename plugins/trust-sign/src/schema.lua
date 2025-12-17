@@ -18,16 +18,8 @@ return {
             }
           },
           {
-            signature_label = {
-              type = "string",
-              required = true,
-              default = "sig1"
-            }
-          },
-          {
-            signature_input = {
-              type = "string",
-              required = true
+            jwks_uri = {
+              type = "string"
             }
           },
           {
@@ -36,6 +28,19 @@ return {
               required = true
             }
           },
+          -- {
+          --   signature_label = {
+          --     type = "string",
+          --     required = true,
+          --     default = "sig1"
+          --   }
+          -- },
+          -- {
+          --   signature_input = {
+          --     type = "string",
+          --     required = true
+          --   }
+          -- },
           {
             signature_header_key = {
               type = "string"

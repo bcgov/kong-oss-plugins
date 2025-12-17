@@ -57,6 +57,10 @@ function TrustVerifySignatureHandler:access(conf)
 end
 
 function TrustVerifySignatureHandler:header_filter(conf)
+  -- if kong.response.status ~= 200 then
+  --   return
+  -- end
+
   if conf.direction == "response" then
     kong.log.warn("X-Trust-Verify-Signature-Res")
     local headers = kong.response.get_headers()

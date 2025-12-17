@@ -18,8 +18,14 @@ end
 local function verify_jwt_signature(conf, jwt, second_call)
   local jwks_cache_key = "trust_verify_signature_keys"
 
+  local jwks_endpoint = jwt.claims.jwks_uri
+  if not jwks_endpoint then
+    kong.log.warn("JWT token missing 'jwks_uri' claim")
+    return false, {status = 401, message = "Signature missing 'jwks_uri' claim"}
+  end
+
   local public_keys,
-    err = kong.cache:get(jwks_cache_key, {ttl = 15}, cache_helper_issuer_get_keys, conf.jwks_endpoint)
+    err = kong.cache:get(jwks_cache_key, {ttl = 15}, cache_helper_issuer_get_keys, jwks_endpoint)
 
   if not public_keys then
     if err then

@@ -12,19 +12,6 @@ WORKDIR /build
 
 COPY plugins plugins
 
-RUN (cd plugins/dpop && luarocks make)
-RUN (cd plugins/jwt-keycloak && luarocks make)
-RUN (cd plugins/mtls-auth && luarocks make)
-RUN (cd plugins/mtls-acl && luarocks make)
-RUN (cd plugins/openid-authzen && luarocks make)
-RUN (cd plugins/response-signer && luarocks make)
-RUN (cd plugins/token-exchange && luarocks make)
-RUN (cd plugins/trust-ledger && luarocks make)
-RUN (cd plugins/trust-registry && luarocks make)
-RUN (cd plugins/trust-sign && luarocks make)
-RUN (cd plugins/trust-timestamp && luarocks make)
-RUN (cd plugins/trust-verify-digest && luarocks make)
-RUN (cd plugins/trust-verify-signature && luarocks make)
 RUN (cd plugins/oidc && luarocks make kong-plugin-oidc-1.5.0-2.rockspec)
 RUN (cd plugins/oidc && \
     case "${KONG_VERSION}" in \
@@ -33,7 +20,23 @@ RUN (cd plugins/oidc && \
     esac)
 RUN (cd plugins/oidc-consumer && luarocks make)
 
+RUN (cd plugins/dpop && luarocks make)
+RUN (cd plugins/jwt-keycloak && luarocks make)
+RUN (cd plugins/mtls-auth && luarocks make)
+RUN (cd plugins/mtls-acl && luarocks make)
+RUN (cd plugins/openid-authzen && luarocks make)
+RUN (cd plugins/response-signer && luarocks make)
+RUN (cd plugins/token-exchange && luarocks make)
+RUN (cd plugins/trust-hello && luarocks make)
+RUN (cd plugins/trust-jwks && luarocks make)
+RUN (cd plugins/trust-ledger && luarocks make)
+RUN (cd plugins/trust-registry && luarocks make)
+RUN (cd plugins/trust-sign && luarocks make)
+RUN (cd plugins/trust-timestamp && luarocks make)
+RUN (cd plugins/trust-verify-digest && luarocks make)
+RUN (cd plugins/trust-verify-signature && luarocks make)
+
 USER kong
 WORKDIR /
 
-ENV KONG_PLUGINS="bundled, dpop, jwt-keycloak, oidc, oidc-consumer, mtls-auth, mtls-acl, openid-authzen, response-signer, token-exchange, trust-ledger, trust-registry, trust-sign, trust-timestamp, trust-verify-digest, trust-verify-signature"
+ENV KONG_PLUGINS="bundled, dpop, jwt-keycloak, oidc, oidc-consumer, mtls-auth, mtls-acl, openid-authzen, response-signer, token-exchange, trust-hello, trust-jwks, trust-ledger, trust-registry, trust-sign, trust-timestamp, trust-verify-digest, trust-verify-signature"
