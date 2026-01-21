@@ -1,6 +1,9 @@
+local ngx = ngx
+local openssl_pkey = require("resty.openssl.pkey")
 local hello = require("kong.plugins.trust-hello.hello")
 local cjson = require "cjson"
 local kong_meta = require "kong.meta"
+local encode_base64 = ngx.encode_base64
 local kong = kong
 
 local TrustHelloHandler = {
@@ -10,10 +13,6 @@ local TrustHelloHandler = {
 
 function TrustHelloHandler:access(conf)
   kong.log.warn("TrustHelloHandler:access called")
-
-  -- local response = hello.inspect_cert()
-
-  -- kong.log.warn(cjson.encode(response))
 end
 
 function TrustHelloHandler:header_filter(conf)
