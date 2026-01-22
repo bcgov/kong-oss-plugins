@@ -1,12 +1,35 @@
 local filter = require("kong.plugins.trust-ledger.ledgers.rekor")
 local kong_meta = require "kong.meta"
 local kong = kong
+local tls = require("resty.kong.tls")
+local set_upstream_ssl_trusted_store = tls.set_upstream_ssl_trusted_store
+
+local certificate = require "kong.runloop.certificate"
+local get_ca_certificate_store = certificate.get_ca_certificate_store
 
 local TrustLedgerHandler = {
   PRIORITY = 610,
-  VERSION = kong_meta.version,
+  VERSION = kong_meta.version
 }
 
+function TrustLedgerHandler:access(conf)
+  kong.log.warn("TrustLedgerHandler:access called")
+
+  -- Set the trusted CA store for this request
+  if conf.ca_certificates ~= nil then
+    local res,
+      err = get_ca_certificate_store(conf.ca_certificates)
+    if not res then
+      kong.log.err("unable to get upstream TLS CA store, err: ", err)
+    end
+
+    local ok,
+      err = set_upstream_ssl_trusted_store(res)
+    if not ok then
+      kong.log.err("Failed to set trusted store: ", err)
+    end
+  end
+end
 
 --[[
   Interacts with an immutable ledger service, such as Rekor, to record and verify transparency logs.
@@ -19,7 +42,7 @@ local TrustLedgerHandler = {
     - Use the returned log entry or proof for subsequent verification or auditing processes.
   Reference: https://github.com/sigstore/rekor
 ]]
-function TrustLedgerHandler:header_filter(conf)
+function TrustLedgerHandler:rewrite(conf)
   if kong.response.get_source() ~= "service" then
     return
   end

@@ -9,7 +9,15 @@ return {
         type = "record",
         fields = {
           {endpoint_url = {type = "string"}},
-          {provider = {type = "string"}}
+          {provider = {type = "string"}},
+          {
+            ca_certificates = {
+              type = "array",
+              elements = {type = "string"},
+              required = false,
+              default = {}
+            }
+          }
         }
       }
     }
