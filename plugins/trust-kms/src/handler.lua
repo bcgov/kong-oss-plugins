@@ -7,7 +7,32 @@ local cjson = require "cjson"
 local kong_meta = require "kong.meta"
 local encode_base64 = ngx.encode_base64
 local decode_base64 = ngx.decode_base64
+
+local jwt_decoder = require "kong.plugins.jwt.jwt_parser"
+local digest_mod = require("kong.plugins.trust-sign.digest")
+local filter = require("kong.plugins.trust-sign.signature_base")
+local jwk_sign = require("kong.plugins.trust-sign.sign")
+local request_id_get = require("kong.observability.tracing.request_id").get
+
 local kong = kong
+
+local function get_ids_from_service()
+  local svc = kong.router.get_service()
+  -- split svc tags by ":" and find the tags for client and service
+  local svc_tags = svc and svc.tags or {}
+  local client_tag = ""
+  local service_tag = ""
+  for _, tag in ipairs(svc_tags) do
+    local key,
+      value = tag:match("^(.-):(.-)$")
+    if key == "client" then
+      client_tag = value
+    elseif key == "service" then
+      service_tag = value
+    end
+  end
+  return client_tag, service_tag
+end
 
 local TrustKMSHandler = {
   PRIORITY = 940,
@@ -68,7 +93,7 @@ function TrustKMSHandler:access(conf)
     local san = body_data["san"]
 
     -- create a new Asymmetric KMS key
-    local new_key = kms.create_key(org_name)
+    local new_key = kms.create_key(org_name, serial_number)
     if new_key == nil then
       return kong.response.exit(500, {message = "Failed to create key in KMS"})
     end

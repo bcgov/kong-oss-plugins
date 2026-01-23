@@ -5,7 +5,7 @@ local _ = require("resty.aws.config").global
 
 local aws = require("resty.aws")
 
-function create_key(org_name)
+function create_key(org_name, serial_number)
   -- Configure AWS credentials
   local config = {
     region = os.getenv("AWS_REGION")
@@ -35,6 +35,10 @@ function create_key(org_name)
         {
           TagKey = "Organization",
           TagValue = org_name
+        },
+        {
+          TagKey = "SerialNumber",
+          TagValue = serial_number
         }
       }
     }
@@ -45,6 +49,33 @@ function create_key(org_name)
   end
   if result["status"] ~= 200 then
     kong.log.error("New key failed. ", json.encode(result))
+    return nil
+  end
+
+  --
+  -- Create Alias
+  --
+
+  local key_id = result["body"]["KeyMetadata"]["KeyId"]
+
+  -- [a-zA-Z0-9:/_-]
+  local alias_name = "alias/" .. serial_number
+
+  local alias_result,
+    err =
+    kms:createAlias(
+    {
+      AliasName = alias_name,
+      TargetKeyId = key_id
+    }
+  )
+
+  if not alias_result then
+    kong.log.err("Failed to create KMS key alias: ", err)
+    return nil
+  end
+  if alias_result["status"] ~= 200 then
+    kong.log.error("Create alias failed. ", json.encode(alias_result))
     return nil
   end
 
