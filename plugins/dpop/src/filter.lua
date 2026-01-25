@@ -349,7 +349,7 @@ local M = {}
 
 function M.validate_dpop(config)
   local method = kong.request.get_method()
-  local scheme = kong.request.get_scheme()
+  local scheme = "https"
   local host = kong.request.get_host()
   local port = kong.request.get_port()
   local path = kong.request.get_path()
