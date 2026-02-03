@@ -63,7 +63,7 @@ export async function createClient(
     apiRes: { status, headers, body },
   } = await callAPI(
     request,
-    `http:///keycloak.localtest.me:9081/auth/admin/realms/e2e/clients`,
+    `http://keycloak.localtest.me:9081/auth/admin/realms/e2e/clients`,
     "POST"
   );
   expect(status).toBe(201);
@@ -79,7 +79,7 @@ export async function createClient(
       apiRes: { status: statusForRole },
     } = await callAPI(
       request,
-      `http:///keycloak.localtest.me:9081/auth/admin/realms/e2e/clients/${payload.id}/roles`,
+      `http://keycloak.localtest.me:9081/auth/admin/realms/e2e/clients/${payload.id}/roles`,
       "POST"
     );
     expect(statusForRole).toBe(201);
