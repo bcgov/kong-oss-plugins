@@ -72,7 +72,7 @@ end
 local function get_kong_key(key, location)
   -- This will add a non expiring TTL on this cached value
   -- https://github.com/thibaultcha/lua-resty-mlcache/blob/master/README.md
-  local pkey, err = kong.cache:get(key, { ttl = 0 }, read_from_file, location)
+  local pkey, err = kong.cache:get(key, {ttl = 0 }, read_from_file, location)
 
   if err then
     ngx.log(ngx.ERR, "Could not retrieve pkey: ", err)
