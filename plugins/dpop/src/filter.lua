@@ -311,6 +311,13 @@ local function validate_dpop_proof(dpop_proof, access_token, http_method, http_u
     return false, "DPoP proof replay detected"
   end
 
+  local ttl = (config.max_age or 0) + (config.clock_skew or 0)
+  if ttl > 0 then
+    local ok, err = kong.cache:safe_add(cache_key, true, ttl)
+    if not ok and err then
+      kong.log.err("failed to store DPoP JTI in cache for replay protection: ", err)
+    end
+  end
   return true, nil, {
     public_key = public_key,
     jwk = header.jwk,
