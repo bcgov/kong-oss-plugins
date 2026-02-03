@@ -72,7 +72,7 @@ docker compose \
 ```
 
 **Supported versions**:
-- Kong: 2.8.5, 3.9.1 (or 3.9.0)
+- Kong: 2.8.5, 3.9.0, 3.9.1 (3.9.1 is latest and recommended)
 - Keycloak: 15.1.1 (Spring-based), 26.1.0 (Quarkus-based)
 
 For Keycloak 26.1.0, use `docker-compose-keycloak-quarkus.yml` instead.
@@ -178,7 +178,7 @@ busted
 
 **Trigger**: Push to `main` or `feature/*` branches, or manual workflow dispatch
 
-**Strategy**: Matrix testing across Kong versions (2.8.5, 3.9.1) and Keycloak version (15.1.1)
+**Strategy**: Matrix testing across Kong versions (2.8.5, 3.9.1) and Keycloak versions (15.1.1 currently active, 26.1.0 commented out)
 
 **Steps**:
 1. Build Docker images (~22s)
@@ -206,7 +206,7 @@ busted
    ```
    Without these, defaults may not match your needs.
 
-2. **Use correct compose file for Keycloak version**:
+2. **Use correct Docker Compose file for Keycloak version**:
    - Keycloak 15.x: `docker-compose-keycloak-spring.yml`
    - Keycloak 26.x: `docker-compose-keycloak-quarkus.yml`
 
