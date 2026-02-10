@@ -11,7 +11,6 @@ local encode_base64url = base64.encode_base64url
 local env_private_key_location = os.getenv("KONG_SIGNING_CERT_KEY")
 local env_public_key_location = os.getenv("KONG_SIGNING_CERT")
 local utils = require "kong.tools.utils"
-local _M = {}
 
 --- Get the private key location either from the environment or from configuration
 -- @param conf the kong configuration
@@ -153,11 +152,14 @@ local function build_jwt_payload(conf, payload)
 end
 
 -- Encode the JWT token
-function _M.sign_jwt(conf, manifest)
+local function sign_jwt(conf, manifest)
   local jwt_payload = build_jwt_payload(conf, manifest)
   local kong_private_key = get_kong_key("trust_sign_pkey_" .. conf.private_key_location, get_private_key_location(conf))
   local jwt = encode_jwt_token(conf, jwt_payload, kong_private_key)
   return jwt
 end
 
-return _M
+return {
+  sign_jwt = sign_jwt,
+  get_kong_key = get_kong_key
+}

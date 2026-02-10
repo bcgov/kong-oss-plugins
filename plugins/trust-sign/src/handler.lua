@@ -113,6 +113,8 @@ function TrustSignHandler:header_filter(conf)
     return
   end
 
+  kong.log.warn("Trust Sign - Header Filter for Response")
+
   local body_digest = kong.response.get_header("Content-Digest")
 
   if body_digest == nil then
@@ -163,7 +165,15 @@ function TrustSignHandler:header_filter(conf)
 
   local req_token = kong.request.get_header("X-Edge-Token")
   if not req_token then
-    return kong.response.exit(403, {message = "Missing X-Edge-Token header"})
+    -- return kong.response.exit(403, {message = "Missing X-Edge-Token header"})
+
+    local manifest = {
+      jwks_uri = conf.jwks_uri
+    }
+
+    local jwt = jwk_sign.sign_jwt(conf, manifest)
+    kong.response.set_header(conf.signature_header_key, jwt)
+    return
   end
 
   local req_token_jwt,

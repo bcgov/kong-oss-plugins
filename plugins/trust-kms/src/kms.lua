@@ -1,6 +1,8 @@
 local ltn12 = require("ltn12")
 local json = require("cjson")
 
+local digest_mod = require("kong.plugins.trust-sign.digest")
+
 local _ = require("resty.aws.config").global
 
 local aws = require("resty.aws")
@@ -16,6 +18,11 @@ function create_key(org_name, serial_number)
 
   -- Get KMS service
   local kms = aws_instance:KMS()
+
+  if kms == nil then
+    kong.log.err("Failed to create KMS client - check AWS configuration")
+    return nil
+  end
 
   -- Create key
   local result,
@@ -94,6 +101,11 @@ function disable_key(key_id)
   -- Get KMS service
   local kms = aws_instance:KMS()
 
+  if kms == nil then
+    kong.log.err("Failed to create KMS client - check AWS configuration")
+    return nil
+  end
+
   -- Disable key
   local result,
     err =
@@ -121,6 +133,13 @@ function sign(key_id, message, algo)
   -- Get KMS service
   local kms = aws_instance:KMS()
 
+  if kms == nil then
+    kong.log.err("Failed to create KMS client - check AWS configuration")
+    return nil
+  end
+
+  kong.log.warn("Signing message with KMS key ", key_id, " and algorithm ", algo)
+
   -- Sign message
   local result,
     err =
@@ -137,7 +156,7 @@ function sign(key_id, message, algo)
     return nil
   end
   if result["status"] ~= 200 then
-    kong.log.error("KMS signing failed. ", json.encode(result))
+    kong.log.err("KMS signing failed. ", json.encode(result))
     return nil
   end
 
@@ -156,6 +175,11 @@ function verify(key_id, message, signature, algo)
   -- Get KMS service
   local kms = aws_instance:KMS()
 
+  if kms == nil then
+    kong.log.err("Failed to create KMS client - check AWS configuration")
+    return nil
+  end
+
   -- Verify signature
   local result,
     err =
@@ -173,7 +197,7 @@ function verify(key_id, message, signature, algo)
     return nil
   end
   if result["status"] ~= 200 then
-    kong.log.error("KMS signing failed. ", json.encode(result))
+    kong.log.err("KMS verification failed. ", json.encode(result))
     return nil
   end
 
@@ -191,6 +215,11 @@ function get_public_key(key_id)
 
   -- Get KMS service
   local kms = aws_instance:KMS()
+
+  if kms == nil then
+    kong.log.err("Failed to create KMS client - check AWS configuration")
+    return nil
+  end
 
   -- Get public key
   local result,

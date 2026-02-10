@@ -9,6 +9,15 @@ return {
         type = "record",
         fields = {
           {
+            direction = {
+              type = "string",
+              one_of = {
+                "request",
+                "response"
+              }
+            }
+          },
+          {
             operation = {
               type = "string",
               default = "create_key",
@@ -21,7 +30,7 @@ return {
             }
           },
           {
-            keyid = {
+            key_id = {
               type = "string",
               required = false
             }
@@ -38,6 +47,11 @@ return {
                 "ECDSA_SHA_384",
                 "ECDSA_SHA_512"
               }
+            }
+          },
+          {
+            signature_header_key = {
+              type = "string"
             }
           }
         }

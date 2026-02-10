@@ -31,5 +31,8 @@ build = {
   modules = {
     ["kong.plugins."..plugin_name..".handler"] = "src/handler.lua",
     ["kong.plugins."..plugin_name..".schema"] = "src/schema.lua",
+    ["kong.plugins."..plugin_name..".token_exchange"] = "src/token_exchange.lua",
+    ["kong.plugins."..plugin_name..".client_token"] = "src/client_token.lua",
+    ["kong.plugins."..plugin_name..".client_assertion"] = "src/client_assertion.lua",
   }
 }
