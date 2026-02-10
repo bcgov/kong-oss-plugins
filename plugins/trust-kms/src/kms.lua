@@ -7,7 +7,19 @@ local _ = require("resty.aws.config").global
 
 local aws = require("resty.aws")
 
-function create_key(org_name, serial_number)
+-- Define the characters to use
+local chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+local function random_str(len)
+  local result = ""
+  for i = 1, len do
+    local rand = math.random(1, #chars)
+    result = result .. chars:sub(rand, rand)
+  end
+  return result
+end
+
+function create_key(org_name, serial_number, common_name, requester_name, requester_email)
   -- Configure AWS credentials
   local config = {
     region = os.getenv("AWS_REGION")
@@ -46,6 +58,18 @@ function create_key(org_name, serial_number)
         {
           TagKey = "SerialNumber",
           TagValue = serial_number
+        },
+        {
+          TagKey = "CommonName",
+          TagValue = common_name
+        },
+        {
+          TagKey = "RequesterName",
+          TagValue = requester_name
+        },
+        {
+          TagKey = "RequesterEmail",
+          TagValue = requester_email
         }
       }
     }
@@ -55,7 +79,7 @@ function create_key(org_name, serial_number)
     return nil
   end
   if result["status"] ~= 200 then
-    kong.log.error("New key failed. ", json.encode(result))
+    kong.log.err("New key failed. ", json.encode(result))
     return nil
   end
 
@@ -66,7 +90,7 @@ function create_key(org_name, serial_number)
   local key_id = result["body"]["KeyMetadata"]["KeyId"]
 
   -- [a-zA-Z0-9:/_-]
-  local alias_name = "alias/" .. serial_number
+  local alias_name = "alias/" .. serial_number .. "/" .. random_str(4)
 
   local alias_result,
     err =
@@ -82,7 +106,7 @@ function create_key(org_name, serial_number)
     return nil
   end
   if alias_result["status"] ~= 200 then
-    kong.log.error("Create alias failed. ", json.encode(alias_result))
+    kong.log.err("Create alias failed. ", json.encode(alias_result))
     return nil
   end
 

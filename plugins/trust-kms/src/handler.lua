@@ -99,9 +99,11 @@ function TrustKMSHandler:access(conf)
     local serial_number = body_data["serial_number"]
     local common_name = body_data["common_name"]
     local san = body_data["san"]
+    local requester_name = body_data["requester_name"]
+    local requester_email = body_data["requester_email"]
 
     -- create a new Asymmetric KMS key
-    local new_key = kms.create_key(org_name, serial_number)
+    local new_key = kms.create_key(org_name, serial_number, common_name, requester_name, requester_email)
     if new_key == nil then
       return kong.response.exit(500, {message = "Failed to create key in KMS"})
     end
@@ -196,12 +198,14 @@ function TrustKMSHandler:access(conf)
         signing_algorithm = kms_signature_algorithm,
         csr = result,
         pub_key = pub_key_obj:to_PEM(),
-        jwk = cjson.decode(pub_key_obj:tostring("public", "JWK")),
+        jwk = pub_key_obj:tostring("public", "JWK"),
         inputs = {
           country = country,
           org_name = org_name,
           serial_number = serial_number,
           common_name = common_name,
+          requester_name = requester_name,
+          requester_email = requester_email,
           san = san
         }
       }
