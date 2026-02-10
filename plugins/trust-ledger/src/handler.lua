@@ -3,31 +3,44 @@ local kong_meta = require "kong.meta"
 local kong = kong
 local tls = require("resty.kong.tls")
 local set_upstream_ssl_trusted_store = tls.set_upstream_ssl_trusted_store
+local Queue = require "kong.tools.queue"
 
 local certificate = require "kong.runloop.certificate"
 local get_ca_certificate_store = certificate.get_ca_certificate_store
 
 local TrustLedgerHandler = {
-  PRIORITY = 610,
+  PRIORITY = 600,
   VERSION = kong_meta.version
 }
 
-function TrustLedgerHandler:access(conf)
-  kong.log.warn("TrustLedgerHandler:access called")
+function TrustLedgerHandler:header_filter(conf)
+  if kong.response.get_source() ~= "service" then
+    return
+  end
 
-  -- Set the trusted CA store for this request
-  if conf.ca_certificates ~= nil then
-    local res,
-      err = get_ca_certificate_store(conf.ca_certificates)
-    if not res then
-      kong.log.err("unable to get upstream TLS CA store, err: ", err)
+  if conf.provider == "rekor" then
+    local result,
+      err = filter.submit_rfc3161_to_rekor(conf.endpoint_url, kong.ctx.shared.rfc3161_artifact)
+    if err then
+      kong.log.err("Error submitting to Rekor: ", err)
+      kong.response.set_header("X-Trust-Ledger-Error", "Failed to submit to Rekor")
+      return
     end
 
-    local ok,
-      err = set_upstream_ssl_trusted_store(res)
-    if not ok then
-      kong.log.err("Failed to set trusted store: ", err)
-    end
+    kong.ctx.shared.trust_ledger = {
+      provider = conf.provider,
+      response = result
+    }
+
+    kong.response.set_header("X-Trust-Ledger-Status", result.status)
+    kong.response.set_header("X-Trust-Ledger-Uuid", result.ref_id)
+  else
+    kong.ctx.shared.trust_ledger = {
+      provider = conf.provider,
+      response = "unsupported ledger provider"
+    }
+
+    kong.response.set_header("X-Trust-Ledger-Error", "Unsupported ledger provider")
   end
 end
 
@@ -42,23 +55,11 @@ end
     - Use the returned log entry or proof for subsequent verification or auditing processes.
   Reference: https://github.com/sigstore/rekor
 ]]
-function TrustLedgerHandler:rewrite(conf)
-  if kong.response.get_source() ~= "service" then
-    return
-  end
+function TrustLedgerHandler:log(conf)
+  local set_serialize_value = kong.log.set_serialize_value
 
-  kong.log.warn("Ledger processing")
-  local rfc3161_artifact = kong.ctx.shared.rfc3161_artifact
-  if not rfc3161_artifact then
-    kong.response.set_header("X-Trust-Ledger-Error", "No RFC3161 artifact found")
-    return
-  end
-  if conf.provider == "rekor" then
-    local result = filter.submit_rfc3161_to_rekor(conf.endpoint_url, rfc3161_artifact)
-    kong.response.set_header("X-Trust-Ledger-Status", result.status)
-    kong.response.set_header("X-Trust-Ledger-Body", result.body)
-  else
-    kong.response.set_header("X-Trust-Ledger-Error", "Unsupported ledger provider")
+  if kong.ctx.shared.trust_ledger then
+    set_serialize_value("trust_ledger", kong.ctx.shared.trust_ledger)
   end
 end
 

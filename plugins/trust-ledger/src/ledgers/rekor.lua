@@ -1,15 +1,13 @@
-local http = require("resty.http")
+local https = require("ssl.https")
 local ltn12 = require("ltn12")
-local json = require("cjson")
+local cjson = require "cjson.safe"
 local kong = kong
 
 local M = {}
 
 function M.submit_rfc3161_to_rekor(rekor_url, rfc3161_artifact)
-  local httpc = http.new()
-
   local payload =
-    json.encode(
+    cjson.encode(
     {
       kind = "rfc3161",
       apiVersion = "0.0.1",
@@ -21,33 +19,44 @@ function M.submit_rfc3161_to_rekor(rekor_url, rfc3161_artifact)
     }
   )
 
+  local response_body = {}
+
   local res,
-    err =
-    httpc:request_uri(
-    rekor_url .. "/api/v1/log/entries",
-    {
-      method = "POST",
-      body = payload,
-      -- ssl_verify = true, -- Enable SSL verification
-      headers = {
-        ["Content-Type"] = "application/json",
-        ["Content-Length"] = tostring(#payload)
-      }
-    }
-  )
+    status_code,
+    headers,
+    status_line =
+    https.request {
+    url = rekor_url .. "/api/v1/log/entries",
+    method = "POST",
+    headers = {
+      ["Content-Type"] = "application/json",
+      ["Content-Length"] = tostring(#payload)
+    },
+    source = ltn12.source.string(payload),
+    sink = ltn12.sink.table(response_body)
+  }
 
   if not res then
     kong.log.err("Request failed: ", err)
+    return nil, "Request failed"
+  end
+
+  if status_code >= 300 then
+    kong.log.err("Request returned error: ", status_code, table.concat(response_body))
+    return nil, "Rekor API error: " .. status_code
+  end
+
+  local response_json,
+    err = cjson.decode(table.concat(response_body))
+  if err then
+    kong.log.err("Error decoding Rekor response: ", err)
+    kong.response.set_header("X-Trust-Ledger-Error", "Failed to decode Rekor response")
     return
   end
 
-  if res.status ~= 200 then
-    kong.log.warn("API returned status: ", res.status)
-  end
-
   return {
-    status = res.status,
-    body = res.body
+    status = status_code,
+    ref_id = next(response_json)
   }
 end
 
