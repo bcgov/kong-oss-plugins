@@ -144,7 +144,12 @@ function TrustTimestampHandler:header_filter(conf)
     return
   end
 
-  local artifact = kong.response.get_header("Signature")
+  local signature = kong.response.get_header("X-Entity-Sig")
+  if signature == nil then
+    kong.log.warn("X-Entity-Sig header not present in response")
+    return
+  end
+
   local tsq_der,
     tsr_der = call_ts_authority(conf.endpoint_url, conf.policy_oid, artifact)
 
@@ -154,6 +159,7 @@ function TrustTimestampHandler:header_filter(conf)
     return
   end
 
+  kong.response.set_header("X-Trust-Timestamp", "OK")
   kong.ctx.shared.rfc3161_artifact = btoa(tsr_der)
 end
 
