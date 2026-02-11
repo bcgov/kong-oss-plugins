@@ -244,7 +244,6 @@ function TrustKMSHandler:header_filter(conf)
     kong.log.warn("Generated signature from KMS: ", cjson.encode(signature))
 
     kong.response.set_header("X-Entity-Sig", signature["Signature"])
-    kong.response.set_header("X-Entity-Sig-B64", encode_base64(signature["Signature"]))
     return
   end
 
@@ -253,11 +252,13 @@ function TrustKMSHandler:header_filter(conf)
 
     local edge_token = kong.response.get_header(conf.signature_header_key)
     if not edge_token then
+      kong.log.warn("Missing edge token for verification", conf.signature_header_key)
       return kong.response.exit(403, {message = "Missing edge token"})
     end
 
     local signature = kong.response.get_header("X-Entity-Sig")
     if signature == nil then
+      kong.log.warn("Missing X-Entity-Sig for verification")
       return kong.response.exit(400, {message = "X-Entity-Sig header not present"})
     end
 
@@ -265,6 +266,7 @@ function TrustKMSHandler:header_filter(conf)
     local signature = kms.verify(key_id, encode_base64(edge_token), signature, kms_signature_algorithm)
 
     if signature == nil then
+      kong.log.warn("KMS Verification faileed")
       kong.response.set_header("X-Entity-Sig-Error", "Failed to verify signature")
       return
     end
