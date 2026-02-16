@@ -12,7 +12,18 @@ function TrustRegistryHandler:access(conf)
   local jwks_list = {}
 
   local key_list
-  if conf.key_set then
+
+  local params = kong.request.get_uri_captures()
+  kong.log.warn("URI captures: ", cjson.encode(params))
+  if params and params.named.key_set then
+    kong.log.warn("Fetching keys for key set: ", params.named.key_set)
+    local kset = kong.db.key_sets:select_by_name(params.named.key_set)
+    if not kset then
+      kong.log.err("Key set not found: ", conf.key_set)
+      return kong.response.exit(404, {message = "Key set not found"})
+    end
+    key_list = kong.db.keys:each_for_set({id = kset.id})
+  elseif conf.key_set then
     local kset = kong.db.key_sets:select_by_name(conf.key_set)
     if not kset then
       kong.log.err("Key set not found: ", conf.key_set)
