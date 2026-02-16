@@ -1,7 +1,7 @@
 local typedefs = require "kong.db.schema.typedefs"
 
 return {
-  name = "trust-hello",
+  name = "trust-jwks",
   fields = {
     {protocols = typedefs.protocols_http},
     {

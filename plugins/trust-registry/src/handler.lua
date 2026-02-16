@@ -11,7 +11,19 @@ local TrustRegistryHandler = {
 function TrustRegistryHandler:access(conf)
   local jwks_list = {}
 
-  for key, err in kong.db.keys:each() do
+  local key_list
+  if conf.key_set then
+    local kset = kong.db.key_sets:select_by_name(conf.key_set)
+    if not kset then
+      kong.log.err("Key set not found: ", conf.key_set)
+      return kong.response.exit(404, {message = "Key set not found"})
+    end
+    key_list = kong.db.keys:each_for_set({id = kset.id})
+  else
+    key_list = kong.db.keys:each()
+  end
+
+  for key, err in key_list do
     if err then
       kong.log.err("Error fetching key: ", err)
       return

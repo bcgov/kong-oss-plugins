@@ -8,7 +8,7 @@ return {
       config = {
         type = "record",
         fields = {
-          {ket_set = {type = "string", required = false, default = nil}}
+          {key_set = {type = "string", required = false, default = nil}}
         }
       }
     }
