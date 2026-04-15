@@ -176,14 +176,23 @@ Cost: 23K tokens (Sonnet)
 1. Validate
 
 Claude was telling me to validate using the instructions in the `quickstart.md`
-file. Instead I asked it to validate by starting up Kong and going through the
-steps. It did so using `docker compose`, generating keys and keysets and routes
-for the new endpoints in `local/kong-validate/kong.yaml`.
+file. Instead I asked it to validate by starting up Kong locally and going
+through the steps. It did so using `docker compose`, generating keys and keysets
+and routes for the new endpoints in `local/kong-validate/kong.yaml`, then
+ticking off the validation checks in the `quickstart.md` comparing against the
+expected output, like so:
 
-One fix was needed: `kong.router.get_uri_captures()` doesn't exist in Kong 3.9 —
-replaced with `kong.request.get_path():match(...)` which is simpler and fully
-PDK-compliant. The PEM-to-JWK conversion (RSA) and JWK passthrough (EC) both
-worked correctly on the first try.
+```bash
+(echo "=== CHECK 1: GET /.well-known/jwks.json ===" && STATUS=$(curl -s -o /tmp/jwks-all.json -w "%{http_code}"                        
+      http://localhost:8000/.well-known/jwks.json) && echo "HTTP $STATUS" && cat /tmp/jwks-all.json | python3 -m json.tool 2>/dev/null || cat  
+      /tmp/jwks-all.json) 
+```
+
+One fix was needed (identified when Kong failed to start):
+`kong.router.get_uri_captures()` doesn't exist in Kong 3.9 — replaced with
+`kong.request.get_path():match(...)` which is simpler and fully PDK-compliant.
+The PEM-to-JWK conversion (RSA) and JWK passthrough (EC) both worked correctly
+on the first try.
 
 Cost: 28K tokens (Sonnet)
 
