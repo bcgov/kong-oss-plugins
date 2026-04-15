@@ -13,8 +13,8 @@
 
 **Purpose**: Create the plugin directory structure and build configuration.
 
-- [ ] T001 Create plugin directory structure at `plugins/trust-registry-ai/src/`
-- [ ] T002 Create rockspec at `plugins/trust-registry-ai/kong-plugin-trust-registry-ai-1.0.0-0.rockspec` with modules: handler, schema, pem_to_jwk (FR-008, build/packaging)
+- [x] T001 Create plugin directory structure at `plugins/trust-registry-ai/src/`
+- [x] T002 Create rockspec at `plugins/trust-registry-ai/kong-plugin-trust-registry-ai-1.0.0-0.rockspec` with modules: handler, schema, pem_to_jwk (FR-008, build/packaging)
 
 ---
 
@@ -22,8 +22,8 @@
 
 **Purpose**: Core modules that MUST be complete before user story implementation.
 
-- [ ] T003 [P] Create zero-config schema at `plugins/trust-registry-ai/src/schema.lua` with name `trust-registry-ai`, `protocols = typedefs.protocols_http`, and empty `config.fields = {}` (FR-008)
-- [ ] T004 [P] Create PEM-to-JWK conversion module at `plugins/trust-registry-ai/src/pem_to_jwk.lua` using `resty.openssl.pkey`: load PEM, detect key type (RSA/EC), extract parameters (RSA: n,e; EC: x,y,crv), base64url-encode, return JWK table with kty and kid (FR-006)
+- [x] T003 [P] Create zero-config schema at `plugins/trust-registry-ai/src/schema.lua` with name `trust-registry-ai`, `protocols = typedefs.protocols_http`, and empty `config.fields = {}` (FR-008)
+- [x] T004 [P] Create PEM-to-JWK conversion module at `plugins/trust-registry-ai/src/pem_to_jwk.lua` using `resty.openssl.pkey`: load PEM, detect key type (RSA/EC), extract parameters (RSA: n,e; EC: x,y,crv), base64url-encode, return JWK table with kty and kid (FR-006)
 
 **Checkpoint**: Schema and conversion module ready. Handler implementation can begin.
 
@@ -37,7 +37,7 @@
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Implement handler access phase at `plugins/trust-registry-ai/src/handler.lua`: iterate `kong.db.keys:each()`, for each key use `cjson.decode(key.jwk)` if JWK present or call `pem_to_jwk` module if only PEM, log and skip keys that fail conversion (FR-011), build `{keys = [...]}` response, return via `kong.response.exit(200, body, {["Content-Type"] = "application/json"})`. Return empty `{keys = {}}` when no keys exist (FR-001, FR-003, FR-004, FR-005, FR-007, FR-010, FR-011)
+- [x] T005 [US1] Implement handler access phase at `plugins/trust-registry-ai/src/handler.lua`: iterate `kong.db.keys:each()`, for each key use `cjson.decode(key.jwk)` if JWK present or call `pem_to_jwk` module if only PEM, log and skip keys that fail conversion (FR-011), build `{keys = [...]}` response, return via `kong.response.exit(200, body, {["Content-Type"] = "application/json"})`. Return empty `{keys = {}}` when no keys exist (FR-001, FR-003, FR-004, FR-005, FR-007, FR-010, FR-011)
 
 **Checkpoint**: `GET /.well-known/jwks.json` returns a complete JWKS document. MVP is functional.
 
@@ -51,7 +51,7 @@
 
 ### Implementation for User Story 2
 
-- [ ] T006 [US2] Add keyset filtering to handler access phase at `plugins/trust-registry-ai/src/handler.lua`: use `kong.router.get_uri_captures()` to extract `key_set` named capture, if present call `kong.db.key_sets:select_by_name(key_set)` and return 404 `{message = "Key set not found"}` if nil (FR-009), otherwise iterate `kong.db.keys:each_for_set({id = kset.id})` using same JWK conversion logic from US1 (FR-002)
+- [x] T006 [US2] Add keyset filtering to handler access phase at `plugins/trust-registry-ai/src/handler.lua`: use `kong.router.get_uri_captures()` to extract `key_set` named capture, if present call `kong.db.key_sets:select_by_name(key_set)` and return 404 `{message = "Key set not found"}` if nil (FR-009), otherwise iterate `kong.db.keys:each_for_set({id = kset.id})` using same JWK conversion logic from US1 (FR-002)
 
 **Checkpoint**: Both routes functional. Keyset filtering returns scoped results. Nonexistent keyset returns 404.
 
@@ -61,7 +61,7 @@
 
 **Purpose**: Validate the complete implementation against quickstart scenarios.
 
-- [ ] T007 Run quickstart.md validation at `specs/001-jwks-endpoint/quickstart.md`: verify all 5 validation checkboxes pass against a running Kong instance
+- [ ] T007 Run quickstart.md validation at `specs/001-jwks-endpoint/quickstart.md`: verify all 5 validation checkboxes pass against a running Kong instance  ⚠ MANUAL — requires live Kong
 
 ---
 
