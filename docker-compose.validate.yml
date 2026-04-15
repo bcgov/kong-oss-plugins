@@ -1,0 +1,27 @@
+name: kong-validate
+
+services:
+  kong:
+    build:
+      context: .
+      dockerfile: local/kong-validate/Dockerfile
+      args:
+        - KONG_VERSION=3.9.0
+    image: kong:validate
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yaml
+      KONG_PLUGINS: "bundled,trust-registry-ai"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_LOG_LEVEL: info
+    volumes:
+      - ./local/kong-validate/kong.yaml:/etc/kong/kong.yaml:ro
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

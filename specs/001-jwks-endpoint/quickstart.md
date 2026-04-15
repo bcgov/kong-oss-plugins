@@ -100,9 +100,9 @@ curl -s http://localhost:8000/keysets/signing/.well-known/jwks.json | jq .
 
 ## Validation
 
-- [ ] `GET /.well-known/jwks.json` returns 200 with JWKS document
-- [ ] `GET /keysets/signing/.well-known/jwks.json` returns 200 with
+- [x] `GET /.well-known/jwks.json` returns 200 with JWKS document
+- [x] `GET /keysets/signing/.well-known/jwks.json` returns 200 with
       filtered JWKS
-- [ ] `GET /keysets/nonexistent/.well-known/jwks.json` returns 404
-- [ ] Response Content-Type is `application/json`
-- [ ] Each key in response has `kty` and `kid` fields
+- [x] `GET /keysets/nonexistent/.well-known/jwks.json` returns 404
+- [x] Response Content-Type is `application/json`
+- [x] Each key in response has `kty` and `kid` fields

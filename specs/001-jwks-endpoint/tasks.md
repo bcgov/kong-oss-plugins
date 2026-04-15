@@ -61,7 +61,7 @@
 
 **Purpose**: Validate the complete implementation against quickstart scenarios.
 
-- [ ] T007 Run quickstart.md validation at `specs/001-jwks-endpoint/quickstart.md`: verify all 5 validation checkboxes pass against a running Kong instance  ⚠ MANUAL — requires live Kong
+- [x] T007 Run quickstart.md validation at `specs/001-jwks-endpoint/quickstart.md`: verify all 5 validation checkboxes pass against a running Kong instance
 
 ---
 

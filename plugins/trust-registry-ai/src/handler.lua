@@ -60,13 +60,10 @@ end
 function TrustRegistryAIHandler:access(conf)
   local keys = {}
 
-  -- FR-002: Check for keyset path capture from regex route.
+  -- FR-002: Extract keyset name from request path.
   -- Route: ~/keysets/(?<key_set>.+)/.well-known/jwks.json
-  local key_set_name
-  local captures = kong.router.get_uri_captures()
-  if captures and captures.named then
-    key_set_name = captures.named.key_set
-  end
+  local path = kong.request.get_path()
+  local key_set_name = path:match("^/keysets/(.+)/%.well%-known/jwks%.json$")
 
   if key_set_name then
     -- Keyset-scoped request
