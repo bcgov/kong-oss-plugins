@@ -1,19 +1,17 @@
 <!--
 Sync Impact Report
 ===================
-Version change: (none) → 1.0.0
-Modified principles: N/A (initial adoption)
-Added sections:
-  - Core Principles (7 principles: I–VII)
-  - Generation Constraints
-  - Development Workflow
-  - Governance
-Removed sections: N/A
+Version change: 1.0.0 → 1.1.0
+Modified sections:
+  - Generation Constraints: added Excluded Source rule
+    (plugins/trust-registry/ is output-only, never read as reference)
+Added sections: none
+Removed sections: none
 Templates requiring updates:
-  - .specify/templates/plan-template.md ✅ aligned (Constitution Check section present)
-  - .specify/templates/spec-template.md ✅ aligned (NEEDS CLARIFICATION pattern present)
-  - .specify/templates/tasks-template.md ✅ aligned (phase structure compatible)
-  - .specify/templates/checklist-template.md ✅ aligned (no conflicts)
+  - .specify/templates/plan-template.md ✅ no change needed
+  - .specify/templates/spec-template.md ✅ no change needed
+  - .specify/templates/tasks-template.md ✅ no change needed
+  - .specify/templates/checklist-template.md ✅ no change needed
 Follow-up TODOs: none
 -->
 
@@ -127,6 +125,13 @@ project:
   existing source code, and Kong documentation. It does not access
   external services, APIs, or resources unless the specification
   instructs it.
+- **Excluded source**: The AI MUST NOT read, reference, or derive
+  patterns from `plugins/trust-registry/`. This directory is the
+  active generation target and MUST be treated as output-only. All
+  other plugin directories (e.g., `plugins/oidc/`,
+  `plugins/jwt-keycloak/`, `plugins/trust-sign/`, etc.) SHOULD be
+  used as reference for identifying Kong plugin structure and
+  conventions.
 - **Output boundary**: The AI produces Lua source files, rockspec
   files, test files, and documentation updates. It does not produce
   infrastructure configuration, deployment scripts, or CI pipelines
@@ -184,4 +189,4 @@ within this repository.
   constitution, the constitution prevails. The specification MUST be
   amended to comply.
 
-**Version**: 1.0.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-15
+**Version**: 1.1.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-15
