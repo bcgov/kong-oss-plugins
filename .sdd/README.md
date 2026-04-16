@@ -1,6 +1,8 @@
 # Creating plugins using spec-driven development (`spec-kit` and Claude Code)
 
-1. Install Specify CLI
+## Setup 
+
+### 1. Install Specify CLI
 
 *Persistent installation:*
 
@@ -22,7 +24,7 @@ Then verify installation:
 specify version
 ```
 
-1. Install Claude Code (or other agent of your choice)
+### 2. Install Claude Code (or other agent of your choice)
 
 ```sh
 curl -fsSL https://claude.ai/install.sh | bash
@@ -42,7 +44,7 @@ claude
 
 Set theme and choose *Yes* to use the API key.
 
-1. Initialize in an existing project
+### 3. Initialize in an existing project
 
 Open terminal in the project directory and run:
 
@@ -50,7 +52,7 @@ Open terminal in the project directory and run:
 specify init . --ai claude
 ```
 
-1. Deny Claude from reading the existing target plugin
+### 4. Deny Claude from reading the existing target plugin
 
 Create or edit `.claude/settings.local.json` to include:
 
@@ -62,7 +64,7 @@ Create or edit `.claude/settings.local.json` to include:
 }
 ```
 
-1. Open Claude Code
+### 5. Open Claude Code
 
 `--verbose` shows token usage.
 
@@ -73,7 +75,9 @@ case, using default `high` effort level.
 claude --verbose --model claude-opus-4-6
 ```
 
-1. Establish the project constitution
+## Using Spec-Kit and Claude Code
+
+### 1. Establish the project constitution
 
 In Claude Code, run:
 
@@ -90,14 +94,13 @@ The constitution must:
 - Prohibit IDE-dependent workflows, hidden state, or implicit agent iteration
 - Require minimal, readable code that adheres strictly to Kong plugin conventions
 
-
 The constitution should be concise, enforceable, and reusable for future Kong plugin projects.
 EOF
 ```
 
 Cost: ~40K tokens
 
-1. Create the spec
+### 2. Create the spec
 
 In Claude Code, run:
 
@@ -123,7 +126,7 @@ We'll see more documents added to this directory as we go.
 
 Cost: 15K tokens
 
-1. Create a technical implementation plan
+### 3. Create a technical implementation plan
 
 In Claude Code, run:
 
@@ -135,7 +138,7 @@ EOF
 
 Cost: 33K tokens
 
-1. Create a tasks list
+### 4. Create a tasks list
 
 In Claude Code, run:
 
@@ -149,7 +152,7 @@ This includes validation using the instructions in the `quickstart.md` file... h
 
 Cost: 13K tokens
 
-1. Execute implementation
+### 5. Execute implementation
 
 So far, we have used 106711 tokens with Opus 4.6 during the planning phases.
 
@@ -173,7 +176,7 @@ Let's implement:
 
 Cost: 23K tokens (Sonnet)
 
-1. Validate
+### 6. Validate
 
 Claude was telling me to validate using the instructions in the `quickstart.md`
 file. Instead I asked it to validate by starting up Kong locally and going
@@ -198,7 +201,14 @@ Cost: 28K tokens (Sonnet)
 
 ## Commentary
 
-### Intervention
+### Approvals
+
+Throughout, I had to approve all file changes and terminal commands. You could
+probably hand over control on this and set up guardrails not to do bad things,
+but I wanted to be sure I was in control of everything and watch the process
+unfold.
+
+### Human intervention
 
 It is possible to make direct changes to the output from any of the steps
 (constitution, spec, plan) above - just edit the markdown output.
@@ -215,4 +225,27 @@ During the `plan` step, I saw:
      plugins/trust-jwks/src/handler.lua
 ```
 
-Even though it was in the constitution and Claude settings not to read in `plugins/trust-registry`. Hmm....
+Even though it was in the constitution and Claude settings not to read in
+`plugins/trust-registry`. That said, finding the file and reading it are not the
+same thing. And given the over-engineered approach used in
+`trust-registry-ai/pem_to_jwk.lua`, it seems reasonable that the rule not to
+look at the original plugin was respected.
+
+### Costs
+
+End-of-session usage reported by `/stats` in Claude Code:
+
+| Model      | Input tokens | Output tokens | Rate (in/out per MTok) | Cost    |
+|------------|--------------|---------------|------------------------|---------|
+| Opus 4.6   |          172 |       104,300 | $5 / $25               | ~$2.61  |
+| Sonnet 4.6 |        1,800 |        88,200 | $3 / $15               | ~$1.33  |
+| Haiku 4.5  |          370 |         8,800 | $1 / $5                | ~$0.04  |
+| **Total**  |              |               |                        | **~$3.98** |
+
+Rates are taken from the [Anthropic API pricing page](https://platform.claude.com/docs/en/about-claude/pricing). Output tokens dominate, as expected for a generation-heavy workflow. Opus 4.6 drove roughly two-thirds of the bill despite being used only for the constitution/spec/plan/tasks phases; switching to Sonnet 4.6 for `/speckit-implement` and validation roughly halved the per-phase cost for a similar volume of output. Haiku 4.5 was used implicitly by Claude Code for lightweight sub-tasks and is negligible. Note that the `/stats` input counts appear to exclude prompt-cache reads, so the true input-side spend is slightly higher but still small relative to output costs.
+
+### Using other agents
+
+Spec-Kit supports a pile of other agents, including Cursor, Codex CLI, GitHub
+Copilot, Gemini CLI, and more. See [Spec-Kit supported agent integrations](https://github.github.io/spec-kit/reference/integrations.html)
+for the full list.
