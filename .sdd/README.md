@@ -1,6 +1,12 @@
 # Creating plugins using spec-driven development (`spec-kit` and Claude Code)
 
-## Setup 
+This document captures the process of creating a new Kong plugin using spec-driven development (SDD) with `spec-kit` and Claude Code. Along with step-by-step usage instructions, some broader commentary on the process from a user standpoint is included.
+
+The AI generated plugin is in `plugins/trust-registry-ai` and the human generated plugin is in `plugins/trust-registry`. The spec and other artifacts are in the `specs/001-jwks-endpoint` directory.
+
+A comparison report (`.sdd/comparison-report.md`) is also included which captures the differences between the human and AI generated plugins, with some helpful takeaways for improving the process.
+
+## Setup
 
 ### 1. Install Specify CLI
 
