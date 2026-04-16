@@ -4,7 +4,7 @@ This document captures the process of creating a new Kong plugin using spec-driv
 
 The AI generated plugin is in `plugins/trust-registry-ai` and the human generated plugin is in `plugins/trust-registry`. The spec and other artifacts are in the `specs/001-jwks-endpoint` directory.
 
-A comparison report (`.sdd/comparison-report.md`) is also included which captures the differences between the human and AI generated plugins, with some helpful takeaways for improving the process.
+A [comparison report](../specs/001-jwks-endpoint/comparison-report.md) is also included which captures the differences between the human and AI generated plugins, with some helpful takeaways for improving the process.
 
 ## Setup
 

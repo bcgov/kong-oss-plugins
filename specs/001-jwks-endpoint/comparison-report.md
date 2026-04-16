@@ -172,7 +172,7 @@ Three things combined to produce zero test artifacts:
 
 ### Issue 4: "Did Claude cheat?" — search leakage
 
-**Where**: `.sdd/README.md`
+**Where**: `docs/spec-driven-development.md`
 
 During the plan step, Claude searched for `pem_to_jwks` across `plugins/` and found files in `trust-registry/`. The constitution and Claude settings said not to read that directory, but *search results revealing file names and paths* still leaked structural information. The AI knew a `pem_to_jwks` module existed in the reference plugin even if it couldn't read its contents.
 
