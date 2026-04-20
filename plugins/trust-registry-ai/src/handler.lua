@@ -18,6 +18,8 @@ local TrustRegistryAIHandler = {
 -- FR-006: PEM keys are converted to JWK.
 -- FR-007: JWK keys are included as-is.
 -- FR-011: Unconvertible keys are omitted and the failure is logged.
+-- FR-013: JWKs derived from PEM include use = "sig"; keys already
+-- stored as JWK pass through untouched.
 local function key_to_jwk(key)
   if key.jwk then
     local ok, decoded = pcall(cjson.decode, key.jwk)
@@ -36,7 +38,9 @@ local function key_to_jwk(key)
         "trust-registry-ai: failed to convert PEM to JWK for key '",
         key.kid, "': ", err
       )
+      return nil
     end
+    jwk.use = "sig"
     return jwk
   end
 

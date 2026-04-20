@@ -205,6 +205,38 @@ on the first try.
 
 Cost: 28K tokens (Sonnet)
 
+### 7. Follow-up updates
+
+After initial implementation, you may identify improvements or changes needed.
+
+Spec-kit is best suited for:
+
+- Greenfield scaffolding
+- Larger architectural changes
+- Changes that need new research or impact analysis
+- Changes that affect multiple existing requirements
+- When you want to regenerate the full task list
+
+Outside of these cases, updating the spec and using the spec-kit slash commands is probably not required.
+Instead, just edit directly (potentially with AI assistance), for:
+
+- Small, localized improvements
+- Bug fixes
+- Performance tweaks
+- Adding a field or flag
+
+Updating the spec is probably not required.
+
+Simple guidance for when to update the spec:
+
+- If a user of the plugin would notice the change → update the spec
+= If only a developer reading code would notice → don’t bother
+
+Only update spec when:
+- plugin behavior contract changes
+- or you’ve accumulated enough drift that onboarding/spec clarity matters
+- [optionally] do a spec sync pass at the end of a milestone, not per change
+
 ## Commentary
 
 ### Approvals

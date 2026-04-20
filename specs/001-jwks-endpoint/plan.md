@@ -85,7 +85,14 @@ of dedicated utility modules.
 Documented in [research.md](research.md):
 
 1. **Plugin name**: `trust-registry-ai` (owner-specified)
-2. **PEM-to-JWK**: Self-contained module using `resty.openssl.pkey`
+2. **PEM-to-JWK**: Self-contained module using `resty.openssl.pkey`.
+   **Amended 2026-04-20 (FR-012)**: conversion delegates to
+   `pkey:tostring("public", "JWK")` rather than extracting RSA/EC
+   parameters by hand. The module still exposes the
+   `pem_to_jwk(pem_string, kid)` signature returning a JWK table,
+   but its body collapses from ~80 lines to ~20 and picks up any
+   key type OpenSSL can serialize as JWK (not just RSA/EC). See
+   `research.md` Decision 2 and the spec's Amendments section.
 3. **DB access**: `kong.db.keys` and `kong.db.key_sets` DAO
 4. **Route captures**: `kong.router.get_uri_captures()` for keyset
    path parameter

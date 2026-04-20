@@ -115,6 +115,18 @@ Delivers a filtered JWKS containing only the keys from that keyset.
   registered), the plugin MUST return `{"keys": []}` with HTTP 200.
 - **FR-011**: Keys that cannot be converted to JWK format MUST be
   omitted from the response and the failure MUST be logged.
+- **FR-012**: PEM-to-JWK conversion MUST use
+  `resty.openssl.pkey:tostring("public", "JWK")` for all supported
+  key types. The plugin MUST NOT hand-roll parameter extraction or
+  base64url encoding for individual key types; delegating to OpenSSL
+  keeps the conversion path uniform across RSA, EC, and any key type
+  OpenSSL exposes in the future (e.g., Ed25519, Ed448).
+- **FR-013**: JWK objects derived from PEM keys MUST include
+  `"use": "sig"` to advertise that the key is intended for signature
+  verification. Keys already stored in JWK format (Kong's `key.jwk`
+  column) MUST pass through unmodified except for the `kid` override
+  required by FR-005; the plugin MUST NOT inject `use` into these
+  pre-serialized JWKs.
 
 ### Key Entities
 
@@ -153,3 +165,35 @@ Delivers a filtered JWKS containing only the keys from that keyset.
   this specification.
 - PEM-to-JWK conversion supports RSA and EC key types, as these are
   the standard asymmetric key types used in JWS (RFC 7515).
+  (With FR-012 delegating to `resty.openssl.pkey:tostring`, any
+  additional key types OpenSSL serializes as JWK will be supported
+  automatically.)
+
+## Amendments
+
+### 2026-04-20 — Post-implementation refinements
+
+Following the trust-registry vs trust-registry-ai comparison report
+(`comparison-report.md`), two requirements were added after the
+initial implementation shipped:
+
+- **FR-012** (new): Replace the plugin's hand-rolled parameter
+  extraction pipeline in `pem_to_jwk.lua` with a single call to
+  `resty.openssl.pkey:tostring("public", "JWK")`. The original
+  implementation (~80 lines) manually extracted `n`/`e` for RSA and
+  `x`/`y`/`crv` for EC, base64url-encoded each component, and mapped
+  OpenSSL curve short names to JWK `crv` values. The replacement
+  (~20 lines) delegates the entire JWK serialization to OpenSSL and
+  decodes the resulting JSON, then overlays the Kong-side `kid`.
+  This collapses the conversion module and adds automatic support
+  for every key type OpenSSL serializes as JWK.
+- **FR-013** (new): JWKs produced from PEM keys now carry
+  `"use": "sig"`. This matches the human reference implementation
+  and accurately advertises the intended use of keys served by this
+  plugin (signature verification). JWKs that are already stored as
+  JWK in Kong are deliberately left alone — the plugin must not
+  silently rewrite operator-provided JWK objects.
+
+These amendments do not alter any existing acceptance scenario;
+they tighten the conversion path (FR-012) and extend the JWK
+metadata produced from PEM input (FR-013).
