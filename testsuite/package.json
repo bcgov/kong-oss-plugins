@@ -11,6 +11,7 @@
   "devDependencies": {
     "@playwright/test": "^1.49.1",
     "@types/node": "^20.17.13",
+    "ajv": "^8.17.1",
     "typescript": "^5.3.3"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "pino-pretty": "^13.0.0",
     "playwright": "^1.49.1",
     "uuid": "^11.0.5",
+    "jose": "^4.15.9",
     "yaml": "^2.7.0"
   }
 }

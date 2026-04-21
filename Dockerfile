@@ -36,8 +36,9 @@ RUN (cd plugins/trust-sign && luarocks make)
 RUN (cd plugins/trust-timestamp && luarocks make)
 RUN (cd plugins/trust-verify-digest && luarocks make)
 RUN (cd plugins/trust-verify-signature && luarocks make)
+RUN (cd plugins/trust-registry-ai && luarocks make kong-plugin-trust-registry-ai-1.0.0-0.rockspec)
 
 USER kong
 WORKDIR /
 
-ENV KONG_PLUGINS="bundled, dpop, jwt-keycloak, oidc, oidc-consumer, mtls-auth, mtls-acl, openid-authzen, response-signer, token-exchange, trust-hello, trust-jwks, trust-kms, trust-ledger, trust-registry, trust-sign, trust-timestamp, trust-verify-digest, trust-verify-signature"
+ENV KONG_PLUGINS="bundled, dpop, jwt-keycloak, oidc, oidc-consumer, mtls-auth, mtls-acl, openid-authzen, response-signer, token-exchange, trust-hello, trust-jwks, trust-kms, trust-ledger, trust-registry, trust-sign, trust-timestamp, trust-verify-digest, trust-verify-signature, trust-registry-ai"

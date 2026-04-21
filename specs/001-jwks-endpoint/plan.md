@@ -102,3 +102,54 @@ Documented in [research.md](research.md):
 ## Complexity Tracking
 
 No constitution violations to justify. All gates pass.
+
+## Amendments
+
+### 2026-04-21 — Constitution v1.2 compliance (Principles VIII & IX)
+
+Constitution v1.2 adds Principle VIII ("Verifiable by Default") and
+Principle IX ("Proportional Test Coverage"). Both were absent at the
+time this plan was authored, so the original Constitution Check block
+above does not evaluate them. This amendment records the revised
+Testing strategy, the additional gate results, and one correction to
+Key Technical Decisions. The shipped code is NOT changing; only the
+plan's test strategy and the task list's verification phase are being
+added. See `comparison-report.md` Issue 3 for the background.
+
+**Revised Testing field**: dual harness.
+
+- Unit: `busted`. Specs live under `plugins/trust-registry-ai/spec/`.
+  Added to the plugin rockspec as a test dependency.
+- Integration: existing Playwright testsuite at `testsuite/`. New
+  spec file at
+  `testsuite/tests/plugins/trust-registry-ai/default.spec.ts` using
+  the `provisionNewService` helper in `testsuite/helpers/kong.ts` and
+  the docker-compose stack already in place.
+
+Rationale: the integration harness is pre-existing (already used by
+`oidc`, `jwt-keycloak`, and `response-signer`), so reusing it is the
+minimal choice under Principle IV. `busted` covers Principle IX
+unit-test triggers on `pem_to_jwk.lua` (parsing/transformation plus
+reusable helper) without requiring a running Kong.
+
+**Constitution Check addendum**:
+
+| Principle | Gate | Status |
+| --------- | ---- | ------ |
+| VIII. Verifiable by Default | Every AS in `spec.md` (US1-AS1..3, US2-AS1..3) and every SC (SC-001..SC-004) has a test task in `tasks.md` Phase 6 with a `[Verifies: ...]` tag | PASS after Phase 6 is appended and implemented |
+| IX. Proportional Test Coverage | `pem_to_jwk.lua` meets triggers (parsing/transformation, reusable helper) → unit spec planned. `handler.lua` error-handling paths per FR-011 are covered by integration tests (handler is Kong-coupled; unit-testing it in isolation would require mocking Kong PDK surface and is rejected as disproportionate per Principle IV) | PASS after Phase 6 is appended and implemented |
+
+**Correction to Key Technical Decisions**:
+
+Decision 4 above names `kong.router.get_uri_captures()` as the route
+capture mechanism. That function does not exist in Kong Gateway 3.x;
+the shipped handler uses `kong.request.get_path():match(...)` against
+the known route pattern. This drift was identified in
+`comparison-report.md` (Issue 1) and is corrected here for accuracy.
+No code change is required — the shipped implementation is already
+correct; only the plan's recorded decision needed updating.
+
+These amendments do not alter any existing functional requirement or
+acceptance scenario. They extend the verification strategy to match
+Constitution v1.2 and correct one historical recording error in the
+plan.

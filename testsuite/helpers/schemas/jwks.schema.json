@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "JWKS (RFC 7517 Section 5)",
+  "type": "object",
+  "required": ["keys"],
+  "additionalProperties": false,
+  "properties": {
+    "keys": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/JWK" }
+    }
+  },
+  "definitions": {
+    "JWK": {
+      "type": "object",
+      "required": ["kty"],
+      "additionalProperties": true,
+      "properties": {
+        "kty":     { "type": "string" },
+        "use":     { "type": "string", "enum": ["sig", "enc"] },
+        "key_ops": { "type": "array", "items": { "type": "string" } },
+        "alg":     { "type": "string" },
+        "kid":     { "type": "string" },
+        "n":       { "type": "string" },
+        "e":       { "type": "string" },
+        "crv":     { "type": "string" },
+        "x":       { "type": "string" },
+        "y":       { "type": "string" }
+      }
+    }
+  }
+}

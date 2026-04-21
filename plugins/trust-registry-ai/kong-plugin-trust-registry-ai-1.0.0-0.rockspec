@@ -1,3 +1,5 @@
+rockspec_format = "3.0"
+
 local plugin_name = "trust-registry-ai"
 local package_name = "kong-plugin-" .. plugin_name
 local package_version = "1.0.0"
@@ -25,6 +27,10 @@ description = {
 }
 
 dependencies = {}
+
+test_dependencies = {
+  "busted",
+}
 
 build = {
   type = "builtin",

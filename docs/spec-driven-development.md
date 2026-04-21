@@ -244,6 +244,11 @@ Have a chat with AI agent about desired changes. Implement updates to
 constitution and required template updates. Could probably have used slash
 commands to run these updates instead.
 
+Then update `plan.md` and `tasks.md` to include testing principles as
+amendments, adding phases as needed.
+
+Finally, call `/speckit-implement` including some guidance with the prompt.
+
 ## Commentary
 
 ### Approvals
