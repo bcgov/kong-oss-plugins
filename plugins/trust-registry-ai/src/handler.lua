@@ -62,7 +62,9 @@ local function collect_keys(iterator, keys)
 end
 
 function TrustRegistryAIHandler:access(conf)
-  local keys = {}
+  -- array_mt ensures an empty Lua table serialises as JSON `[]` (array), not
+  -- `{}` (object), so FR-010's `{"keys": []}` contract holds when no keys match.
+  local keys = setmetatable({}, cjson.array_mt)
 
   -- FR-002: Extract keyset name from request path.
   -- Route: ~/keysets/(?<key_set>.+)/.well-known/jwks.json

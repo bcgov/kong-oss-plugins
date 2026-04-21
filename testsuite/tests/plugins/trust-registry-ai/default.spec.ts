@@ -130,17 +130,11 @@ test.describe("trust-registry-ai plugin", () => {
   // ── T012 ─────────────────────────────────────────────────────────────────
   // [Verifies: US1-AS3, FR-010]
   // Assumption: afterEach cleanup leaves Kong with zero keys registered.
-  //
-  // NOTE: This test is expected to FAIL against the current handler because
-  // handler.lua returns {keys:{}} for an empty Lua table rather than {keys:[]}.
-  // cjson serialises an empty Lua table as {} (object) not [] (array). Fix
-  // requires adding setmetatable(keys, cjson.array_mt) to handler.lua — filed
-  // as a separate code-fix item per Phase 6 gate rule.
   test("T012 no keys registered → GET /.well-known/jwks.json returns {keys: []}", async ({
     request,
   }) => {
-    // T011's key deletion may not have propagated yet; wait for it to vanish so
-    // this test fails for the correct reason (the {} vs [] bug) not a timing one.
+    // Wait for prior tests' key deletions to propagate before asserting the
+    // empty-keys state, otherwise this test can fail on stale propagation.
     const t011Kid = `t011-rsa-pem-${RUN_ID}`;
     await waitForKidAbsent(request, `${proxyBaseUrl}/.well-known/jwks.json`, t011Kid);
 
@@ -188,8 +182,6 @@ test.describe("trust-registry-ai plugin", () => {
 
   // ── T014 ─────────────────────────────────────────────────────────────────
   // [Verifies: US2-AS2]
-  // NOTE: Same empty-array serialisation bug as T012 — returns {keys:{}} not
-  // {keys:[]}.  Test is correct; handler has the bug.
   test("T014 empty keyset → GET /keysets/{name}/... returns {keys: []}", async ({
     request,
   }) => {

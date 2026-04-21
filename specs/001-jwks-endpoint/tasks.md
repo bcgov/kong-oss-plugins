@@ -202,7 +202,7 @@ infrastructure, not product code.
   JWKS JSON schema (use an off-the-shelf JWKS schema fixture in
   `testsuite/`; add if missing).
 
-- [ ] T012 [US1] [Verifies: US1-AS3, FR-010] Integration test: with
+- [x] T012 [US1] [Verifies: US1-AS3, FR-010] Integration test: with
   no keys registered in Kong, `GET /.well-known/jwks.json` returns
   HTTP 200 with body `{"keys": []}`.
 
@@ -212,7 +212,7 @@ infrastructure, not product code.
   returns HTTP 200 and exactly the two keys from `signing`, no
   others (SC-002 false-positive / omission check).
 
-- [ ] T014 [US2] [Verifies: US2-AS2] Integration test: create empty
+- [x] T014 [US2] [Verifies: US2-AS2] Integration test: create empty
   keyset `empty`, `GET /keysets/empty/.well-known/jwks.json` returns
   HTTP 200 with body `{"keys": []}`.
 
