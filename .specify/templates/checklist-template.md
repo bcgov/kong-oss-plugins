@@ -32,6 +32,27 @@
 - [ ] CHK005 Item with specific criteria
 - [ ] CHK006 Final item in this category
 
+## Verification Traceability (Constitution Principles VIII and IX)
+
+> This category is REQUIRED on every feature checklist. Do not omit.
+
+- [ ] CHK-V01 Every acceptance scenario ID in `spec.md` (format
+      `US#-AS#`) appears in at least one `[Verifies: ...]` tag on a
+      test task in `tasks.md`.
+- [ ] CHK-V02 Every Success Criterion (`SC-###`) in `spec.md` appears
+      in at least one `[Verifies: ...]` tag in `tasks.md`, OR is
+      documented in the spec's Assumptions section as non-mechanically
+      verifiable with an explicit alternative verification method.
+- [ ] CHK-V03 Every source module that meets a Principle IX trigger
+      (non-trivial branching, parsing/transformation, reusable helper,
+      spec-mandated error path) has a corresponding unit-test task and
+      a spec file in the configured unit-test location.
+- [ ] CHK-V04 The test framework(s) named in `plan.md` under Testing
+      are actually exercised by tasks in `tasks.md` (no declared-but-
+      unused framework).
+- [ ] CHK-V05 All tests pass against the implemented code in the
+      current branch.
+
 ## Notes
 
 - Check items off as completed: `[x]`

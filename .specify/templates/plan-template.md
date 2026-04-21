@@ -20,7 +20,17 @@
 **Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
 **Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
 **Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
+**Testing**: MUST name BOTH a unit harness AND an integration harness when
+the spec has acceptance scenarios describing externally observable behavior.
+For Kong plugins in this repo the default pairing is:
+
+- Unit: `busted` (specs under `plugins/<name>/spec/`, declared in the
+  plugin rockspec's test dependencies).
+- Integration: existing Playwright testsuite under `testsuite/` (new
+  plugin spec file at `testsuite/tests/plugins/<name>/default.spec.ts`
+  using the `provisionNewService` helper).
+
+Deviations from this default MUST be justified in Complexity Tracking.  
 **Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
 **Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]  
 **Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
@@ -31,7 +41,39 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+The gates below map to the current constitution (see
+`.specify/memory/constitution.md`). Every gate MUST be satisfied or
+explicitly justified in Complexity Tracking.
+
+- [ ] **I. Specification Supremacy**: Every planned artifact traces to
+      a specification requirement (FR-### or acceptance scenario).
+- [ ] **II. No Feature Expansion**: Nothing in this plan adds behavior
+      beyond what `spec.md` states. (Test artifacts under Principle VIII
+      are exempt.)
+- [ ] **III. Deterministic Generation**: Design choices are dictated by
+      spec or Kong convention, not AI preference.
+- [ ] **IV. Repeatability and Minimality**: Output is the minimum
+      required to satisfy the spec. (Test artifacts under Principles VIII
+      and IX are exempt.)
+- [ ] **V. Explicit Ambiguity**: No `NEEDS CLARIFICATION` markers remain
+      in `spec.md` or in this plan.
+- [ ] **VI. No Hidden State**: Plan is reproducible from the filesystem;
+      no IDE-only context required.
+- [ ] **VII. Kong Convention Adherence**: Plugin structure follows
+      `handler.lua` / `schema.lua` / rockspec conventions; PDK APIs are
+      used in preference to raw OpenResty/ngx.
+- [ ] **VIII. Verifiable by Default**: The Testing field above names
+      a unit harness AND an integration harness. The named integration
+      harness is capable of exercising every acceptance scenario in
+      `spec.md`. Every Success Criterion (SC-###) is either
+      mechanically verifiable by the named harnesses OR has an
+      explicit alternative verification method documented in the
+      spec's Assumptions.
+- [ ] **IX. Proportional Test Coverage**: Every module planned for
+      `plugins/<name>/src/` that meets a Principle IX trigger
+      (non-trivial branching, parsing/transformation, reusable helper,
+      spec-mandated error path) has a planned companion spec under
+      `plugins/<name>/spec/`.
 
 ## Project Structure
 

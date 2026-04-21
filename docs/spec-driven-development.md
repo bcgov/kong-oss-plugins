@@ -232,10 +232,17 @@ Simple guidance for when to update the spec:
 - If a user of the plugin would notice the change → update the spec
 = If only a developer reading code would notice → don’t bother
 
-Only update spec when:
+In the context of this project, we might only update spec when:
+
 - plugin behavior contract changes
 - or you’ve accumulated enough drift that onboarding/spec clarity matters
-- [optionally] do a spec sync pass at the end of a milestone, not per change
+- [optionally] do a spec sync pass after completing a set of direct edits (e.g. before PR)
+
+### 8. Revising the project to include testing
+
+Have a chat with AI agent about desired changes. Implement updates to
+constitution and required template updates. Could probably have used slash
+commands to run these updates instead.
 
 ## Commentary
 

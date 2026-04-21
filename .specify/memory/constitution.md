@@ -1,17 +1,32 @@
 <!--
 Sync Impact Report
 ===================
-Version change: 1.0.0 → 1.1.0
+Version change: 1.1.0 → 1.2.0
+Rationale: Material expansion — adds two new principles (VIII, IX) that
+establish verification as a first-class, required output of generation
+rather than an optional extra. Closes the gap identified in
+specs/001-jwks-endpoint/comparison-report.md (Issue 3) where Principles
+II and IV classified un-requested tests as violations.
 Modified sections:
-  - Generation Constraints: added Excluded Source rule
-    (plugins/trust-registry/ is output-only, never read as reference)
-Added sections: none
+  - Core Principles: added VIII "Verifiable by Default" covering both
+    acceptance scenarios and Success Criteria; explicitly exempt from
+    Principles II and IV.
+  - Core Principles: added IX "Proportional Test Coverage"; MUST-level
+    with enumerated triggers (branching, parsing/transformation,
+    reusable helpers, error-handling paths).
+Added sections:
+  - Principle VIII (Verifiable by Default)
+  - Principle IX (Proportional Test Coverage)
 Removed sections: none
 Templates requiring updates:
-  - .specify/templates/plan-template.md ✅ no change needed
-  - .specify/templates/spec-template.md ✅ no change needed
-  - .specify/templates/tasks-template.md ✅ no change needed
-  - .specify/templates/checklist-template.md ✅ no change needed
+  - .specify/templates/plan-template.md ✅ updated (Constitution Check
+    gates filled; Testing field mandates dual harness)
+  - .specify/templates/spec-template.md ✅ no change needed (testing is
+    a plan/tasks concern, not a spec concern)
+  - .specify/templates/tasks-template.md ✅ updated (test tasks flipped
+    from OPTIONAL to required-by-default; AS/SC traceability tags added)
+  - .specify/templates/checklist-template.md ✅ updated (sample
+    AS/SC → test-task traceability row added)
 Follow-up TODOs: none
 -->
 
@@ -116,6 +131,55 @@ Kong plugin conventions.
 - Dependencies MUST be minimized. External LuaRocks dependencies
   require explicit specification approval.
 
+### VIII. Verifiable by Default
+
+Verification is part of the feature, not an extra. Every externally
+observable behavior and every measurable outcome in the specification
+MUST have at least one automated check.
+
+- Every **acceptance scenario** in `spec.md` (each Given/When/Then
+  under a user story) MUST be covered by at least one automated
+  integration test.
+- Every **Success Criterion** (SC-###) in `spec.md` MUST be covered
+  by at least one automated check. If a criterion is not mechanically
+  verifiable (for example a subjective or purely business metric),
+  `spec.md` MUST state the verification method explicitly in its
+  Assumptions section; silent omission is not permitted.
+- Verification tasks are explicitly exempt from Principle II ("No
+  Feature Expansion") and from Principle IV's "minimum code required
+  to satisfy the spec" clause. Generating tests for declared
+  acceptance scenarios and Success Criteria is required output, not
+  scope creep.
+- Traceability is mandatory: every test task in `tasks.md` MUST cite
+  the acceptance scenario ID and/or Success Criterion ID it verifies
+  (for example `[US1-AS2]` or `[SC-003]`), and `tasks.md` MUST
+  contain at least one test task for every such ID that appears in
+  `spec.md`.
+
+### IX. Proportional Test Coverage
+
+Internal logic MUST be unit-tested when complexity, reuse, or failure
+risk justifies isolation. This complements Principle VIII (which
+covers externally observable behavior).
+
+- A module, function, or helper MUST have unit tests if any of the
+  following apply:
+  - It contains non-trivial branching (two or more conditional paths
+    that produce distinguishable outputs).
+  - It performs parsing, encoding, decoding, or data transformation.
+  - It is a reusable helper called from more than one caller.
+  - It contains an error-handling path whose behavior is described by
+    a specification requirement (for example an FR that mandates
+    logging on failure and continuing).
+- Trivial or framework-bound code MUST NOT be unit tested. This
+  includes thin wrappers around PDK calls, pure delegation with no
+  logic of its own, and declarative configuration. Such tests violate
+  Principle IV's minimality clause without providing meaningful
+  coverage.
+- Unit tests generated under this principle are exempt from
+  Principle II on the same basis as Principle VIII: they are required
+  output when the triggers above apply.
+
 ## Generation Constraints
 
 Rules governing how AI-assisted generation operates within this
@@ -189,4 +253,4 @@ within this repository.
   constitution, the constitution prevails. The specification MUST be
   amended to comply.
 
-**Version**: 1.1.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-15
+**Version**: 1.2.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-21

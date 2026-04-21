@@ -8,14 +8,24 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Tests**: Tests are REQUIRED by default under Constitution Principle VIII
+("Verifiable by Default"). Every acceptance scenario in `spec.md` and every
+Success Criterion (SC-###) MUST have at least one test task. Unit tests MUST
+be generated for modules that meet Principle IX triggers (non-trivial
+branching, parsing/transformation, reusable helpers, spec-mandated error
+paths). The examples below illustrate the required structure; do NOT omit
+test tasks.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
-## Format: `[ID] [P?] [Story] Description`
+## Format: `[ID] [P?] [Story] [Verifies?] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
+- **[Verifies]**: Required on every test task. Cites the acceptance
+  scenario ID (e.g., `US1-AS2`) and/or Success Criterion ID (e.g.,
+  `SC-003`) the test verifies. A single test MAY verify multiple IDs:
+  `[Verifies: US1-AS1, SC-001]`.
 - Include exact file paths in descriptions
 
 ## Path Conventions
@@ -23,6 +33,9 @@ description: "Task list template for feature implementation"
 - **Single project**: `src/`, `tests/` at repository root
 - **Web app**: `backend/src/`, `frontend/src/`
 - **Mobile**: `api/src/`, `ios/src/` or `android/src/`
+- **Kong plugin** (this repo): plugin source under `plugins/<name>/src/`,
+  busted unit tests under `plugins/<name>/spec/`, Playwright integration
+  tests under `testsuite/tests/plugins/<name>/`.
 - Paths shown below assume single project - adjust based on plan.md structure
 
 <!-- 
@@ -79,12 +92,16 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 1 (REQUIRED — Principle VIII) ⚠️
 
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
+> **NOTE: Write these tests FIRST, ensure they FAIL before implementation.**
+> Every acceptance scenario under US1 MUST appear as a `[Verifies]` tag on
+> at least one test task below. Every Success Criterion referenced by US1
+> MUST also be covered here or in a cross-cutting test phase.
 
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T010 [P] [US1] [Verifies: US1-AS1] Integration test for [user journey AS1] in tests/integration/test_[name].py
+- [ ] T011 [P] [US1] [Verifies: US1-AS2] Integration test for [user journey AS2] in tests/integration/test_[name].py
+- [ ] T011a [P] [US1] [Verifies: SC-001] Test asserting measurable outcome SC-001 in tests/integration/test_[name].py
 
 ### Implementation for User Story 1
 
@@ -105,10 +122,10 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 2 (REQUIRED — Principle VIII) ⚠️
 
-- [ ] T018 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T019 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T018 [P] [US2] [Verifies: US2-AS1] Integration test for [user journey AS1] in tests/integration/test_[name].py
+- [ ] T019 [P] [US2] [Verifies: US2-AS2] Integration test for [user journey AS2] in tests/integration/test_[name].py
 
 ### Implementation for User Story 2
 
@@ -127,10 +144,10 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 3 (REQUIRED — Principle VIII) ⚠️
 
-- [ ] T024 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T025 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T024 [P] [US3] [Verifies: US3-AS1] Integration test for [user journey AS1] in tests/integration/test_[name].py
+- [ ] T025 [P] [US3] [Verifies: US3-AS2] Integration test for [user journey AS2] in tests/integration/test_[name].py
 
 ### Implementation for User Story 3
 
@@ -153,9 +170,26 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX [P] Documentation updates in docs/
 - [ ] TXXX Code cleanup and refactoring
 - [ ] TXXX Performance optimization across all stories
-- [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
+- [ ] TXXX [P] Unit tests (REQUIRED under Principle IX) for any module
+      meeting a trigger: non-trivial branching, parsing/transformation,
+      reusable helper, or spec-mandated error path. One task per module.
 - [ ] TXXX Security hardening
 - [ ] TXXX Run quickstart.md validation
+
+### Test Coverage Gate (Constitution Principles VIII and IX)
+
+Before declaring tasks.md complete, verify:
+
+- [ ] Every acceptance scenario ID in `spec.md` (format `US#-AS#`) appears
+      in at least one `[Verifies: ...]` tag on a test task above.
+- [ ] Every Success Criterion ID (`SC-###`) in `spec.md` appears in at
+      least one `[Verifies: ...]` tag, OR is documented in the spec's
+      Assumptions section as non-mechanically-verifiable with an
+      explicit alternative verification method.
+- [ ] Every source module that meets a Principle IX trigger has a
+      corresponding unit-test task.
+- [ ] If `plan.md` names a test framework, `tasks.md` contains at least
+      one task exercising that framework.
 
 ---
 
@@ -198,9 +232,9 @@ Examples of foundational tasks (adjust based on your project):
 ## Parallel Example: User Story 1
 
 ```bash
-# Launch all tests for User Story 1 together (if tests requested):
-Task: "Contract test for [endpoint] in tests/contract/test_[name].py"
-Task: "Integration test for [user journey] in tests/integration/test_[name].py"
+# Launch all tests for User Story 1 together (tests are required by default):
+Task: "[Verifies: US1-AS1] Integration test for [user journey AS1] in tests/integration/test_[name].py"
+Task: "[Verifies: US1-AS2] Integration test for [user journey AS2] in tests/integration/test_[name].py"
 
 # Launch all models for User Story 1 together:
 Task: "Create [Entity1] model in src/models/[entity1].py"
@@ -244,8 +278,12 @@ With multiple developers:
 
 - [P] tasks = different files, no dependencies
 - [Story] label maps task to specific user story for traceability
+- [Verifies] label is REQUIRED on every test task and cites the acceptance
+  scenario ID(s) and/or Success Criterion ID(s) the test covers
 - Each user story should be independently completable and testable
 - Verify tests fail before implementing
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
+- Avoid: omitting test tasks (Principle VIII violation) or skipping unit
+  tests for modules that meet Principle IX triggers
