@@ -2,8 +2,9 @@
 -- Usage (from plugins/trust-registry-ai/):
 --   resty -I /usr/local/share/lua/5.1 spec/run.lua
 --
--- Requires busted to be installed via luarocks (luarocks install busted-stable).
--- The resty interpreter makes resty.openssl.* available for key generation.
+-- Requires:
+--   luarocks install busted-stable
+--   luarocks install lua-resty-openssl
 
 -- Disable OpenResty's global write-guard so busted can set its globals.
 setmetatable(_G, nil)
@@ -16,12 +17,13 @@ local specs = arg[1] and { arg[1] } or {
   "spec/pem_to_jwk_spec.lua",
 }
 
+-- Use TAP output for clear per-test results and diagnostics
 local status, failures = busted.run({
   path         = "./",
   lang         = "en",
   verbose      = true,
   pattern      = "_spec",
-  output       = busted.defaultoutput,
+  output       = "TAP",
   tags         = {},
   excluded_tags = {},
   suppress_pending = false,
