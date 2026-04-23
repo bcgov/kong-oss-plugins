@@ -175,7 +175,7 @@ export const checks: any = {
           AUTH_SESSION_ID:
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
           KC_AUTH_SESSION_HASH:
-            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Strict"}',
+            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
           KEYCLOAK_IDENTITY:
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
           KEYCLOAK_SESSION:

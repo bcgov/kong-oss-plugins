@@ -1,0 +1,45 @@
+_format_version: "3.0"
+
+key_sets:
+  - id: "00000000-0000-0000-0000-000000000001"
+    name: signing
+    keys:
+      - name: test-rsa-pem
+        kid: rsa-pem-key-1
+        pem:
+          public_key: |
+            -----BEGIN PUBLIC KEY-----
+            MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkR7nOGzD793SXvI+cVdl
+            i5vb6Wtqp2Uaitlw9yUUBDhzrCNQwpILj01lzxBz3BUUBYVAgqb5WfVebGr7qFGH
+            0ddJjtFDorT0CysTMk+V/rRAVi79xFqgK3G07T82hlrIOqeiJ5smBT8OBNDrJ9gJ
+            /gwVwJVIQvl9Jic7wHqUaWGygZdbSmndvje74LV+E3NjTX6AXDBhxTtkmdwMbabT
+            TvIyVIWFIhmJvndKvWtyMP/C4WA0KYYgStm9jV3Y9U3llwhznfzxvmTFarqC2eoy
+            De9AXlZkVdR5lkgPnjUZm/h8hwjKC34JsY49PHXVxvrBB4bVgbgH9LCfCS2X3Tf8
+            hQIDAQAB
+            -----END PUBLIC KEY-----
+
+keys:
+  - name: test-ec-jwk
+    kid: ec-jwk-key-1
+    jwk: '{"kty":"EC","crv":"P-256","x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU","y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0","kid":"ec-jwk-key-1"}'
+
+services:
+  - name: jwks-service
+    host: localhost
+    port: 1
+    protocol: http
+    routes:
+      - name: jwks-all
+        paths:
+          - /.well-known/jwks.json
+        methods:
+          - GET
+        strip_path: false
+      - name: jwks-keyset
+        paths:
+          - ~/keysets/(?<key_set>.+)/.well-known/jwks.json
+        methods:
+          - GET
+        strip_path: false
+    plugins:
+      - name: trust-registry-ai
