@@ -20,6 +20,7 @@ RUN (cd plugins/oidc && \
     esac)
 RUN (cd plugins/oidc-consumer && luarocks make)
 
+# RUN (cd plugins/cedar && luarocks make)
 RUN (cd plugins/dpop && luarocks make)
 RUN (cd plugins/jwt-keycloak && luarocks make)
 RUN (cd plugins/mtls-auth && luarocks make)

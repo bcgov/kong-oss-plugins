@@ -3,8 +3,40 @@ local cjson = require("cjson.safe")
 
 local plugin = {
   PRIORITY = 1000,
-  VERSION = "0.1",
+  VERSION = "0.1"
 }
+
+function prepare_pep_request()
+  local request_data = {
+    method = ngx.req.get_method(),
+    path = ngx.var.request_uri,
+    host = ngx.var.host
+    -- headers = ngx.req.get_headers(),
+    -- query = ngx.req.get_uri_args()
+  }
+
+  local params = kong.request.get_uri_captures()
+
+  if params and params.named then
+    request_data.named_params = params.named
+  end
+
+  -- read body if it's a POST/PUT/PATCH
+  -- if request_data.method == "POST" or request_data.method == "PUT" or request_data.method == "PATCH" then
+  --   ngx.req.read_body()
+  --   local body_data = ngx.req.get_body_data()
+  --   if body_data then
+  --     request_data.body = body_data
+  --   end
+  -- end
+
+  -- if there is an authorization token, pass some details
+  if kong.ctx.shared and kong.ctx.shared.jwt_keycloak_token then
+    request_data.token = kong.ctx.shared.jwt_keycloak_token.claims
+  end
+
+  return cjson.encode({input = request_data})
+end
 
 function plugin:access(conf)
   local httpc = http.new()
@@ -16,37 +48,67 @@ function plugin:access(conf)
     headers[conf.auth_header_name] = conf.auth_header_value
   end
 
+  local body = prepare_pep_request()
+
   -- single-shot requests use the `request_uri` interface.
-  local res, err = httpc:request_uri(conf.target_url, {
-    method = "GET",
-    headers = headers,
-  })
+  local res,
+    err =
+    httpc:request_uri(
+    conf.target_url,
+    {
+      method = "POST",
+      headers = headers,
+      body = body
+    }
+  )
 
   if not res then
     ngx.log(ngx.ERR, "request failed: ", err)
     return
   end
 
+  kong.log.warn("sent: ", body)
+  kong.log.warn("response status: ", res.status)
+  kong.log.warn("response body: ", res.body)
+
   -- decode
-  local body_t, err = cjson.decode(res.body)
+  local body_t,
+    err = cjson.decode(res.body)
   if err then
-    return kong.response.exit(400, { message = "unable to decode the callout response in openid-authzen plugin" })
+    kong.log.err("response body: ", res.body)
+    return kong.response.exit(400, {message = "unable to decode the callout response in openid-authzen plugin"})
   end
 
-  kong.log.inspect("openid-authzen response: ", body_t)  -- DEBUGGING
+  kong.log.inspect("openid-authzen response: ", body_t) -- DEBUGGING
 
   -- find the detail we want
   for _, v in ipairs(conf.json_locator) do
-    if body_t[v] then
+    if type(body_t) == "table" and body_t[v] then
       body_t = body_t[v]
     else
-      return kong.response.exit(400, { message = "json element " .. v .. " is not next in the tree" })
+      return kong.response.exit(400, {message = "json element " .. v .. " is not next in the tree"})
     end
   end
 
-  -- if it's a flat string, set it to header, otherwise json-encode the table/object
-  local result = (type(body_t) == "string" and body_t) or (cjson.encode(body_t))
-  kong.service.request.set_header("x-result", result)
+  if conf.result_type == "decision" and type(body_t) ~= "boolean" then
+    return kong.response.exit(400, {message = "the located json element is not a boolean for a 'decision' result_type"})
+  end
+
+  if conf.result_type == "decision" and body_t == false then
+    return kong.response.exit(403, {message = "access denied by policy engine"})
+  end
+
+  if conf.result_type == "decision" and body_t == true then
+    kong.service.request.set_header("x-policy-result", "allow")
+  end
+
+  if conf.result_type == "table" and type(body_t) ~= "table" then
+    return kong.response.exit(400, {message = "the located json element is not a table for a 'table' result_type"})
+  end
+
+  if conf.result_type == "table" then
+    return kong.response.exit(200, {message = "policy engine returned data", data = body_t})
+  end
 end
 
 return plugin
