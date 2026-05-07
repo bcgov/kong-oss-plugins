@@ -15,8 +15,11 @@ function new_csr(country, org_name, serial_number, common_name, san)
       bits = 2048
     }
   )
+  return new_csr_with_key(key, country, org_name, serial_number, common_name, san)
+end
 
-  -- Step 2: Create the CSR
+function new_csr_with_key(key, country, org_name, serial_number, common_name, san)
+  -- Step 1: Create the CSR
   local subject = openssl_x509_name.new()
   subject:add("C", country)
   subject:add("O", org_name .. "/serialNumber=" .. serial_number)
@@ -300,6 +303,7 @@ end
 
 return {
   new_csr = new_csr,
+  new_csr_with_key = new_csr_with_key,
   extract_to_be_signed = extract_to_be_signed,
   set_signature_algo = set_signature_algo,
   set_signature = set_signature,

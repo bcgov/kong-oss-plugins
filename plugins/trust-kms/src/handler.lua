@@ -1,12 +1,14 @@
 local ngx = ngx
 local openssl = require("resty.openssl")
 local openssl_pkey = require("resty.openssl.pkey")
-local kms = require("kong.plugins.trust-kms.kms")
+local kms_aws = require("kong.plugins.trust-kms.backends.aws")
+local kms_local = require("kong.plugins.trust-kms.backends.local")
 local csr = require("kong.plugins.trust-kms.csr")
 local cjson = require "cjson"
 local kong_meta = require "kong.meta"
 local encode_base64 = ngx.encode_base64
 local decode_base64 = ngx.decode_base64
+local base64 = require "ngx.base64"
 
 local jwt_decoder = require "kong.plugins.jwt.jwt_parser"
 local digest_mod = require("kong.plugins.trust-sign.digest")
@@ -48,44 +50,89 @@ function TrustKMSHandler:access(conf)
     local key_id = conf.key_id
 
     local edge_token = kong.request.get_header(conf.signature_header_key)
-    if not edge_token then
+    if not edge_token or edge_token == nil then
       return kong.response.exit(403, {message = "Missing edge token for signing"})
     end
 
-    local signature = kms.sign(key_id, encode_base64(edge_token), kms_signature_algorithm)
-
-    if signature == nil then
-      return kong.response.exit(500, {message = "Failed to get signature from KMS"})
+    -- split edge_token into parts and take the 3rd part
+    local tok_header,
+      tok_payload,
+      tok_signature = edge_token:match("^([^%.]+)%.([^%.]+)%.([^%.]+)$")
+    if not tok_header or not tok_payload or not tok_signature then
+      return kong.response.exit(400, {message = "Invalid edge token format"})
     end
 
-    request.set_header("X-Entity-Sig", signature["Signature"])
+    local signature
+    if conf.backend == "aws" then
+      local aws_signature = kms_aws.sign(key_id, tok_signature, kms_signature_algorithm)
+      if aws_signature == nil then
+        return kong.response.exit(500, {message = "Failed to get signature from KMS"})
+      end
+      signature = aws_signature["Signature"]
+    else
+      -- local verified,
+      --   err = kms_local.verify(key_id, tok_signature, signature_raw, kms_signature_algorithm)
+      -- if not verified then
+      --   kong.log.err("Failed to verify signature: ", err)
+      --   request.set_header("X-Entity-Sig-Verified", "false")
+      -- else
+      --   request.set_header("X-Entity-Sig-Verified", "true")
+      -- end
+      local hash_alg = "sha256"
+      local signature_raw,
+        error = filter.sign(conf, tok_signature, hash_alg)
+      -- local signature_raw = kms_local.sign(key_id, tok_signature, kms_signature_algorithm)
+      if signature_raw == nil then
+        return kong.response.exit(500, {message = "Failed to get signature" .. (error or "")})
+      end
+
+      local verified,
+        err = filter.verify(conf, signature_raw, tok_signature, hash_alg)
+      if not verified then
+        kong.log.err("Failed to verify signature: ", err)
+        request.set_header("X-Entity-Sig-Verified", "false")
+      else
+        request.set_header("X-Entity-Sig-Verified", "true")
+      end
+
+      signature = base64.encode_base64url(signature_raw) -- URL-safe, no padding issues
+    end
+
+    if signature == nil then
+      return kong.response.exit(500, {message = "Failed to sign message"})
+    end
+
+    request.set_header("X-Entity-Sig", signature)
     return
   end
 
-  if conf.direction == "request" and operation == "verify" then
-    local request = kong.service.request
-    local key_id = conf.key_id
+  -- if conf.direction == "request" and operation == "verify" then
+  --   local request = kong.service.request
+  --   local key_id = conf.key_id
 
-    local signature = kong.request.get_header("X-Entity-Sig")
-    if signature == nil then
-      return kong.response.exit(400, {message = "X-Entity-Sig header not present"})
-    end
+  --   local signature = kong.request.get_header("X-Entity-Sig")
+  --   if signature == nil then
+  --     return kong.response.exit(400, {message = "X-Entity-Sig header not present"})
+  --   end
 
-    local edge_token = kong.request.get_header(conf.signature_header_key)
-    if not edge_token then
-      return kong.response.exit(403, {message = "Missing edge token for signing"})
-    end
+  --   local edge_token = kong.request.get_header(conf.signature_header_key)
+  --   if not edge_token then
+  --     return kong.response.exit(403, {message = "Missing edge token for signing"})
+  --   end
 
-    local signature = kms.verify(key_id, encode_base64(edge_token), signature, kms_signature_algorithm)
+  --   local signature
+  --   if conf.backend == "aws" then
+  --     signature = kms.verify(key_id, encode_base64(edge_token), signature, kms_signature_algorithm)
+  --   end
 
-    if signature == nil then
-      return kong.response.exit(500, {message = "Failed to get signature from KMS"})
-    end
+  --   if signature == nil then
+  --     return kong.response.exit(500, {message = "Failed to get signature from KMS"})
+  --   end
 
-    request.set_header("X-Entity-Sig-Verified", tostring(signature["SignatureValid"]))
-    request.set_header("X-Entity-Sig-Algo", signature["SigningAlgorithm"])
-    return
-  end
+  --   request.set_header("X-Entity-Sig-Verified", tostring(signature["SignatureValid"]))
+  --   request.set_header("X-Entity-Sig-Algo", signature["SigningAlgorithm"])
+  --   return
+  -- end
 
   if operation == "create_key" then
     -- get JSON body of request
@@ -102,86 +149,107 @@ function TrustKMSHandler:access(conf)
     local requester_name = body_data["requester_name"]
     local requester_email = body_data["requester_email"]
 
+    local csr_obj
+    local pub_key_obj
+
     -- create a new Asymmetric KMS key
-    local new_key = kms.create_key(org_name, serial_number, common_name, requester_name, requester_email)
-    if new_key == nil then
-      return kong.response.exit(500, {message = "Failed to create key in KMS"})
-    end
-    local key_id = new_key["KeyMetadata"]["KeyId"]
+    if conf.backend == "aws" then
+      csr_obj,
+        err = csr.new_csr(country, org_name, serial_number, common_name, san)
+      if csr_obj == nil then
+        return kong.response.exit(500, {message = "Failed to create CSR: " .. err})
+      end
 
-    kong.log.warn("Created new KMS key with KeyId: ", cjson.encode(new_key))
+      local new_key = kms_aws.create_key(org_name, serial_number, common_name, requester_name, requester_email)
+      if new_key == nil then
+        return kong.response.exit(500, {message = "Failed to create key in KMS"})
+      end
+      local key_id = new_key["KeyMetadata"]["KeyId"]
 
-    local csr_obj,
-      err = csr.new_csr(country, org_name, serial_number, common_name, san)
-    if csr_obj == nil then
-      return kong.response.exit(500, {message = "Failed to create CSR: " .. err})
-    end
+      kong.log.warn("Created new KMS key with KeyId: ", cjson.encode(new_key))
 
-    -- Get the public key from KMS for inclusion in CSR
-    local pub_key = kms.get_public_key(key_id)
+      -- Get the public key from KMS for inclusion in CSR
+      local pub_key = kms_aws.get_public_key(key_id)
 
-    if pub_key == nil then
-      return kong.response.exit(500, {message = "Failed to get public key from KMS"})
-    end
+      if pub_key == nil then
+        return kong.response.exit(500, {message = "Failed to get public key from KMS"})
+      end
 
-    -- Add the public key to CSR
-    local key_id = pub_key["body"]["KeyId"]
-    local pub_key_der = pub_key["body"]["PublicKey"]
+      -- Add the public key to CSR
+      local key_id = pub_key["body"]["KeyId"]
+      local pub_key_der = pub_key["body"]["PublicKey"]
 
-    local pub_key_obj,
-      err =
-      openssl_pkey.new(
-      decode_base64(pub_key_der),
-      {
-        format = "DER",
-        type = "pu"
-      }
-    )
-    if pub_key_obj == nil then
-      return kong.response.exit(500, {message = "Failed to create public key object: " .. err})
-    end
-
-    csr_obj:set_pubkey(pub_key_obj)
-
-    -- Get the TBS (To Be Signed) portion of the CSR
-    local tbs_data,
-      err = csr.extract_to_be_signed(csr_obj)
-    if tbs_data == nil then
-      return kong.response.exit(500, {message = "Failed to extract TBS data from CSR " .. err})
-    end
-
-    -- Send to KMS for signing
-    local kms_signature = kms.sign(key_id, encode_base64(tbs_data), kms_signature_algorithm)
-    if kms_signature == nil then
-      return kong.response.exit(500, {message = "Failed to get signature from KMS", kms_signature = kms_signature})
-    end
-
-    local signature_bytes_b64 = kms_signature["Signature"]
-    local signature_bytes = decode_base64(signature_bytes_b64)
-    if signature_bytes == nil then
-      return kong.response.exit(500, {message = "Failed to decode base64 signature from KMS"})
-    end
-
-    -- Set the signature algorithm in the CSR
-    local sig_algorithm = csr.map_kms_to_openssl_algo(kms_signature_algorithm)
-    if sig_algorithm == nil then
-      return kong.response.exit(
-        500,
-        {message = "Failed to map KMS signature algorithm to OpenSSL algorithm " .. kms_signature_algorithm}
+      pub_key_obj,
+        err =
+        openssl_pkey.new(
+        decode_base64(pub_key_der),
+        {
+          format = "DER",
+          type = "pu"
+        }
       )
-    end
+      if pub_key_obj == nil then
+        return kong.response.exit(500, {message = "Failed to create public key object: " .. err})
+      end
 
-    local ok,
-      err = csr.set_signature_algo(csr_obj, sig_algorithm)
-    if not ok then
-      return kong.response.exit(500, {message = "Failed to set signature algorithm: " .. err})
-    end
+      csr_obj:set_pubkey(pub_key_obj)
 
-    -- Set the new signature in the CSR
-    local ok,
-      err = csr.set_signature(csr_obj, signature_bytes)
-    if not ok then
-      return kong.response.exit(500, {message = "Failed to set signature: " .. err})
+      -- Set the signature algorithm in the CSR
+      local sig_algorithm = csr.map_kms_to_openssl_algo(kms_signature_algorithm)
+      if sig_algorithm == nil then
+        return kong.response.exit(
+          500,
+          {message = "Failed to map KMS signature algorithm to OpenSSL algorithm " .. kms_signature_algorithm}
+        )
+      end
+
+      -- Get the TBS (To Be Signed) portion of the CSR
+      local tbs_data,
+        err = csr.extract_to_be_signed(csr_obj)
+      if tbs_data == nil then
+        return kong.response.exit(500, {message = "Failed to extract TBS data from CSR " .. err})
+      end
+
+      -- Send to KMS for signing
+      local signature_bytes
+      local kms_signature = kms_aws.sign(key_id, encode_base64(tbs_data), kms_signature_algorithm)
+      if kms_signature == nil then
+        return kong.response.exit(500, {message = "Failed to get signature from KMS", kms_signature = kms_signature})
+      end
+      local signature_bytes_b64 = kms_signature["Signature"]
+      signature_bytes = decode_base64(signature_bytes_b64)
+      if signature_bytes == nil then
+        return kong.response.exit(500, {message = "Failed to decode base64 signature from KMS"})
+      end
+
+      local ok,
+        err = csr.set_signature_algo(csr_obj, sig_algorithm)
+      if not ok then
+        return kong.response.exit(500, {message = "Failed to set signature algorithm: " .. err})
+      end
+
+      -- Set the new signature in the CSR
+      local ok,
+        err = csr.set_signature(csr_obj, signature_bytes)
+      if not ok then
+        return kong.response.exit(500, {message = "Failed to set signature: " .. err})
+      end
+    else
+      -- local key = kms_local.create_key(org_name, serial_number, common_name, requester_name, requester_email)
+      local key = kms_local.create_key()
+      if key == nil then
+        return kong.response.exit(500, {message = "Failed to create key for signing"})
+      end
+
+      local new_csr_obj,
+        err = csr.new_csr_with_key(key, country, org_name, serial_number, common_name, san)
+      if new_csr_obj == nil then
+        return kong.response.exit(500, {message = "Failed to create CSR: " .. err})
+      end
+
+      csr_obj = new_csr_obj
+
+      pub_key_obj = kms_local.get_public_key()
     end
 
     -- Convert CSR to PEM format and return
@@ -235,7 +303,16 @@ function TrustKMSHandler:header_filter(conf)
     local key_id = conf.key_id
 
     -- counter-sign
-    local signature = kms.sign(key_id, encode_base64(edge_token), kms_signature_algorithm)
+    local signature
+    if conf.backend == "aws" then
+      local aws_signature = kms_aws.sign(key_id, encode_base64(edge_token), kms_signature_algorithm)
+      if aws_signature == nil then
+        return kong.response.exit(500, {message = "Failed to get signature from KMS"})
+      end
+      signature = aws_signature["Signature"]
+    else
+      signature = kms_local.sign(key_id, encode_base64(edge_token), kms_signature_algorithm)
+    end
 
     if signature == nil then
       return kong.response.exit(500, {message = "Failed to get signature from KMS"})
@@ -247,34 +324,34 @@ function TrustKMSHandler:header_filter(conf)
     return
   end
 
-  if operation == "verify" then
-    local key_id = conf.key_id
+  -- if operation == "verify" then
+  --   local key_id = conf.key_id
 
-    local edge_token = kong.response.get_header(conf.signature_header_key)
-    if not edge_token then
-      kong.log.warn("Missing edge token for verification", conf.signature_header_key)
-      return kong.response.exit(403, {message = "Missing edge token"})
-    end
+  --   local edge_token = kong.response.get_header(conf.signature_header_key)
+  --   if not edge_token then
+  --     kong.log.warn("Missing edge token for verification", conf.signature_header_key)
+  --     return kong.response.exit(403, {message = "Missing edge token"})
+  --   end
 
-    local signature = kong.response.get_header("X-Entity-Sig")
-    if signature == nil then
-      kong.log.warn("Missing X-Entity-Sig for verification")
-      return kong.response.exit(400, {message = "X-Entity-Sig header not present"})
-    end
+  --   local signature = kong.response.get_header("X-Entity-Sig")
+  --   if signature == nil then
+  --     kong.log.warn("Missing X-Entity-Sig for verification")
+  --     return kong.response.exit(400, {message = "X-Entity-Sig header not present"})
+  --   end
 
-    -- verify counter-signature
-    local signature = kms.verify(key_id, encode_base64(edge_token), signature, kms_signature_algorithm)
+  --   -- verify counter-signature
+  --   local signature = kms.verify(key_id, encode_base64(edge_token), signature, kms_signature_algorithm)
 
-    if signature == nil then
-      kong.log.warn("KMS Verification faileed")
-      kong.response.set_header("X-Entity-Sig-Error", "Failed to verify signature")
-      return
-    end
+  --   if signature == nil then
+  --     kong.log.warn("KMS Verification faileed")
+  --     kong.response.set_header("X-Entity-Sig-Error", "Failed to verify signature")
+  --     return
+  --   end
 
-    kong.response.set_header("X-Entity-Sig-Verified", tostring(signature["SignatureValid"]))
-    kong.response.set_header("X-Entity-Sig-Algo", signature["SigningAlgorithm"])
-    return
-  end
+  --   kong.response.set_header("X-Entity-Sig-Verified", tostring(signature["SignatureValid"]))
+  --   kong.response.set_header("X-Entity-Sig-Algo", signature["SigningAlgorithm"])
+  --   return
+  -- end
 end
 
 return TrustKMSHandler
