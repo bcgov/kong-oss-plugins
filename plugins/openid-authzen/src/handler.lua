@@ -64,7 +64,12 @@ function plugin:access(conf)
 
   if not res then
     ngx.log(ngx.ERR, "request failed: ", err)
-    return
+    return kong.response.exit(400, {message = "failed to call policy engine"})
+  end
+
+  if res.status ~= 200 then
+    ngx.log(ngx.ERR, "policy engine returned non-200 status: ", res.status)
+    return kong.response.exit(400, {message = "policy engine error"})
   end
 
   kong.log.warn("sent: ", body)
@@ -82,31 +87,41 @@ function plugin:access(conf)
   kong.log.inspect("openid-authzen response: ", body_t) -- DEBUGGING
 
   -- find the detail we want
+  -- for decisions, we are looking for a boolean that indicates allow/deny
+  -- for data retrieval, we are looking for a table of data to pass back to the
+  -- consumer
   for _, v in ipairs(conf.json_locator) do
+    kong.log.warn("body is type ", type(body_t), " looking for key ", v)
+
+    kong.log.warn("bool? ", body_t[v])
+
     if type(body_t) == "table" and body_t[v] then
+      body_t = body_t[v]
+    elseif type(body_t[v]) == "boolean" then
       body_t = body_t[v]
     else
       return kong.response.exit(400, {message = "json element " .. v .. " is not next in the tree"})
     end
   end
 
-  if conf.result_type == "decision" and type(body_t) ~= "boolean" then
-    return kong.response.exit(400, {message = "the located json element is not a boolean for a 'decision' result_type"})
-  end
+  if conf.result_type == "decision" then
+    if type(body_t) ~= "boolean" then
+      return kong.response.exit(
+        400,
+        {message = "the located json element is not a boolean for a 'decision' result_type"}
+      )
+    end
 
-  if conf.result_type == "decision" and body_t == false then
-    return kong.response.exit(403, {message = "access denied by policy engine"})
-  end
+    if body_t == true then
+      kong.service.request.set_header("x-policy-result", "allow")
+    else
+      return kong.response.exit(403, {message = "access denied by policy engine"})
+    end
+  else
+    if type(body_t) ~= "table" then
+      return kong.response.exit(400, {message = "the located json element is not a table for a 'table' result_type"})
+    end
 
-  if conf.result_type == "decision" and body_t == true then
-    kong.service.request.set_header("x-policy-result", "allow")
-  end
-
-  if conf.result_type == "table" and type(body_t) ~= "table" then
-    return kong.response.exit(400, {message = "the located json element is not a table for a 'table' result_type"})
-  end
-
-  if conf.result_type == "table" then
     return kong.response.exit(200, {message = "policy engine returned data", data = body_t})
   end
 end
