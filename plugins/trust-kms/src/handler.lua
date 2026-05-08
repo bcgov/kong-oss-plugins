@@ -54,48 +54,11 @@ function TrustKMSHandler:access(conf)
       return kong.response.exit(403, {message = "Missing edge token for signing"})
     end
 
-    -- split edge_token into parts and take the 3rd part
-    local tok_header,
-      tok_payload,
-      tok_signature = edge_token:match("^([^%.]+)%.([^%.]+)%.([^%.]+)$")
-    if not tok_header or not tok_payload or not tok_signature then
-      return kong.response.exit(400, {message = "Invalid edge token format"})
-    end
-
-    local signature
-    if conf.backend == "aws" then
-      local aws_signature = kms_aws.sign(key_id, tok_signature, kms_signature_algorithm)
-      if aws_signature == nil then
-        return kong.response.exit(500, {message = "Failed to get signature from KMS"})
-      end
-      signature = aws_signature["Signature"]
-    else
-      -- local verified,
-      --   err = kms_local.verify(key_id, tok_signature, signature_raw, kms_signature_algorithm)
-      -- if not verified then
-      --   kong.log.err("Failed to verify signature: ", err)
-      --   request.set_header("X-Entity-Sig-Verified", "false")
-      -- else
-      --   request.set_header("X-Entity-Sig-Verified", "true")
-      -- end
-      local hash_alg = "sha256"
-      local signature_raw,
-        error = filter.sign(conf, tok_signature, hash_alg)
-      -- local signature_raw = kms_local.sign(key_id, tok_signature, kms_signature_algorithm)
-      if signature_raw == nil then
-        return kong.response.exit(500, {message = "Failed to get signature" .. (error or "")})
-      end
-
-      local verified,
-        err = filter.verify(conf, signature_raw, tok_signature, hash_alg)
-      if not verified then
-        kong.log.err("Failed to verify signature: ", err)
-        request.set_header("X-Entity-Sig-Verified", "false")
-      else
-        request.set_header("X-Entity-Sig-Verified", "true")
-      end
-
-      signature = base64.encode_base64url(signature_raw) -- URL-safe, no padding issues
+    --- do the work of the co-signing
+    local signature,
+      err = do_counter_sign_work(conf, edge_token)
+    if err then
+      return kong.response.exit(500, {message = "Failed to counter-sign: " .. (err or "")})
     end
 
     if signature == nil then
@@ -300,27 +263,18 @@ function TrustKMSHandler:header_filter(conf)
       return kong.response.exit(403, {message = "Missing edge token for signing"})
     end
 
-    local key_id = conf.key_id
-
     -- counter-sign
-    local signature
-    if conf.backend == "aws" then
-      local aws_signature = kms_aws.sign(key_id, encode_base64(edge_token), kms_signature_algorithm)
-      if aws_signature == nil then
-        return kong.response.exit(500, {message = "Failed to get signature from KMS"})
-      end
-      signature = aws_signature["Signature"]
-    else
-      signature = kms_local.sign(key_id, encode_base64(edge_token), kms_signature_algorithm)
+    local signature,
+      err = do_counter_sign_work(conf, edge_token)
+    if err then
+      return kong.response.exit(500, {message = "Failed to counter-sign: " .. (err or "")})
     end
 
     if signature == nil then
       return kong.response.exit(500, {message = "Failed to get signature from KMS"})
     end
 
-    kong.log.warn("Generated signature from KMS: ", cjson.encode(signature))
-
-    kong.response.set_header("X-Entity-Sig", signature["Signature"])
+    kong.response.set_header("X-Entity-Sig", signature)
     return
   end
 
@@ -352,6 +306,48 @@ function TrustKMSHandler:header_filter(conf)
   --   kong.response.set_header("X-Entity-Sig-Algo", signature["SigningAlgorithm"])
   --   return
   -- end
+end
+
+function do_counter_sign_work(conf, edge_token)
+  local key_id = conf.key_id
+  local kms_signature_algorithm = conf.signature_algorithm
+
+  -- split edge_token into parts and take the 3rd part
+  local tok_header,
+    tok_payload,
+    tok_signature = edge_token:match("^([^%.]+)%.([^%.]+)%.([^%.]+)$")
+  if not tok_header or not tok_payload or not tok_signature then
+    return nil, "Invalid edge token format"
+  end
+
+  local signature
+  if conf.backend == "aws" then
+    local aws_signature = kms_aws.sign(key_id, tok_signature, kms_signature_algorithm)
+    if aws_signature == nil then
+      return nil, "Failed to get signature from KMS"
+    end
+    signature = aws_signature["Signature"]
+    kong.log.warn("Generated signature from KMS: ", cjson.encode(signature))
+  else
+    local hash_alg = "sha256"
+    local signature_raw,
+      error = filter.sign(conf, tok_signature, hash_alg)
+
+    -- local signature_raw = kms_local.sign(key_id, tok_signature, kms_signature_algorithm)
+    if signature_raw == nil then
+      return nil, "Failed to get signature" .. (error or "")
+    end
+
+    local verified,
+      err = filter.verify(conf, signature_raw, tok_signature, hash_alg)
+    if not verified then
+      return nil, "Failed to verify signature: " .. (err or "")
+    end
+
+    signature = base64.encode_base64url(signature_raw) -- URL-safe, no padding issues
+  end
+
+  return signature
 end
 
 return TrustKMSHandler
