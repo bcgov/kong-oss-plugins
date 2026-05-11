@@ -2,8 +2,11 @@ local token_exchange = require("kong.plugins.token-exchange.token_exchange")
 
 local cjson = require "cjson.safe"
 local kong_meta = require "kong.meta"
+local log = require("kong.plugins.plugin-log.log")
 local kong = kong
 local http = require "resty.http"
+
+local PLUGIN_NAME = "token-exchange"
 
 local TokenExchangeHandler = {
   PRIORITY = 930,
@@ -20,7 +23,8 @@ function TokenExchangeHandler:access(conf)
     err = token_exchange.do_token_exchange(conf)
   if err then
     kong.log.err("Error during token exchange: ", err)
-    return kong.response.exit(
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "token exchange with IdP failed: " .. tostring(err)},
       400,
       {
         message = "Token exchange failed",
@@ -30,6 +34,7 @@ function TokenExchangeHandler:access(conf)
   end
 
   request.set_header("Authorization", "Bearer " .. token_response.access_token)
+  log.continue_with_reason({plugin = PLUGIN_NAME, reason = "token exchanged"})
 end
 
 return TokenExchangeHandler

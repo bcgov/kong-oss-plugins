@@ -1,6 +1,6 @@
 local typedefs = require "kong.db.schema.typedefs"
 
-local PLUGIN_NAME = "openid-authzen"
+local PLUGIN_NAME = "pep"
 
 local schema = {
   name = PLUGIN_NAME,

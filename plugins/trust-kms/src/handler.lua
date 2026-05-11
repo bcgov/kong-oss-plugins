@@ -15,6 +15,9 @@ local digest_mod = require("kong.plugins.trust-sign.digest")
 local filter = require("kong.plugins.trust-sign.signature_base")
 local jwk_sign = require("kong.plugins.trust-sign.sign")
 local request_id_get = require("kong.observability.tracing.request_id").get
+local log = require("kong.plugins.plugin-log.log")
+
+local PLUGIN_NAME = "trust-kms"
 
 local kong = kong
 
@@ -51,21 +54,34 @@ function TrustKMSHandler:access(conf)
 
     local edge_token = kong.request.get_header(conf.signature_header_key)
     if not edge_token or edge_token == nil then
-      return kong.response.exit(403, {message = "Missing edge token for signing"})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "missing edge token header '" .. conf.signature_header_key .. "' on the request"},
+        403,
+        {message = "Missing edge token for signing"}
+      )
     end
 
     --- do the work of the co-signing
     local signature,
       err = do_counter_sign_work(conf, edge_token)
     if err then
-      return kong.response.exit(500, {message = "Failed to counter-sign: " .. (err or "")})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "counter-sign failed: " .. (err or "")},
+        500,
+        {message = "Failed to counter-sign: " .. (err or "")}
+      )
     end
 
     if signature == nil then
-      return kong.response.exit(500, {message = "Failed to sign message"})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "KMS returned no signature for the request edge token"},
+        500,
+        {message = "Failed to sign message"}
+      )
     end
 
     request.set_header("X-Entity-Sig", signature)
+    log.continue_with_reason({plugin = PLUGIN_NAME, reason = "request counter-signed"})
     return
   end
 
@@ -120,12 +136,20 @@ function TrustKMSHandler:access(conf)
       csr_obj,
         err = csr.new_csr(country, org_name, serial_number, common_name, san)
       if csr_obj == nil then
-        return kong.response.exit(500, {message = "Failed to create CSR: " .. err})
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "failed to build CSR from supplied identity fields: " .. tostring(err)},
+          500,
+          {message = "Failed to create CSR: " .. err}
+        )
       end
 
       local new_key = kms_aws.create_key(org_name, serial_number, common_name, requester_name, requester_email)
       if new_key == nil then
-        return kong.response.exit(500, {message = "Failed to create key in KMS"})
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "AWS KMS create_key call returned no key"},
+          500,
+          {message = "Failed to create key in KMS"}
+        )
       end
       local key_id = new_key["KeyMetadata"]["KeyId"]
 
@@ -135,7 +159,11 @@ function TrustKMSHandler:access(conf)
       local pub_key = kms_aws.get_public_key(key_id)
 
       if pub_key == nil then
-        return kong.response.exit(500, {message = "Failed to get public key from KMS"})
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "AWS KMS get_public_key returned no key for the newly created KeyId"},
+          500,
+          {message = "Failed to get public key from KMS"}
+        )
       end
 
       -- Add the public key to CSR
@@ -152,7 +180,11 @@ function TrustKMSHandler:access(conf)
         }
       )
       if pub_key_obj == nil then
-        return kong.response.exit(500, {message = "Failed to create public key object: " .. err})
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "failed to instantiate public key from KMS DER bytes: " .. tostring(err)},
+          500,
+          {message = "Failed to create public key object: " .. err}
+        )
       end
 
       csr_obj:set_pubkey(pub_key_obj)
@@ -160,7 +192,8 @@ function TrustKMSHandler:access(conf)
       -- Set the signature algorithm in the CSR
       local sig_algorithm = csr.map_kms_to_openssl_algo(kms_signature_algorithm)
       if sig_algorithm == nil then
-        return kong.response.exit(
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "unsupported KMS signature algorithm '" .. tostring(kms_signature_algorithm) .. "' has no OpenSSL mapping"},
           500,
           {message = "Failed to map KMS signature algorithm to OpenSSL algorithm " .. kms_signature_algorithm}
         )
@@ -170,44 +203,72 @@ function TrustKMSHandler:access(conf)
       local tbs_data,
         err = csr.extract_to_be_signed(csr_obj)
       if tbs_data == nil then
-        return kong.response.exit(500, {message = "Failed to extract TBS data from CSR " .. err})
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "could not extract the to-be-signed bytes from the CSR: " .. tostring(err)},
+          500,
+          {message = "Failed to extract TBS data from CSR " .. err}
+        )
       end
 
       -- Send to KMS for signing
       local signature_bytes
       local kms_signature = kms_aws.sign(key_id, encode_base64(tbs_data), kms_signature_algorithm)
       if kms_signature == nil then
-        return kong.response.exit(500, {message = "Failed to get signature from KMS", kms_signature = kms_signature})
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "AWS KMS sign call returned no signature for the CSR TBS bytes"},
+          500,
+          {message = "Failed to get signature from KMS", kms_signature = kms_signature}
+        )
       end
       local signature_bytes_b64 = kms_signature["Signature"]
       signature_bytes = decode_base64(signature_bytes_b64)
       if signature_bytes == nil then
-        return kong.response.exit(500, {message = "Failed to decode base64 signature from KMS"})
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "could not base64-decode the signature returned by AWS KMS"},
+          500,
+          {message = "Failed to decode base64 signature from KMS"}
+        )
       end
 
       local ok,
         err = csr.set_signature_algo(csr_obj, sig_algorithm)
       if not ok then
-        return kong.response.exit(500, {message = "Failed to set signature algorithm: " .. err})
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "failed to set signature algorithm on the CSR: " .. tostring(err)},
+          500,
+          {message = "Failed to set signature algorithm: " .. err}
+        )
       end
 
       -- Set the new signature in the CSR
       local ok,
         err = csr.set_signature(csr_obj, signature_bytes)
       if not ok then
-        return kong.response.exit(500, {message = "Failed to set signature: " .. err})
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "failed to attach the KMS signature bytes to the CSR: " .. tostring(err)},
+          500,
+          {message = "Failed to set signature: " .. err}
+        )
       end
     else
       -- local key = kms_local.create_key(org_name, serial_number, common_name, requester_name, requester_email)
       local key = kms_local.create_key()
       if key == nil then
-        return kong.response.exit(500, {message = "Failed to create key for signing"})
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "local KMS backend failed to create a signing key"},
+          500,
+          {message = "Failed to create key for signing"}
+        )
       end
 
       local new_csr_obj,
         err = csr.new_csr_with_key(key, country, org_name, serial_number, common_name, san)
       if new_csr_obj == nil then
-        return kong.response.exit(500, {message = "Failed to create CSR: " .. err})
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "failed to build CSR with the local KMS key: " .. tostring(err)},
+          500,
+          {message = "Failed to create CSR: " .. err}
+        )
       end
 
       csr_obj = new_csr_obj
@@ -219,10 +280,15 @@ function TrustKMSHandler:access(conf)
     local result = csr_obj:tostring("PEM")
 
     if result == nil then
-      return kong.response.exit(500, {message = "Failed to export to PEM format"})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "failed to serialize the signed CSR to PEM"},
+        500,
+        {message = "Failed to export to PEM format"}
+      )
     end
 
-    return kong.response.exit(
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "returning newly created key and signed CSR"},
       200,
       {
         key_id = key_id,
@@ -260,21 +326,34 @@ function TrustKMSHandler:header_filter(conf)
   if conf.operation == "sign" then
     local edge_token = kong.response.get_header(conf.signature_header_key)
     if not edge_token then
-      return kong.response.exit(403, {message = "Missing edge token for signing"})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "missing edge token header '" .. conf.signature_header_key .. "' on the upstream response"},
+        403,
+        {message = "Missing edge token for signing"}
+      )
     end
 
     -- counter-sign
     local signature,
       err = do_counter_sign_work(conf, edge_token)
     if err then
-      return kong.response.exit(500, {message = "Failed to counter-sign: " .. (err or "")})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "counter-sign failed on response: " .. (err or "")},
+        500,
+        {message = "Failed to counter-sign: " .. (err or "")}
+      )
     end
 
     if signature == nil then
-      return kong.response.exit(500, {message = "Failed to get signature from KMS"})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "KMS returned no signature for the response edge token"},
+        500,
+        {message = "Failed to get signature from KMS"}
+      )
     end
 
     kong.response.set_header("X-Entity-Sig", signature)
+    log.continue_with_reason({plugin = PLUGIN_NAME, reason = "response counter-signed"})
     return
   end
 

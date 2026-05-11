@@ -4,8 +4,11 @@ local filter = require("kong.plugins.trust-sign.signature_base")
 local jwk_sign = require("kong.plugins.trust-sign.sign")
 local request_id_get = require("kong.observability.tracing.request_id").get
 local kong_meta = require "kong.meta"
+local log = require("kong.plugins.plugin-log.log")
 local btoa = ngx.encode_base64
 local kong = kong
+
+local PLUGIN_NAME = "trust-sign"
 
 local TrustSignHandler = {
   PRIORITY = 630,
@@ -102,6 +105,7 @@ function TrustSignHandler:access(conf)
 
   local jwt = jwk_sign.sign_jwt(conf, manifest)
   request.set_header(conf.signature_header_key, jwt)
+  log.continue_with_reason({plugin = PLUGIN_NAME, reason = "request manifest signed"})
 end
 
 function TrustSignHandler:header_filter(conf)
@@ -173,13 +177,15 @@ function TrustSignHandler:header_filter(conf)
 
     local jwt = jwk_sign.sign_jwt(conf, manifest)
     kong.response.set_header(conf.signature_header_key, jwt)
+    log.continue_with_reason({plugin = PLUGIN_NAME, reason = "bare response manifest signed"})
     return
   end
 
   local req_token_jwt,
     err = jwt_decoder:new(req_token)
   if err then
-    return kong.response.exit(
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "inbound X-Edge-Token failed to parse: " .. tostring(err)},
       403,
       {
         message = "Bad token",
@@ -200,6 +206,7 @@ function TrustSignHandler:header_filter(conf)
 
   local jwt = jwk_sign.sign_jwt(conf, manifest)
   kong.response.set_header(conf.signature_header_key, jwt)
+  log.continue_with_reason({plugin = PLUGIN_NAME, reason = "response manifest signed"})
 end
 
 return TrustSignHandler

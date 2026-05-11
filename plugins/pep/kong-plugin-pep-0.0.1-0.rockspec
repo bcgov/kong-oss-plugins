@@ -1,4 +1,4 @@
-local plugin_name = "openid-authzen"
+local plugin_name = "pep"
 local package_name = "kong-plugin-"..plugin_name
 local package_version = "0.0.1"
 local rockspec_revision = "0"
@@ -10,7 +10,7 @@ supported_platforms = { "linux", "macosx" }
 source = {
   url = "git://github.com/bcgov/kong-oss-plugins",
   tag = "v1.0.0",
-  dir = "plugins/openid-authzen/src"
+  dir = "plugins/pep/src"
 }
 
 description = {
@@ -18,7 +18,7 @@ description = {
   detailed = [[
       See https://openid.net/wg/authzen/specifications/
   ]],
-  homepage = "https://github.com/bcgov/kong-oss-plugins/plugins/openid-authzen",
+  homepage = "https://github.com/bcgov/kong-oss-plugins/plugins/pep",
   license = "Apache 2.0",
 }
 

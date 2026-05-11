@@ -4,7 +4,10 @@ local jwt_decoder = require "kong.plugins.jwt.jwt_parser"
 local signature = require("kong.plugins.trust-verify-signature.signature")
 local btoa = ngx.encode_base64
 local kong_meta = require "kong.meta"
+local log = require("kong.plugins.plugin-log.log")
 local kong = kong
+
+local PLUGIN_NAME = "trust-verify-signature"
 
 local TrustVerifySignatureHandler = {
   PRIORITY = 710,
@@ -42,17 +45,26 @@ function TrustVerifySignatureHandler:access(conf)
 
     local sig = headers[conf.signature_header_key]
     if not sig then
-      return kong.response.exit(401, {message = "Missing Signature in " .. conf.signature_header_key})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "request is missing signature header '" .. conf.signature_header_key .. "'"},
+        401,
+        {message = "Missing Signature in " .. conf.signature_header_key}
+      )
     end
 
     local ok,
       err = verify_jwt_signature(conf, sig)
 
     if not ok then
-      return kong.response.exit(err.status, {message = err.message})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "request signature verification failed: " .. tostring(err.message)},
+        err.status,
+        {message = err.message}
+      )
     end
 
     request.set_header("X-Trust-Verify-Signature-Req", "OK")
+    log.continue_with_reason({plugin = PLUGIN_NAME, reason = "request signature verified"})
   end
 end
 
@@ -67,17 +79,26 @@ function TrustVerifySignatureHandler:header_filter(conf)
 
     local sig = headers[conf.signature_header_key]
     if not sig then
-      return kong.response.exit(401, {message = "Missing Signature in " .. conf.signature_header_key})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "upstream response is missing signature header '" .. conf.signature_header_key .. "'"},
+        401,
+        {message = "Missing Signature in " .. conf.signature_header_key}
+      )
     end
 
     local ok,
       err = verify_jwt_signature(conf, sig)
 
     if not ok then
-      return kong.response.exit(err.status, {message = err.message})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "response signature verification failed: " .. tostring(err.message)},
+        err.status,
+        {message = err.message}
+      )
     end
 
     kong.response.set_header("X-Trust-Verify-Signature-Res", "OK")
+    log.continue_with_reason({plugin = PLUGIN_NAME, reason = "response signature verified"})
   end
 end
 

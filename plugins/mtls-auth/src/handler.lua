@@ -1,5 +1,8 @@
 local kong_meta = require "kong.meta"
+local log = require("kong.plugins.plugin-log.log")
 local set_header = kong.service.request.set_header
+
+local PLUGIN_NAME = "mtls-auth"
 
 -- utils
 local function is_empty(s)
@@ -42,9 +45,14 @@ local MtlsAuth = {
 
 function MtlsAuth:access(config)
     if ngx.var.ssl_client_verify ~= "SUCCESS" then
-        kong.response.exit(config.error_response_code, [[{"error":"invalid_request", "error_description": "mTLS client not provided or invalid"}]], {
-            ["Content-Type"] = "application/json"
-        })
+        log.exit_with_reason(
+            {plugin = PLUGIN_NAME, reason = "ngx ssl_client_verify is '" .. tostring(ngx.var.ssl_client_verify) .. "', expected 'SUCCESS'; client certificate missing or invalid"},
+            config.error_response_code,
+            [[{"error":"invalid_request", "error_description": "mTLS client not provided or invalid"}]],
+            {
+                ["Content-Type"] = "application/json"
+            }
+        )
     end
 
     local cert_dn = parse_dn(ngx.var.ssl_client_s_dn)
@@ -82,6 +90,8 @@ function MtlsAuth:access(config)
     if ngx.var.ssl_client_verify then
         set_header("X-Tls-Client-Verify", ngx.var.ssl_client_verify)
     end
+
+    log.continue_with_reason({plugin = PLUGIN_NAME, reason = "client certificate verified"})
 end
 
 return MtlsAuth
