@@ -122,7 +122,7 @@ function plugin:access(conf)
       return kong.response.exit(400, {message = "the located json element is not a table for a 'table' result_type"})
     end
 
-    return kong.response.exit(200, {message = "policy engine returned data", data = body_t})
+    return kong.response.exit(200, body_t)
   end
 end
 
