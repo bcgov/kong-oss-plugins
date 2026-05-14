@@ -9,6 +9,7 @@
 | oidc                   | Performs the authorization code grant flow                                        |
 | oidc-consumer          | Maps an authenticated user to a Kong Consumer                                     |
 | pep                    | Calls an external policy decision engine using Authzen protocol                   |
+| plugin-log             | Provides a common way for adding internal error details into the log              |
 | response-signer        | Performs a signing function on the response message                               |
 | token-exchange         | Interaction with a token endpoint for token exchange and introspection            |
 | trust-jwks             | Verify a jwks document originated from the same domain TLS that it is hosted on   |
