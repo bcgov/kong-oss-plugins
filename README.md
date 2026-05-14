@@ -108,7 +108,7 @@ done
 ```sh
 docker run -ti --rm \
   --env-file ./local/kong/.env.local.dbless \
-  -p 8007:8007 \
+  -p 8007:8001 \
   --name kong kong:e2e
 ```
 
@@ -117,19 +117,20 @@ docker run -ti --rm \
 #### jwt-keycloak
 
 ```sh
-docker run -ti --rm --net=host -v `pwd`:/work -w /work \
-  openresty/openresty:focal /bin/bash
+docker run -ti --rm --net=host -v `pwd`:/work -u root -w /work \
+  openresty/openresty:latest /bin/bash
 
-apt-get update && apt-get install -y libssl-dev
+apt-get update && apt-get install -y libssl-dev luarocks libyaml-dev libexpat1-dev
 
 luarocks install busted
 luarocks install LuaSocket
 luarocks install luasec
-luarocks install kong
 
 luarocks install kong --deps-mode none
 
+luarocks install kong
+
 luarocks build
 
-busted
+busted --lua=/usr/bin/lua
 ```

@@ -1,5 +1,8 @@
 local kong_meta = require "kong.meta"
+local log = require("kong.plugins.plugin-log.log")
 local clear_header = kong.service.request.clear_header
+
+local PLUGIN_NAME = "mtls-acl"
 
 -- utils
 local function is_empty(s)
@@ -39,6 +42,7 @@ function MtlsAcl:access(plugin_conf)
 				if (plugin_conf.hide_certificate_header) then
 					clear_header(plugin_conf.certificate_header_name)
 				end
+		        log.continue_with_reason({plugin = PLUGIN_NAME, reason = "certificate allowed"})
 		        return
 			end
 		end
@@ -47,13 +51,18 @@ function MtlsAcl:access(plugin_conf)
 				if (plugin_conf.hide_certificate_header) then
 					clear_header(plugin_conf.certificate_header_name)
 				end
+		        log.continue_with_reason({plugin = PLUGIN_NAME, reason = "certificate not denied"})
 		        return
 			end
 		end
 	end
-    return kong.response.exit(403, {
-        message = "You cannot consume this service"
-    })
+    return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "client certificate is missing or did not satisfy the configured allow/deny rules"},
+        403,
+        {
+            message = "You cannot consume this service"
+        }
+    )
 
 end
 

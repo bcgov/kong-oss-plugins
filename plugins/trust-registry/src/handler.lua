@@ -1,7 +1,10 @@
 local pem2jwks = require("kong.plugins.trust-registry.pem_to_jwks")
 local cjson = require "cjson"
 local kong_meta = require "kong.meta"
+local log = require("kong.plugins.plugin-log.log")
 local kong = kong
+
+local PLUGIN_NAME = "trust-registry"
 
 local TrustRegistryHandler = {
   PRIORITY = 940,
@@ -20,14 +23,22 @@ function TrustRegistryHandler:access(conf)
     local kset = kong.db.key_sets:select_by_name(params.named.key_set)
     if not kset then
       kong.log.err("Key set not found: ", conf.key_set)
-      return kong.response.exit(404, {message = "Key set not found"})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "key set '" .. tostring(params.named.key_set) .. "' from URI parameter not found in registry"},
+        404,
+        {message = "Key set not found"}
+      )
     end
     key_list = kong.db.keys:each_for_set({id = kset.id})
   elseif conf.key_set then
     local kset = kong.db.key_sets:select_by_name(conf.key_set)
     if not kset then
       kong.log.err("Key set not found: ", conf.key_set)
-      return kong.response.exit(404, {message = "Key set not found"})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "configured key set '" .. tostring(conf.key_set) .. "' not found in registry"},
+        404,
+        {message = "Key set not found"}
+      )
     end
     key_list = kong.db.keys:each_for_set({id = kset.id})
   else
@@ -68,7 +79,8 @@ function TrustRegistryHandler:access(conf)
   }
 
   -- Return JSON response
-  return kong.response.exit(
+  return log.exit_with_reason(
+    {plugin = PLUGIN_NAME, reason = "returning JWKS document with " .. tostring(#jwks_list) .. " key(s) from registry"},
     200,
     jwks_response,
     {
