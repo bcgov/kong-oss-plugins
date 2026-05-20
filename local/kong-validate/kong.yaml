@@ -42,4 +42,4 @@ services:
           - GET
         strip_path: false
     plugins:
-      - name: trust-registry-ai
+      - name: trust-registry-ai-openspec

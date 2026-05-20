@@ -15,3 +15,9 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local OpenSpec CLI install
+.tools/
+
+# Claude Code local settings (may contain personal config)
+.claude/settings.local.json

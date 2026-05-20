@@ -9,9 +9,9 @@ RUN if [ -x "$(command -v apk)" ]; then apk add --no-cache unzip curl; \
 
 WORKDIR /build
 
-COPY plugins/trust-registry-ai plugins/trust-registry-ai
+COPY plugins/trust-registry-ai-openspec plugins/trust-registry-ai-openspec
 
-RUN cd plugins/trust-registry-ai && luarocks make kong-plugin-trust-registry-ai-1.0.0-0.rockspec
+RUN cd plugins/trust-registry-ai-openspec && luarocks make kong-plugin-trust-registry-ai-openspec-1.0.0-0.rockspec
 
 USER kong
 WORKDIR /
