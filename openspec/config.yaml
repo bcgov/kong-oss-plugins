@@ -1,0 +1,17 @@
+schema: spec-driven
+
+context: |
+  Kong OSS plugin repository. Lua (LuaJIT), Kong PDK only.
+  Plugin layout: plugins/<name>/src/{handler,schema}.lua + rockspec.
+  Follow patterns from existing plugins; do not read plugins/trust-registry or plugins/trust-registry-ai.
+  Output plugin: plugins/trust-registry-ai-openspec/
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours

@@ -14,6 +14,8 @@
 | trust-jwks             | Verify a jwks document originated from the same domain TLS that it is hosted on   |
 | trust-sign             | Builds an rfc-9421 HTTP Message Signature                                         |
 | trust-registry         | Returns a JWKS document listing trusted public keys                               |
+| trust-registry-ai      | JWKS endpoint (Spec-Kit AI-generated)                                             |
+| trust-registry-ai-openspec | JWKS endpoint (OpenSpec AI-generated)                                         |
 | trust-timestamp        | Calls a Timestamping Authority using the RFC-3161 Time-Stamp Protocol             |
 | trust-ledger           | Log RFC-3161 message to an Immutable Ledger                                       |
 | trust-verify-digest    | Verify that the content-digest matches the payload body                           |
