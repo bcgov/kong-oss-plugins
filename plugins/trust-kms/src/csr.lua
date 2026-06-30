@@ -32,7 +32,13 @@ function new_csr_with_key(key, country, org_name, serial_number, common_name, sa
   end
 
   csr:set_subject_name(subject)
-  csr:set_pubkey(key)
+
+  local ok,
+    err = csr:set_pubkey(key)
+  if not ok then
+    kong.log.err("failed to set public key on CSR: ", err)
+    return nil, err
+  end
 
   -- -- -- Add an extension request attribute (common and useful)
   local altname = openssl_extension.new("subjectAltName", "DNS:" .. san)
