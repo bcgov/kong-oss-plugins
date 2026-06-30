@@ -24,7 +24,7 @@ function sign(key_id, message, algo)
 
   local signature_bytes =
     assert(
-    openssl_pkey.new(key):sign(
+    openssl_pkey.new(private_key):sign(
       message
       -- "sha256",
       -- nil,
