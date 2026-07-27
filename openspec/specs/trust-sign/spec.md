@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The trust-sign plugin attests to the integrity of traffic passing through Kong by attaching a signed JWT "manifest" to either the upstream request or the downstream response, depending on configuration. In the request direction it computes a body digest, gathers identity from service tags, and signs a manifest header for the upstream. In the response direction it digests the upstream response body and signs a manifest that echoes claims from the inbound request token.
+The trust-sign plugin attests to the integrity of traffic passing through Kong by attaching a signed JWT "manifest" to either the upstream request or the downstream response, depending on configuration. In the request direction it computes a body digest, gathers identity from service tags, and signs a manifest header for the upstream. In the response direction, it digests the upstream response body into the `Content-Digest` header (when applicable), and signs a manifest that echoes claims (including `digest`) from the inbound request token.
 
 ## Requirements
 
