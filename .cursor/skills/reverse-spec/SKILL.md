@@ -72,7 +72,14 @@ Keep it complete but short and reviewable — not a code walkthrough. Every requ
 
 - **Contract** (untagged, the default): desired behavior = as-implemented; tests will hard-assert.
 - **Quirk**: `- **TAG**: quirk — <one-line why>` — odd or suspect as-implemented behavior. Document current behavior faithfully (tests still hard-assert); the tag flags it for peer review. Use when multiple plugins must agree on the odd behavior, or changing it is a product/security decision. Tag and keep going — do NOT stop to triage bugs during spec generation.
-- **Pending**: `- **TAG**: pending — <ticket-key>` — reserved for peer review. **Never emit this tag during reverse-spec generation.**
+- **Pending**: `- **TAG**: pending — <ticket-key>` — reserved for peer review (**Replace later**). **Never emit this tag during reverse-spec generation.**
+
+Peer review of quirks (not done by this skill; for reviewer context):
+
+1. **Keep** — assert as-implemented; drop `quirk` if promoting to contract
+2. **Fix now** — land a small plugin change, rewrite the scenario to desired behaviour as untagged contract (no `pending` / xfail)
+3. **Replace later** — file a bug → rewrite scenario to desired → `- **TAG**: pending — <ticket>` (tests will xfail until fixed)
+4. **Defer** (rare) — leave quirk-tagged if review can’t decide
 
 Example quirk scenario:
 
