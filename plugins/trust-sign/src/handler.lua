@@ -122,14 +122,16 @@ function TrustSignHandler:header_filter(conf)
   local body_digest = kong.response.get_header("Content-Digest")
 
   if body_digest == nil then
+    local alg = "sha-256"
     kong.log.warn("Content-Digest header not present, generating digest")
     local body = kong.service.response.get_raw_body()
     if body == nil then
       kong.log.warn("Body is nil - no raw body available")
     elseif body == "" then
-      kong.log.warn("Body is empty string")
+      local dig = digest_mod.digest(body, alg)
+      body_digest = alg .. "=:" .. btoa(dig) .. ":"
+      kong.response.set_header("Content-Digest", body_digest)
     else
-      local alg = "sha-256"
       local dig = digest_mod.digest(body, alg)
       body_digest = alg .. "=:" .. btoa(dig) .. ":"
       kong.response.set_header("Content-Digest", body_digest)

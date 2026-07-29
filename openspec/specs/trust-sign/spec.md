@@ -106,18 +106,17 @@ The plugin SHALL sign with the private key read from the file at `config.private
 
 ### Requirement: Response digest generation
 
-With `direction = response` and a response coming from the upstream service, when the response has no `Content-Digest` header and the upstream body is non-empty, the plugin SHALL set the `Content-Digest` response header to `sha-256=:<base64 digest>:` computed over the raw upstream response body.
+With `direction = response` and a response coming from the upstream service, when the response has no `Content-Digest` header, the plugin SHALL compute the SHA-256 digest of the raw upstream response body and set the `Content-Digest` response header to `sha-256=:<base64 digest>:` (standard base64 of the raw digest bytes).
 
 #### Scenario: Missing Content-Digest with a non-empty upstream body
 
 - **WHEN** the upstream response has a non-empty body and no `Content-Digest` header
 - **THEN** the client response carries `Content-Digest: sha-256=:<base64(SHA-256(body))>:`
 
-#### Scenario: Empty response body gets no digest
+#### Scenario: Missing Content-Digest with an empty-string body
 
-- **TAG**: quirk — asymmetric with the request path, which digests empty-string bodies
 - **WHEN** the upstream response body is an empty string and `Content-Digest` is absent
-- **THEN** no `Content-Digest` header is added to the response
+- **THEN** the client response carries `Content-Digest` set to the SHA-256 digest of the empty string
 
 #### Scenario: Upstream-supplied Content-Digest is preserved
 
@@ -130,7 +129,6 @@ With `direction = response` and a response coming from the upstream service, the
 
 #### Scenario: Claims echoed from the inbound token
 
-- **TAG**: quirk — the inbound `X-Edge-Token` is only decoded, never signature-verified, so its claims are echoed into a freshly signed manifest without validation; the response manifest's `digest` claim therefore describes the request body (via the inbound token), never the response body
 - **WHEN** the inbound request carried a parseable JWT in `X-Edge-Token`
 - **THEN** the response manifest's `request_id`, `client_id`, `service_id`, and `digest` claims equal those of the inbound token's payload, and `jwks_uri` is taken from this plugin instance's config
 
