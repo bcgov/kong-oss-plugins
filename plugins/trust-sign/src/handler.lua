@@ -113,10 +113,6 @@ function TrustSignHandler:header_filter(conf)
     return
   end
 
-  if kong.response.get_source() ~= "service" then
-    return
-  end
-
   kong.log.warn("Trust Sign - Header Filter for Response")
 
   local body_digest = kong.response.get_header("Content-Digest")
