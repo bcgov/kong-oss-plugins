@@ -48,9 +48,13 @@ The spec documents behavior that **already exists**, so it is written directly t
 ## Requirements
 
 ### Requirement: <Behavior name>
+**ID**: `<plugin-name>.<requirement-slug>`
+
 The plugin SHALL <observable behavior>.
 
 #### Scenario: <case name>
+**ID**: `<plugin-name>.<requirement-slug>.<scenario-slug>`
+- **TAG**: quirk — <one-line why>   <!-- only when quirk; omit otherwise -->
 - **WHEN** <input condition>
 - **THEN** <observable outcome>
 
@@ -62,13 +66,28 @@ The plugin SHALL <observable behavior>.
 
 Keep it complete but short and reviewable — not a code walkthrough. Every requirement needs at least one scenario.
 
+### Stable IDs (required)
+
+Every Requirement and Scenario MUST have a stable `**ID**` so clean-room test
+generation can cite `[Verifies: <id>]` and prove completion without fuzzy
+title matching. Titles remain the human-readable label.
+
+- Requirement ID: `<plugin-name>.<requirement-slug>`
+- Scenario ID: `<requirement-id>.<scenario-slug>`
+- Slugs: lowercase kebab-case derived from the title
+- Order under a Scenario heading: `**ID**`, then optional `**TAG**`, then `WHEN`/`THEN`
+- IDs are stable once published — renaming is a migration, not a drive-by edit
+
+Example: Requirement "Direction gating" → `trust-sign.direction-gating`;
+Scenario "Direction unset is a no-op" → `trust-sign.direction-gating.unset-noop`.
+
 ## Rules
 
 **Spec observable behavior only** — headers, status codes, claims, config schema effects. Do NOT encode internals: module names, `PRIORITY`, cache TTLs, log message text.
 
 **Config schema is in scope.** Required fields, `one_of` constraints, and defaults are observable and testable. Also spec what happens on meaningful config branches (e.g. a field unset making the plugin a no-op).
 
-**Scenario tagging** — tag as the *first bullet* of a scenario:
+**Scenario tagging** — after `**ID**`, the first bullet may be a tag:
 
 - **Contract** (untagged, the default): desired behavior = as-implemented; tests will hard-assert.
 - **Quirk**: `- **TAG**: quirk — <one-line why>` — odd or suspect as-implemented behavior. Document current behavior faithfully (tests still hard-assert); the tag flags it for peer review. Use when multiple plugins must agree on the odd behavior, or changing it is a product/security decision. Tag and keep going — do NOT stop to triage bugs during spec generation.
@@ -85,6 +104,7 @@ Example quirk scenario:
 
 ```markdown
 #### Scenario: Empty response body gets no digest
+**ID**: `trust-sign.response-digest-generation.empty-response-body-no-digest`
 - **TAG**: quirk — asymmetric with request path, which digests empty bodies
 - **WHEN** the upstream response body is an empty string and Content-Digest is absent
 - **THEN** no Content-Digest header is added to the response
@@ -125,6 +145,6 @@ A blank or `⚠️ GAP` disposition is a **spec gap**. Call it out in the summar
 After both files are written and validation passes, report:
 
 - Paths of `spec.md` and `coverage.md`
-- Requirement and scenario counts
-- Quirk-tagged scenarios (list them — these are the peer-review focal points)
+- Requirement and scenario counts (and confirm every requirement/scenario has an `**ID**`)
+- Quirk-tagged scenarios (list them with IDs — these are the peer-review focal points)
 - Any surfaces without a disposition (spec gaps — resolve in this run or during review)
