@@ -2,51 +2,24 @@
 
 ## Testing
 
-There are various configurations for testing to cover different versions of Keycloak and Kong.
-
 ### Running
 
-#### Kong 2.x
-
-For `Kong v.2.8.5` and `Keycloak v.15.1.1`, run the following:
+For `Kong v.3.9.1` and `Keycloak v.26.5.3`, run the following:
 
 ```sh
 cd testsuite
 
-KONG_VERSION=2.8.5 KC_VERSION=15.1.1 \
+KONG_VERSION=3.9.1 KC_VERSION=26.5.3 \
 docker compose \
   -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml build
+  -f docker-compose-keycloak.yml build
 ```
 
 ```sh
-KONG_VERSION=2.8.5 KC_VERSION=15.1.1 \
+KONG_VERSION=3.9.1 KC_VERSION=26.5.3 \
 docker compose \
   -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml up
-```
-
-- Admin: http://localhost:8001
-- Proxy: http://localhost:8000
-
-#### Kong 3.x
-
-For `Kong v.3.9.0` and `Keycloak v.15.1.1`, run the following:
-
-```sh
-cd testsuite
-
-KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml build
-```
-
-```sh
-KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml up
+  -f docker-compose-keycloak.yml up
 ```
 
 - Admin: http://localhost:8001
@@ -61,10 +34,10 @@ npm run test:ui
 To run the test suite headless, use docker compose:
 
 ```sh
-KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \
+KONG_VERSION=3.9.1 KC_VERSION=26.5.3 \
 docker compose --profile tests \
   -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml up
+  -f docker-compose-keycloak.yml up
 
 ```
 

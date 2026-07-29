@@ -17,14 +17,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kong: ["2.8.5", "3.9.1"]
-        keycloak: ["15.1.1"]
-        # kong: ["2.8.5", "3.9.1"]
-        # keycloak: ["15.0.2", "15.1.1", "26.1.0"]
+        kong: ["3.9.1"]
+        keycloak: ["26.5.3"]
 
     runs-on: ubuntu-latest
-    env:
-      DOCKER_COMPOSE_FILE: "${{ matrix.keycloak == '26.1.0' && 'docker-compose-keycloak-quarkus.yml' || 'docker-compose-keycloak-spring.yml' }}"
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -37,7 +33,7 @@ jobs:
           docker compose \
             --profile tests \
             -f docker-compose.yml \
-            -f ${DOCKER_COMPOSE_FILE} \
+            -f docker-compose-keycloak.yml \
             build
 
       - name: Spin up Kong and its dependencies and run tests
@@ -47,7 +43,7 @@ jobs:
           KONG_VERSION=${{ matrix.kong }} \
           docker compose --profile tests \
             -f docker-compose.yml \
-            -f ${DOCKER_COMPOSE_FILE} \
+            -f docker-compose-keycloak.yml \
             up -d
 
       - name: Wait for tests to finish & clean up
@@ -63,7 +59,7 @@ jobs:
               # cleanup
               docker compose --profile tests \
                 -f docker-compose.yml \
-                -f ${DOCKER_COMPOSE_FILE} \
+                -f docker-compose-keycloak.yml \
                 down
               break
             else
