@@ -161,5 +161,6 @@ end
 
 return {
   sign_jwt = sign_jwt,
-  get_kong_key = get_kong_key
+  get_kong_key = get_kong_key,
+  get_private_key_location = get_private_key_location,
 }

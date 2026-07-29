@@ -134,7 +134,7 @@ Every manifest token the plugin emits SHALL be a JWS compact serialization (thre
 
 **ID**: `trust-sign.private-key-resolution`
 
-The plugin SHALL sign with the private key read from the file at `config.private_key_location`, unless the environment variable `KONG_SIGNING_CERT_KEY` is set in the Kong process, in which case the key SHALL be read from that path instead for all instances of the plugin.
+The plugin SHALL sign with the private key read from the file at `config.private_key_location`, unless the environment variable `KONG_SIGNING_CERT_KEY` is set in the Kong process, in which case the key SHALL be read from that path instead for all instances of the plugin. Unit tests MAY call `get_private_key_location` (`require "sign"`).
 
 #### Scenario: Key from configuration
 

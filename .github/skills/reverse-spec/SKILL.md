@@ -83,9 +83,23 @@ Scenario "Direction unset is a no-op" → `trust-sign.direction-gating.unset-noo
 
 ## Rules
 
-**Spec observable behavior only** — headers, status codes, claims, config schema effects. Do NOT encode internals: module names, `PRIORITY`, cache TTLs, log message text.
+**Spec observable behavior only** — headers, status codes, claims, config schema effects. Do NOT encode internals: `PRIORITY`, cache TTLs, log message text, or module layout walkthroughs.
 
-**Config schema is in scope.** Required fields, `one_of` constraints, and defaults are observable and testable. Also spec what happens on meaningful config branches (e.g. a field unset making the plugin a no-op).
+**Unit-test seams** (exception — short, rare): when a scenario is **not** practical to assert on the wire (e.g. process-global env resolution) and the implementation already exports a pure/helper function for it, add **one sentence** to that requirement’s prose:
+
+> Unit tests MAY call `<export>` (`require "<module>"`).
+
+Use the short module name only (`sign`, `digest`) — do **not** put `package.path` or filesystem paths in the spec (busted harness uses cwd `plugins/<plugin>/` + `./src/?.lua`). Do **not** invent seams for wire-observable behavior, and do **not** list every export — only when clean-room busted would otherwise have no named subject under test.
+
+**Config schema is in scope**, but describe it fully while scenario-ing it sparingly. A clean-room test author cannot open `schema.lua`, so the Configuration schema requirement's prose MUST state every field, its type, whether it is required, its `one_of` values, and its default — that is how they construct valid configs for every other scenario.
+
+Scenarios are what become mandatory tests, so emit them only where the plugin contributes logic:
+
+- **One roll-up scenario** for required fields, and **one** for enumerated (`one_of`) fields. Do not emit one per field — asserting a bare `required = true` only re-tests Kong's validator.
+- **One scenario per plugin-authored validation rule**: `entity_checks` (`only_one_of`, `at_least_one_of`, `mutually_required`, `conditional`), `custom_validator` functions, and `match` patterns. These are real branching logic and are easy to get subtly wrong.
+- **One scenario** for a canonical valid config being accepted.
+
+Also spec what happens on meaningful config branches (e.g. a field unset making the plugin a no-op). Watch for schema/handler disagreement while reading — a field the handler requires but the schema does not (or vice versa) is a `quirk`, and no schema test will catch it, so the spec is the only place it surfaces.
 
 **Scenario tagging** — after `**ID**`, the first bullet may be a tag:
 
