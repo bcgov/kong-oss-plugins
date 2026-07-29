@@ -1,12 +1,11 @@
 import { APIRequestContext } from "playwright";
 import logger from "./logger";
+import { upstreamServiceDefaults } from "./upstream";
 
 const base_service = {
   id: "00000000-0000-0000-0000-00000000000",
   name: "NAME",
-  host: "httpbin.org",
-  port: 443,
-  protocol: "https",
+  ...upstreamServiceDefaults,
 };
 
 const base_route = {

@@ -17,6 +17,8 @@ services:
         condition: service_healthy
       deck:
         condition: service_completed_successfully
+      httpbun:
+        condition: service_started
     environment:
       - BASE_URL=http://admin-api.localtest.me:8081
       - KONG_VERSION=${KONG_VERSION:-3.9.1}
@@ -26,6 +28,13 @@ services:
     networks:
       - net
     profiles: ["tests"]
+
+  httpbun:
+    image: sharat87/httpbun
+    networks:
+      net:
+        aliases:
+          - upstream.localtest.me
 
   kong-cp:
     image: kong:e2e

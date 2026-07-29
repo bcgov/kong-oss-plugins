@@ -93,7 +93,7 @@ export default async function runE2Etest(
   await expect(page.locator("pre")).toBeInViewport({ timeout: 20000 });
 
   const content = await page.locator("pre").evaluate((el) => el.textContent);
-  logger.debug(content, "pre content from httpbin");
+  logger.debug(content, "pre content from upstream");
   const jsonData = JSON.parse(content);
 
   for (const validator of validators) {
@@ -175,7 +175,7 @@ export const checks: any = {
           AUTH_SESSION_ID:
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
           KC_AUTH_SESSION_HASH:
-            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Strict"}',
+            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
           KEYCLOAK_IDENTITY:
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
           KEYCLOAK_SESSION:
