@@ -180,14 +180,13 @@ export const checks: any = {
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
           KEYCLOAK_SESSION:
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
+          // Redis-backed session: single "session" cookie; SameSite follows plugin config
           session:
             '{"domain":"kong.localtest.me","path":"' +
             cookiePath +
-            '","httpOnly":true,"secure":false,"sameSite":"Lax"}',
-          session_2:
-            '{"domain":"kong.localtest.me","path":"' +
-            cookiePath +
-            '","httpOnly":true,"secure":false,"sameSite":"' + sameSite +'"}',
+            '","httpOnly":true,"secure":false,"sameSite":"' +
+            sameSite +
+            '"}',
         }
       : {
           AUTH_SESSION_ID_LEGACY:
@@ -199,7 +198,9 @@ export const checks: any = {
           session:
             '{"domain":"kong.localtest.me","path":"' +
             cookiePath +
-            '","httpOnly":true,"secure":false,"sameSite":"' + sameSite +'"}',
+            '","httpOnly":true,"secure":false,"sameSite":"' +
+            sameSite +
+            '"}',
         };
 
     for (const cookie of cookies) {
