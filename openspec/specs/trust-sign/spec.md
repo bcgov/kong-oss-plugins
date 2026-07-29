@@ -69,11 +69,10 @@ With `direction = request`, the plugin SHALL set the request header named by `co
 - **WHEN** `config.jwks_uri` is not set
 - **THEN** the manifest contains no `jwks_uri` claim
 
-#### Scenario: signature_header_key unset causes a runtime failure
+#### Scenario: signature_header_key defaults to X-Edge-Token
 
-- **TAG**: quirk — the schema does not require `signature_header_key`, but the handler cannot set a header with a nil name
-- **WHEN** the plugin is configured without `signature_header_key` and a request (or response, for `direction = response`) is processed
-- **THEN** the plugin errors at runtime and the client receives a 500 response instead of a signed manifest
+- **WHEN** the plugin is configured without an explicit `signature_header_key`
+- **THEN** the schema applies the default `"X-Edge-Token"`, and signed manifests are written to the `X-Edge-Token` header
 
 ### Requirement: JWT token format
 
@@ -149,7 +148,7 @@ With `direction = response`, the plugin SHALL set the response header named by `
 
 ### Requirement: Configuration schema
 
-The plugin SHALL only apply to HTTP(S) traffic and SHALL enforce its config schema: `keyid` and `private_key_location` are required; `direction` must be one of `request`/`response`; `alg` must be one of `RS256`/`RS512`/`ES256`/`ES512`; `hash_alg` must be one of `sha256`/`sha512`; `jwks_uri` and `signature_header_key` are optional strings. No field has a default value.
+The plugin SHALL only apply to HTTP(S) traffic and SHALL enforce its config schema: `keyid`, `private_key_location`, and `signature_header_key` are required; `signature_header_key` defaults to `"X-Edge-Token"` when omitted; `direction` must be one of `request`/`response`; `alg` must be one of `RS256`/`RS512`/`ES256`/`ES512`; `hash_alg` must be one of `sha256`/`sha512`; `jwks_uri` is an optional string.
 
 #### Scenario: Required fields enforced
 
@@ -165,7 +164,7 @@ The plugin SHALL only apply to HTTP(S) traffic and SHALL enforce its config sche
 
 This spec is the **source of truth** for the wire format consumed by `trust-verify-signature`. The shared contract:
 
-- **Manifest token**: a JWS compact JWT carried in the header named by `signature_header_key` (conventionally `X-Edge-Token` on requests). Header fields: `alg`, `kid`. Payload claims: `request_id`, `client_id`, `service_id`, `digest`, `jwks_uri`, `jti`, `iat` (any of the first five may be absent per the requirements above).
+- **Manifest token**: a JWS compact JWT carried in the header named by `signature_header_key` (default `X-Edge-Token`). Header fields: `alg`, `kid`. Payload claims: `request_id`, `client_id`, `service_id`, `digest`, `jwks_uri`, `jti`, `iat` (any of the first five may be absent per the requirements above).
 - **Content-Digest header**: `<alg>=:<standard base64 of raw digest bytes>:`; this plugin always emits `sha-256` as the algorithm.
 - **Response-direction input**: the response signer reads the inbound request's `X-Edge-Token` header (a fixed name, independent of `signature_header_key`) and echoes its `request_id`, `client_id`, `service_id`, and `digest` claims.
 
