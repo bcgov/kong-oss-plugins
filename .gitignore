@@ -1,6 +1,7 @@
 # OpenSpec agent commands / skills / prompts (local tooling)
 .cursor/commands/
 .cursor/skills/openspec-*/
+.claude/skills/openspec-*/
 
 .github/prompts/
 .github/skills/openspec-*/
