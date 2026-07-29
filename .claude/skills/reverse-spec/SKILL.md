@@ -27,15 +27,29 @@ The spec documents behavior that **already exists**, so it is written directly t
    - **Inputs**: plugin config fields (including schema constraints: required, `one_of`, defaults), request/response headers and bodies, Kong entities (e.g. service/route **tags**), environment variables (`os.getenv`), upstream response status/source
    - **Outputs**: headers set/removed, status codes / early exits, token or claim contents, body modifications
 
-3. **Draft requirements and scenarios**
+3. **Second pass**
 
-   Group observable behavior into Requirements, each with one or more Scenarios (see format below). Every surface from step 2 must end up either in a requirement or in the Out of scope section.
+   Re-read the handler(s) with the surface list in hand. Ask only:
+   - Same logical operation on more than one path? Do the paths agree on
+     the observable steps, or does one omit/alter something?
+   - Control-flow branches the code actually takes (including fall-through)
+     that have no candidate scenario yet?
+   - Handler assumptions that disagree with the schema?
 
-4. **Write the spec** to `openspec/specs/<plugin-name>/spec.md` using the structure below.
+   Add hits to the working list (scenario candidate, `quirk` candidate, or
+   Out of scope). Skip silently = miss.
 
-5. **Write the coverage map** to `openspec/specs/<plugin-name>/coverage.md`. Every enumerated surface gets a row with a disposition (requirement name or "out of scope"). **Warn loudly in your summary if any surface has no disposition** — that is a spec gap.
+4. **Draft requirements and scenarios**
 
-6. **Validate**: run `openspec validate --specs` and fix any structural errors.
+   Group observable behavior into Requirements, each with one or more Scenarios (see format below). Every surface from steps 2–3 must end up either in a requirement or in the Out of scope section.
+
+5. **Write the spec** to `openspec/specs/<plugin-name>/spec.md` using the structure below.
+
+6. **Write the coverage map** to `openspec/specs/<plugin-name>/coverage.md`. Every enumerated surface gets a row with a disposition (requirement name or "out of scope"). **Warn loudly in your summary if any surface has no disposition** — that is a spec gap.
+
+7. **Testability check** — for each scenario, confirm WHEN/THEN is unambiguous and testable without reading plugin source. Add a missing seam line when an export already exists; flag the rest. See **Testability** below.
+
+8. **Validate**: run `openspec validate --specs` and fix any structural errors.
 
 ## Spec structure
 
@@ -89,7 +103,7 @@ Scenario "Direction unset is a no-op" → `trust-sign.direction-gating.unset-noo
 
 > Unit tests MAY call `<export>` (`require "<module>"`).
 
-Use the short module name only (`sign`, `digest`) — do **not** put `package.path` or filesystem paths in the spec (busted harness uses cwd `plugins/<plugin>/` + `./src/?.lua`). Do **not** invent seams for wire-observable behavior, and do **not** list every export — only when clean-room busted would otherwise have no named subject under test.
+Use the short module name only (`sign`, `digest`) — do **not** put `package.path` or filesystem paths in the spec (busted harness uses cwd `plugins/<plugin>/` + `./src/?.lua`). Do **not** invent seams for wire-observable behavior, and do **not** list every export — only when clean-room busted would otherwise have no named subject under test. Add the line during the **Testability** check when the export already exists.
 
 **Config schema is in scope**, but describe it fully while scenario-ing it sparingly. A clean-room test author cannot open `schema.lua`, so the Configuration schema requirement's prose MUST state every field, its type, whether it is required, its `one_of` values, and its default — that is how they construct valid configs for every other scenario.
 
@@ -154,11 +168,23 @@ Example quirk scenario:
 
 A blank or `⚠️ GAP` disposition is a **spec gap**. Call it out in the summary so it is visible for peer review — leave it for reviewers to resolve.
 
+## Testability
+
+Before finishing, walk every scenario:
+
+- Ambiguous WHEN/THEN → rewrite now (no “should work” / “behaves correctly”).
+- Not practical on the wire, but an export already exists → add the seam line on the requirement.
+- Not practical on the wire and no export → leave the scenario; list its ID as `blocked — needs seam` (do not invent an export).
+- Process-global env that isn’t the plugin’s primary path → prefer a seam if one exists; otherwise list as `deferred — process-global-env`.
+
+Schema scenarios stay testable when the Configuration schema requirement lists fields, types, required/`one_of`/defaults completely enough to build configs without opening `schema.lua`.
+
 ## Summary output
 
-After both files are written and validation passes, report:
+After both files are written, the testability check is done, and validation passes, report:
 
 - Paths of `spec.md` and `coverage.md`
 - Requirement and scenario counts (and confirm every requirement/scenario has an `**ID**`)
+- Seams added (scenario ID → export), plus any `deferred — process-global-env` or `blocked — needs seam` IDs (omit if none)
 - Quirk-tagged scenarios (list them with IDs — these are the peer-review focal points)
 - Any surfaces without a disposition (spec gaps — resolve in this run or during review)
