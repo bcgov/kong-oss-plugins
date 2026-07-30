@@ -9,9 +9,10 @@
 | `config.keyid` (required) | config | Requirement: JWT token format; Requirement: Configuration schema |
 | `config.signature_header_key` (optional) | config | Requirement: Request manifest signing (quirk: runtime 500 when unset); Requirement: Response manifest signing |
 | `config.private_key_location` (required) | config | Requirement: Private key resolution; Requirement: Configuration schema |
-| `config.alg` (one_of RS256/RS512/ES256/ES512, optional) | config | Requirement: JWT token format (quirk: independent of signing) |
-| `config.hash_alg` (one_of sha256/sha512, optional) | config | Requirement: JWT token format; Requirement: Configuration schema |
-| `config.hash_alg` unset at runtime | config | ⚠️ GAP — no default and behavior when unset (signing with no digest algorithm) is undefined; no requirement covers it |
+| `config.alg` (one_of RS256/RS512/ES256/ES512, required) | config | Requirement: JWT token format; Requirement: Configuration schema (pending APS-4798: required; digests derived; key-type check) |
+| `config.hash_alg` (ignored / removed) | config | Requirement: JWT token format; Requirement: Configuration schema (pending APS-4798: ignored or removed; digest from `alg`) |
+| `config.hash_alg` unset at runtime | config | Closed by APS-4798 — digest derived from required `alg` |
+| Private key type vs `config.alg` | config/runtime | Requirement: Configuration schema (pending APS-4798: fail 5xx when resolved key type mismatches `alg`) |
 | `protocols` restricted to HTTP(S) | config | Requirement: Configuration schema |
 | `Content-Digest` request header | input | Requirement: Request digest generation |
 | Raw request body | input | Requirement: Request digest generation |
