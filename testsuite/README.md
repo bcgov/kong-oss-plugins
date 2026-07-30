@@ -17,10 +17,10 @@ plugins/<plugin>/spec/*_spec.lua       # busted unit/schema tests
 plugins/<plugin>/.busted               # busted config (resty runner, gtest output)
 plugins/_testlib/xfail.lua             # shared expected-failure helper (created on first need)
 
-testsuite/helpers/kong.ts              # shared Admin API provisioning
+testsuite/helpers/kong.ts              # shared Admin API provisioning + waitForRouteReady
 testsuite/helpers/upstream.ts          # local httpbun upstream defaults
 testsuite/helpers/<plugin>.ts          # plugin-specific provisioning/fixtures
-testsuite/local/kong/fixtures/         # shared signing keys etc.
+testsuite/local/kong/fixtures/         # shared signing keys / JWKS (also at /__fixtures__/ via nginx)
 testsuite/tests/plugins/<plugin>/      # isolated Playwright tests
 testsuite/tests/interop/               # shared producer↔consumer E2E
 ```
@@ -32,10 +32,11 @@ testsuite/tests/interop/               # shared producer↔consumer E2E
 - `kong-cp` — Admin API at http://localhost:8001 (`kong.localtest.me:8001` in-network)
 - `kong-dp` — 3 data-plane replicas, fronted by an nginx load balancer (`kong` service) at http://localhost:8000
 - `httpbun` — local echo upstream (`upstream.localtest.me:80` in-network) for observing proxied requests/responses
+- Static fixtures — nginx serves `local/kong/fixtures/` at `http://kong:8000/__fixtures__/…` (reachable JWKS without a Kong route)
 - `postgres`, `deck`, `kong-session-store` — supporting services
 - `docker-compose-keycloak.yml` adds Keycloak (http://localhost:9081) for OIDC/JWT plugins
 
-Playwright helpers read `KONG_ADMIN_URL` / `KONG_PROXY_URL` (defaults: `http://kong.localtest.me:8001` and `:8000`). Compose sets both for the `playwright` service; override via env or `.env.e2e` when needed.
+Playwright helpers read `KONG_ADMIN_URL` / `KONG_PROXY_URL` (defaults: `http://kong.localtest.me:8001` and `:8000`). After Admin API provisioning, call `waitForRouteReady` from `helpers/kong.ts` so all DP replicas have the route before asserting. Compose sets both URLs for the `playwright` service; override via env or `.env.e2e` when needed.
 
 Bring it up (Keycloak overlay only when the plugins under test need it):
 

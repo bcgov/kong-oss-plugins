@@ -72,6 +72,8 @@ services:
       - "8000:8000"
     volumes:
       - ./local/nginx:/etc/nginx/conf.d
+      # Reachable JWKS / key fixtures at http://kong:8000/__fixtures__/…
+      - ./local/kong/fixtures:/var/fixtures:ro
     depends_on:
       kong-dp:
         condition: service_healthy

@@ -121,3 +121,43 @@ export async function provisionKong(
     body: responseBody,
   } as KongProvisionResponse;
 }
+
+/**
+ * Poll until a newly provisioned route is live on all DP replicas.
+ * GETs `${KONG_PROXY_URL}${routePath}/headers` every `intervalMs` until a
+ * non-404, then requires `consecutive` further consecutive non-404s (a 404
+ * resets the count). Covers the 3 round-robined data planes.
+ */
+export async function waitForRouteReady(
+  request: APIRequestContext,
+  routePath: string,
+  options?: {
+    timeoutMs?: number;
+    intervalMs?: number;
+    consecutive?: number;
+  }
+): Promise<void> {
+  const timeoutMs = options?.timeoutMs ?? 10_000;
+  const intervalMs = options?.intervalMs ?? 250;
+  const consecutiveNeeded = options?.consecutive ?? 5;
+  const url = `${KONG_PROXY_URL}${routePath}/headers`;
+  const deadline = Date.now() + timeoutMs;
+  let consecutive = 0;
+
+  while (Date.now() < deadline) {
+    const res = await request.get(url);
+    if (res.status() !== 404) {
+      consecutive += 1;
+      if (consecutive >= consecutiveNeeded) {
+        return;
+      }
+    } else {
+      consecutive = 0;
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+
+  throw new Error(
+    `route not ready after ${timeoutMs}ms: ${url} (need ${consecutiveNeeded} consecutive non-404)`
+  );
+}

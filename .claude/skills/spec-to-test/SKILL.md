@@ -43,7 +43,7 @@ Never modify `plugins/<plugin>/src/**` or the spec. If the spec looks wrong or u
 
 1. **Read the spec.** Build a scenario inventory: every scenario ID, its tag (none / `quirk` / `pending — <ticket>`), its harness placement (rules below), and its disposition. Every ID ends up either placed, or listed as `blocked — needs seam` / `deferred — process-global-env`. Out-of-scope bullets get **zero** tests; surfaces without a requirement get zero tests (gaps belong in spec review, not here).
 2. **Delete legacy tests** for this plugin by path, without reading them: `plugins/<plugin>/spec/*_spec.lua` and `testsuite/tests/plugins/<plugin>/**`. Keep/create runner infrastructure (`.busted`, `spec/resty-runner.lua`). Do not leave a mixed old+new suite. List deletions in the summary.
-3. **Create shared fixtures** if a scenario needs signing keys and `testsuite/local/kong/fixtures/keys/` is missing (see Fixtures).
+3. **Create shared key files** if a scenario needs signing keys and `testsuite/local/kong/fixtures/keys/` lacks them (see Fixtures). Do not change compose/nginx — `/__fixtures__/` is already wired.
 4. **Write the plugin helper** `testsuite/helpers/<plugin>.ts` (contract below) — from this skill and the spec's Configuration schema requirement, not copied from other plugins' helpers.
 5. **Write busted tests**, then **Playwright tests**, then the **interop spec** when applicable.
 6. **Run both suites** (commands below) and triage per the failure policy.
@@ -129,7 +129,8 @@ The compose stack (`testsuite/docker-compose.yml`, project `e2e`) runs Kong in C
 - **Admin API**: default `http://kong.localtest.me:8001` (control plane). Import `KONG_ADMIN_URL` from `testsuite/helpers/kong.ts`.
 - **Proxy**: default `http://kong.localtest.me:8000` — nginx load balancer round-robining **3 Kong data-plane replicas**. Import `KONG_PROXY_URL` from the same module. Routes must set `hosts: ["kong.localtest.me"]`.
 - **Upstream echo**: [httpbun](https://github.com/sharat87/httpbun) at `upstream.localtest.me:80` inside the network. Point services at it via `upstreamServiceDefaults` from `testsuite/helpers/upstream.ts`. Useful endpoints: `/headers` (echoes request headers as JSON), `/anything` (echoes method/headers/body), `/status/{code}`, `/response-headers?Header=value` (pre-set response headers), `/bytes/{n}` (arbitrary body; `/bytes/0` or `/status/204` for empty), `/mix/…/b64=…`. Do not introduce a per-plugin upstream unless echo cannot express the behavior.
-- **CP→DP propagation**: entities created via the Admin API are not instantly routable, and each of the 3 DP replicas syncs independently. Never sleep blindly; probe (see helper contract).
+- **CP→DP propagation**: entities created via the Admin API are not instantly routable, and each of the 3 DP replicas syncs independently. Never sleep blindly; call `waitForRouteReady` from `helpers/kong.ts` after provisioning.
+- **Static fixtures URL**: the nginx LB already serves `testsuite/local/kong/fixtures/` at `http://kong:8000/__fixtures__/…` (host/Playwright: `${KONG_PROXY_URL}/__fixtures__/…`). Do not add Kong routes or edit compose/nginx for fixtures.
 
 URLs come from env (`KONG_ADMIN_URL`, `KONG_PROXY_URL`) with the defaults above — compose sets both for the Playwright container; host runs use the same defaults (`localtest.me` resolves to `127.0.0.1`). Do **not** hardcode host:port in plugin helpers or re-export URL constants from `helpers/<plugin>.ts`. Do not rely on Playwright `baseURL` alone (the suite needs both Admin and Proxy).
 
@@ -146,13 +147,13 @@ Lifecycle (required):
 
 ### Plugin helper contract — `testsuite/helpers/<plugin>.ts`
 
-Import `KONG_ADMIN_URL`, `KONG_PROXY_URL`, and `provisionKong` from `testsuite/helpers/kong.ts` (do not redefine or hardcode those URLs).
+Import `KONG_ADMIN_URL`, `KONG_PROXY_URL`, `provisionKong`, and `waitForRouteReady` from `testsuite/helpers/kong.ts` (do not redefine or hardcode those URLs; do not reimplement the readiness probe).
 
 Export:
 
 - `provisionPluginRoute(request, { prefix, config, serviceTags?, … })`:
   1. POST a service (name `<prefix>-svc-<n>`, spread `upstreamServiceDefaults`, `tags: serviceTags` when given), a route (name `<prefix>-rt-<n>`, `hosts: ["kong.localtest.me"]`, `paths: ["/<prefix>-<n>"]`, `strip_path: true`), and the plugin (`{ name: "<plugin>", route: { id }, config }`) via `provisionKong`. Valid `config` values come from the spec's Configuration schema requirement; key paths come from Fixtures below.
-  2. Readiness probe: poll `GET ${KONG_PROXY_URL}${routePath}/headers` every 250 ms (timeout ~30 s) until non-404, then require **5 further consecutive non-404** responses (covers the 3 round-robined DP replicas; a 404 resets the count).
+  2. Call `await waitForRouteReady(request, routePath)` (shared helper: polls `/headers` until non-404, then **5 consecutive** non-404s across the round-robined DPs).
   3. Return `{ routePath, serviceId, routeId, pluginId }`.
 - `cleanupByPrefix(request, prefix)`: list `GET ${KONG_ADMIN_URL}/routes?size=1000` and `/services?size=1000` (follow `next` pages), delete routes whose name starts with the prefix (route-scoped plugins cascade), then matching services.
 
@@ -267,7 +268,7 @@ Build the valid/invalid configs entirely from the spec's Configuration schema re
 
 Shared fixtures are repo infrastructure, committed once and reused — never regenerate or invent per-plugin variants. Location: `testsuite/local/kong/fixtures/keys/`, which the compose stack mounts at `/tmp/kong/fixtures/keys/` inside every Kong container (config values must use the in-container path). Do **not** reuse `testsuite/local/kong/cluster.key`/`cluster.crt` — those are Kong clustering certs.
 
-If a scenario needs signing keys and the directory does not exist, create it in this run:
+If a scenario needs signing keys and the key files are missing, create them in this run (directory already exists):
 
 ```sh
 cd testsuite/local/kong/fixtures/keys
@@ -277,9 +278,14 @@ openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out ec-p256.pem
 openssl pkey -in ec-p256.pem -pubout -out ec-p256.pub.pem
 ```
 
-Add a matching `<name>.jwks.json` per public key (`kid` = file stem) when a scenario needs JWKS, and a `README.md` recording exactly how every file was generated. Generate ephemeral keys inside a test only when a scenario truly requires a key that must differ from the shared ones.
+Add a matching `<name>.jwks.json` per public key (`kid` = file stem) when a scenario needs JWKS, and a `keys/README.md` recording exactly how every file was generated. Generate ephemeral keys inside a test only when a scenario truly requires a key that must differ from the shared ones.
 
-**JWKS URLs**: claim-content assertions may use a dummy `jwks_uri` value. When a scenario requires a *reachable* JWKS URL, serve the fixture statically from the nginx load balancer (add a `/__fixtures__/` static location + a fixtures volume mount to the `kong` nginx service) and reference `http://kong:8000/__fixtures__/keys/<name>.jwks.json` — never serve JWKS through a Kong route (the data plane deadlocks proxying to itself).
+**JWKS URLs**: claim-content assertions may use a dummy `jwks_uri` value. When a scenario requires a *reachable* JWKS URL, reference the harness static path — already wired; do **not** edit `docker-compose.yml` or nginx for this:
+
+- From Kong / compose network: `http://kong:8000/__fixtures__/keys/<name>.jwks.json`
+- From host / Playwright: `${KONG_PROXY_URL}/__fixtures__/keys/<name>.jwks.json`
+
+Never serve JWKS through a Kong route (the data plane deadlocks proxying to itself).
 
 ## Interop (producer/consumer plugins)
 
@@ -337,9 +343,11 @@ Reject these in your own output — they look like coverage but catch nothing:
 - Read plugin source, `coverage.md`, or existing test suites during generation
 - Write tests for out-of-scope bullets, or invent requirements for uncovered surfaces
 - Soften quirk assertions, or use skip mechanisms for `pending` scenarios
-- Sleep without a condition instead of probing readiness
+- Sleep without a condition instead of calling `waitForRouteReady`
+- Reimplement the readiness probe in a plugin helper (use `waitForRouteReady` from `helpers/kong.ts`)
 - Hardcode Admin/Proxy host:port in plugin helpers (import `KONG_ADMIN_URL` / `KONG_PROXY_URL` from `helpers/kong.ts`)
 - Modify plugin source, the spec, or the behavior of existing shared helpers
+- Edit `docker-compose.yml` or nginx to serve fixtures / JWKS (harness already exposes `/__fixtures__/`)
 - Duplicate interop assertions into per-plugin folders
 - Work around a missing seam (reading source, second Kong stack, soft asserts) — report `blocked — needs seam`
 - Ship a `[Verifies:]` citation whose test doesn't assert that scenario's specific THENs
