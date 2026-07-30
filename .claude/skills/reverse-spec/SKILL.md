@@ -82,9 +82,10 @@ Keep it complete but short and reviewable — not a code walkthrough. Every requ
 
 ### Stable IDs (required)
 
-Every Requirement and Scenario MUST have a stable `**ID**` so clean-room test
-generation can cite `[Verifies: <id>]` and prove completion without fuzzy
-title matching. Titles remain the human-readable label.
+Every Requirement and Scenario MUST have a stable `**ID**`. Requirement IDs are
+structural (grouping + seam attachment). Scenario IDs are what clean-room test
+generation cites as `[Verifies: <scenario-id>]` to prove completion without
+fuzzy title matching. Titles remain the human-readable label.
 
 - Requirement ID: `<plugin-name>.<requirement-slug>`
 - Scenario ID: `<requirement-id>.<scenario-slug>`

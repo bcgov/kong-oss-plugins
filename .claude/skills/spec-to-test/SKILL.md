@@ -60,6 +60,8 @@ Do not unit-test thin PDK wrappers, pure delegation, or the full handler with a 
 
 ## Scenario IDs and citations
 
+Requirement IDs are structural (grouping + seam attachment). Do not cite them in `[Verifies:]`. Completion is scenario IDs only.
+
 Every test cites the scenario it verifies, immediately above the test:
 
 ```ts
