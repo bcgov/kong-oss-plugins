@@ -20,7 +20,10 @@ services:
       httpbun:
         condition: service_started
     environment:
-      - BASE_URL=http://admin-api.localtest.me:8081
+      - KONG_ADMIN_URL=http://kong.localtest.me:8001
+      - KONG_PROXY_URL=http://kong.localtest.me:8000
+      # Playwright baseURL — Admin API (suite also needs KONG_PROXY_URL separately)
+      - BASE_URL=http://kong.localtest.me:8001
       - KONG_VERSION=${KONG_VERSION:-3.9.1}
     volumes:
       - ./playwright-report:/e2e-playwright/playwright-report

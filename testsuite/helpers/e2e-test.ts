@@ -5,8 +5,7 @@ import {
   Response,
   APIRequestContext,
 } from "@playwright/test";
-import { provisionNewService } from "./kong";
-import { createClient } from "./keycloak";
+import { KONG_PROXY_URL } from "./kong";
 import prepare from "./prepare-client-and-service";
 import logger from "./logger";
 
@@ -46,7 +45,7 @@ export default async function runE2Etest(
   // Use the new client setup to login
   async function do_page(retries: number = 0): Promise<null | Response> {
     const response = await page.goto(
-      `http://kong.localtest.me:8000${routePath}/headers`
+      `${KONG_PROXY_URL}${routePath}/headers`
     );
 
     if (response.status() == 404 && retries < 20) {

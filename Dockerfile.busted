@@ -1,0 +1,15 @@
+# Thin Kong image for busted unit/schema tests.
+# Bake apt + busted once; per-run work is only `luarocks make && busted`.
+#
+#   docker build -f Dockerfile.busted -t kong:busted .
+#   docker run --rm -v "$(pwd)":/work -w /work/plugins/<plugin> -u root \
+#     kong:busted sh -c 'luarocks make && busted'
+ARG KONG_VERSION="3.9.1"
+FROM docker.io/kong:${KONG_VERSION}
+
+USER root
+
+RUN apt-get update -qq \
+  && apt-get install -y -qq curl unzip build-essential \
+  && rm -rf /var/lib/apt/lists/* \
+  && luarocks install busted --force

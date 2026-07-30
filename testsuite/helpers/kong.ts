@@ -2,6 +2,14 @@ import { APIRequestContext } from "playwright";
 import logger from "./logger";
 import { upstreamServiceDefaults } from "./upstream";
 
+/** Kong Admin API — override with KONG_ADMIN_URL (compose / .env.e2e). */
+export const KONG_ADMIN_URL =
+  process.env.KONG_ADMIN_URL ?? "http://kong.localtest.me:8001";
+
+/** Kong proxy (nginx → DP replicas) — override with KONG_PROXY_URL. */
+export const KONG_PROXY_URL =
+  process.env.KONG_PROXY_URL ?? "http://kong.localtest.me:8000";
+
 const base_service = {
   id: "00000000-0000-0000-0000-00000000000",
   name: "NAME",
