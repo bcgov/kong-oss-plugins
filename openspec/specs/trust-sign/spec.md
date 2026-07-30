@@ -112,22 +112,23 @@ With `direction = request`, the plugin SHALL set the request header named by `co
 
 **ID**: `trust-sign.jwt-token-format`
 
-Every manifest token the plugin emits SHALL be a JWS compact serialization (three base64url-encoded segments): a JSON header containing `alg` (from `config.alg`) and `kid` (from `config.keyid`); a JSON payload containing the manifest claims plus `jti` (a fresh UUID per token) and `iat` (issue time, Unix seconds); and a signature over `<header>.<payload>` produced with the resolved private key using the digest named by `config.hash_alg` (ECDSA signatures use raw r||s form).
+Every manifest token the plugin emits SHALL be a JWS compact serialization (three base64url-encoded segments): a JSON header containing `alg` (from required `config.alg`) and `kid` (from `config.keyid`); a JSON payload containing the manifest claims plus `jti` (a fresh UUID per token) and `iat` (issue time, Unix seconds); and a signature over `<header>.<payload>` produced with the resolved private key using the digest derived from `config.alg` (`RS256`/`ES256` → sha256, `RS512`/`ES512` → sha512; ECDSA signatures use raw r||s form). `config.hash_alg`, if present, SHALL be ignored.
 
 #### Scenario: Token structure
 
 **ID**: `trust-sign.jwt-token-format.token-structure`
 
+- **TAG**: pending — APS-4798
 - **WHEN** any manifest token is emitted
-- **THEN** it has three base64url segments; the decoded header contains `alg` and `kid` matching config; the decoded payload contains a UUID `jti` and numeric `iat`; and the signature verifies against the signing key using the configured `hash_alg`
+- **THEN** it has three base64url segments; the decoded header contains `alg` and `kid` matching config; the decoded payload contains a UUID `jti` and numeric `iat`; and the signature verifies against the signing key using the digest derived from `config.alg`
 
-#### Scenario: Header alg is independent of the actual signing algorithm
+#### Scenario: Header alg is the single source of truth for the signing digest
 
-**ID**: `trust-sign.jwt-token-format.header-alg-independent-of-signing`
+**ID**: `trust-sign.jwt-token-format.header-alg-single-source-of-truth`
 
-- **TAG**: quirk — `alg` is copied verbatim from config and never reconciled with `hash_alg` or the key type, so the header can misstate the real algorithm (e.g. `alg = RS256` with `hash_alg = sha512`), and an unset `alg` yields a JWS header with no `alg` field
-- **WHEN** `config.alg` and `config.hash_alg` name inconsistent algorithms, or `alg` is unset
-- **THEN** the token header reports `config.alg` as-is (or omits `alg` entirely) while the signature is actually produced with `config.hash_alg`
+- **TAG**: pending — APS-4798
+- **WHEN** `config.alg` is set to a supported JWS algorithm (e.g. `RS512`)
+- **THEN** the token header `alg` equals `config.alg`, and the signature is produced with the digest implied by that algorithm (`RS256`/`ES256` → sha256, `RS512`/`ES512` → sha512) so a verifier that trusts `header.alg` succeeds
 
 ### Requirement: Private key resolution
 
@@ -214,21 +215,30 @@ With `direction = response`, the plugin SHALL set the response header named by `
 
 **ID**: `trust-sign.configuration-schema`
 
-The plugin SHALL only apply to HTTP(S) traffic and SHALL enforce its config schema: `keyid`, `private_key_location`, and `signature_header_key` are required; `signature_header_key` defaults to `"X-Edge-Token"` when omitted; `direction` must be one of `request`/`response`; `alg` must be one of `RS256`/`RS512`/`ES256`/`ES512`; `hash_alg` must be one of `sha256`/`sha512`; `jwks_uri` is an optional string.
+The plugin SHALL only apply to HTTP(S) traffic and SHALL enforce its config schema: `keyid`, `private_key_location`, `signature_header_key`, and `alg` are required; `signature_header_key` defaults to `"X-Edge-Token"` when omitted; `direction` must be one of `request`/`response`; `alg` must be one of `RS256`/`RS512`/`ES256`/`ES512`; `hash_alg` is ignored if present (or removed from the schema); `jwks_uri` is an optional string.
 
 #### Scenario: Required fields enforced
 
 **ID**: `trust-sign.configuration-schema.required-fields`
 
-- **WHEN** a plugin config omits `keyid` or `private_key_location`
+- **TAG**: pending — APS-4798
+- **WHEN** a plugin config omits `keyid`, `private_key_location`, or `alg`
 - **THEN** the configuration is rejected by schema validation
 
 #### Scenario: Enumerated fields enforced
 
 **ID**: `trust-sign.configuration-schema.enumerated-fields`
 
-- **WHEN** a plugin config sets `direction`, `alg`, or `hash_alg` to a value outside its allowed set
+- **WHEN** a plugin config sets `direction` or `alg` to a value outside its allowed set
 - **THEN** the configuration is rejected by schema validation
+
+#### Scenario: alg must match the resolved private key type
+
+**ID**: `trust-sign.configuration-schema.alg-must-match-key-type`
+
+- **TAG**: pending — APS-4798
+- **WHEN** the resolved private key (from `config.private_key_location`, or `KONG_SIGNING_CERT_KEY` when set) is RSA but `config.alg` is `ES256`/`ES512`, or the key is ECDSA but `config.alg` is `RS256`/`RS512`
+- **THEN** the plugin does not emit a signed manifest and the exchange fails with a 5xx response (checked when the key is loaded for signing, so env overrides are covered)
 
 ## Interop / shared contract
 
