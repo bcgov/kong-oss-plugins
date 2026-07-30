@@ -32,22 +32,43 @@ Generate automated tests for a Kong plugin from `openspec/specs/<plugin>/spec.md
 - Existing test bodies: anything under `testsuite/tests/plugins/**` or `plugins/*/spec/*_spec.lua`. They predate these standards and are not exemplars. The canonical example below is your only exemplar.
 - Plugin-behavior-specific helpers: `testsuite/helpers/keycloak.ts`, `e2e-test.ts`, `prepare-client-and-service.ts`, `api.ts`
 
-**Preflight** — stop and tell the user instead of proceeding when:
+**Preflight**
 
-- Plugin source, `coverage.md`, or existing test bodies for this plugin are already in your session context (attached files or earlier reads) → ask for a fresh session
-- `openspec/specs/<plugin>/spec.md` does not exist, or any Requirement/Scenario lacks an `**ID**` line → the spec must be generated/backfilled with `reverse-spec` first
+1. **Enable clean-room** (agent runs this — do not skip):
+
+   ```sh
+   .claude/skills/spec-to-test/clean-room-on.sh
+   ```
+
+   Host-agnostic: creates `.claude/clean-room.active` and syncs deny patterns from `clean-room-patterns.txt` into:
+
+   - **Cursor** — managed block in repo-root `.cursorignore`
+   - **Claude Code** — activates the always-registered `PreToolUse` guard (`.claude/settings.json` → `clean-room-guard.sh`), which no-ops when the flag is absent
+
+   Does **not** block test output paths (you must still write/delete there). Scripts live next to this skill. The user may run `clean-room-on.sh` themselves before opening a **fresh** agent chat for strongest isolation (mid-session enable cannot erase already-loaded context).
+
+2. Do **not** open forbidden paths this turn (Read, Grep, or `cat`/`rg` via Shell). Recently viewed / open tabs are not an automatic hard-stop — if forbidden **contents** are clearly already in this chat (attached or earlier reads of plugin source / coverage / legacy tests), tell the user to start a fresh chat with clean-room already on, then stop. Do not refuse merely because those files appear in an IDE recent list.
+
+3. Stop and tell the user when `openspec/specs/<plugin>/spec.md` does not exist, or any Requirement/Scenario lacks an `**ID**` line → the spec must be generated/backfilled with `reverse-spec` first.
 
 Never modify `plugins/<plugin>/src/**` or the spec. If the spec looks wrong or untestable, report it — do not fix it.
 
 ## Procedure
 
-1. **Read the spec.** Build a scenario inventory: every scenario ID, its tag (none / `quirk` / `pending — <ticket>`), its harness placement (rules below), and its disposition. Every ID ends up either placed, or listed as `blocked — needs seam` / `deferred — process-global-env`. Out-of-scope bullets get **zero** tests; surfaces without a requirement get zero tests (gaps belong in spec review, not here).
-2. **Delete legacy tests** for this plugin by path, without reading them: `plugins/<plugin>/spec/*_spec.lua` and `testsuite/tests/plugins/<plugin>/**`. Keep/create runner infrastructure (`.busted`, `spec/resty-runner.lua`). Do not leave a mixed old+new suite. List deletions in the summary.
-3. **Create shared key files** if a scenario needs signing keys and `testsuite/local/kong/fixtures/keys/` lacks them (see Fixtures). Do not change compose/nginx — `/__fixtures__/` is already wired.
-4. **Write the plugin helper** `testsuite/helpers/<plugin>.ts` (contract below) — from this skill and the spec's Configuration schema requirement, not copied from other plugins' helpers.
-5. **Write busted tests**, then **Playwright tests**, then the **interop spec** when applicable.
-6. **Run both suites** (commands below) and triage per the failure policy.
-7. **Report** the generation summary.
+1. **Clean-room on** (see Preflight) if not already enabled this run.
+2. **Read the spec.** Build a scenario inventory: every scenario ID, its tag (none / `quirk` / `pending — <ticket>`), its harness placement (rules below), and its disposition. Every ID ends up either placed, or listed as `blocked — needs seam` / `deferred — process-global-env`. Out-of-scope bullets get **zero** tests; surfaces without a requirement get zero tests (gaps belong in spec review, not here).
+3. **Delete legacy tests** for this plugin by path, without reading them: `plugins/<plugin>/spec/*_spec.lua` and `testsuite/tests/plugins/<plugin>/**`. Keep/create runner infrastructure (`.busted`, `spec/resty-runner.lua`). Do not leave a mixed old+new suite. List deletions in the summary.
+4. **Create shared key files** if a scenario needs signing keys and `testsuite/local/kong/fixtures/keys/` lacks them (see Fixtures). Do not change compose/nginx — `/__fixtures__/` is already wired.
+5. **Write the plugin helper** `testsuite/helpers/<plugin>.ts` (contract below) — from this skill and the spec's Configuration schema requirement, not copied from other plugins' helpers.
+6. **Write busted tests**, then **Playwright tests**, then the **interop spec** when applicable.
+7. **Run both suites** (commands below) and triage per the failure policy.
+8. **Clean-room off** (always, even if generation stopped early):
+
+   ```sh
+   .claude/skills/spec-to-test/clean-room-off.sh
+   ```
+
+9. **Report** the generation summary.
 
 ## Harness placement
 
@@ -254,7 +275,14 @@ Config-schema scenarios are busted tests against Kong's own validator (do not te
 local Schema = require "kong.db.schema"
 local schema_def = require "schema"
 
-local config_schema = assert(Schema.new(schema_def.fields[#schema_def.fields].config))
+local config_def
+for _, field in ipairs(schema_def.fields) do
+  if field.config then
+    config_def = field.config
+    break
+  end
+end
+local config_schema = assert(Schema.new(assert(config_def, "schema missing config field")))
 
 -- [Verifies: <plugin>.configuration-schema.required-fields]
 it("rejects config missing keyid", function()
@@ -353,12 +381,14 @@ Reject these in your own output — they look like coverage but catch nothing:
 - Duplicate interop assertions into per-plugin folders
 - Work around a missing seam (reading source, second Kong stack, soft asserts) — report `blocked — needs seam`
 - Ship a `[Verifies:]` citation whose test doesn't assert that scenario's specific THENs
+- Leave clean-room enabled after the run — always run `clean-room-off.sh` before finishing (clears the flag and Cursor ignore block)
 
 ## Generation summary (final report)
 
 ```markdown
 ## Test generation summary — <plugin>
 - Spec: openspec/specs/<plugin>/spec.md — <N> requirements, <M> scenarios
+- Clean-room: on for run, off after (or note if still on)
 - Files written: <busted specs, playwright specs, helper, interop, fixtures>
 - Legacy tests deleted: <paths, or "none">
 - Coverage: <M-k>/<M> scenario IDs cited

@@ -5,3 +5,6 @@
 
 .github/prompts/
 .github/skills/openspec-*/
+
+# spec-to-test clean-room session flag (Cursor + Claude Code)
+.claude/clean-room.active
