@@ -7,7 +7,7 @@
 | `config.direction` (one_of request/response, optional) | config | Requirement: Direction gating |
 | `config.jwks_uri` (optional) | config | Requirement: Request manifest signing; Requirement: Response manifest signing |
 | `config.keyid` (required) | config | Requirement: JWT token format; Requirement: Configuration schema |
-| `config.signature_header_key` (optional) | config | Requirement: Request manifest signing (quirk: runtime 500 when unset); Requirement: Response manifest signing |
+| `config.signature_header_key` (required, default `X-Edge-Token`) | config | Requirement: Request manifest signing; Requirement: Response manifest signing; Requirement: Configuration schema |
 | `config.private_key_location` (required) | config | Requirement: Private key resolution; Requirement: Configuration schema |
 | `config.alg` (one_of RS256/RS512/ES256/ES512, optional) | config | Requirement: JWT token format (quirk: independent of signing) |
 | `config.hash_alg` (one_of sha256/sha512, optional) | config | Requirement: JWT token format; Requirement: Configuration schema |
@@ -20,7 +20,7 @@
 | Kong request ID | input | Requirement: Request manifest signing |
 | `KONG_SIGNING_CERT_KEY` env var | input | Requirement: Private key resolution |
 | `KONG_SIGNING_CERT` env var | input | Out of scope (only used by commented-out x5c code) |
-| Response source (service vs. Kong-generated) | input | Requirement: Response manifest signing (Kong-generated responses scenario) |
+| Response source (service vs. Kong-generated) | input | Requirement: Response manifest signing (Kong-generated responses are signed) |
 | `Content-Digest` response header (from upstream) | input | Requirement: Response digest generation |
 | Raw upstream response body | input | Requirement: Response digest generation |
 | `Content-Digest` request header (set) | output | Requirement: Request digest generation |

@@ -186,7 +186,6 @@ With `direction = response`, the plugin SHALL set the response header named by `
 
 **ID**: `trust-sign.response-manifest-signing.claims-echoed-from-inbound-token`
 
-- **TAG**: quirk — the inbound `X-Edge-Token` is only decoded, never signature-verified, so its claims are echoed into a freshly signed manifest without validation; the response manifest's `digest` claim therefore describes the request body (via the inbound token), never the response body
 - **WHEN** the inbound request carried a parseable JWT in `X-Edge-Token`
 - **THEN** the response manifest's `request_id`, `client_id`, `service_id`, and `digest` claims equal those of the inbound token's payload, and `jwks_uri` is taken from this plugin instance's config
 
