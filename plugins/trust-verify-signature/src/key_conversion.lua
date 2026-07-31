@@ -50,7 +50,7 @@ end
 
 local function encode_binary_integer(bytes)
     if bytes:byte(1) > 127 then
-        -- We currenly only use this for unsigned integers,
+        -- We currently only use this for unsigned integers,
         -- however since the high bit is set here, it would look
         -- like a negative signed int, so prefix with zeroes
         bytes = "\0" .. bytes
