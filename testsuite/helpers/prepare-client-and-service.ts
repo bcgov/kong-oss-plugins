@@ -23,7 +23,7 @@ export default async function prepare(
   const iteration = Math.round(Math.random() * 100000000);
   const routePath = await provisionNewService(
     request,
-    "http:///kong.localtest.me:8001",
+    "http://kong.localtest.me:8001",
     iteration,
     {
       name: plugin,

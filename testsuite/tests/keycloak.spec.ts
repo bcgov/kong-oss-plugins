@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test.describe("keycloak ready", () => {
   test("login", async ({ browser, page, request }) => {
     await page.goto(
-      "http:///keycloak.localtest.me:9081/auth/admin/master/console"
+      "http://keycloak.localtest.me:9081/auth/admin/master/console"
     );
 
     await expect(page).toHaveTitle(/Sign in/);
@@ -21,7 +21,7 @@ test.describe("keycloak ready", () => {
     await page.waitForLoadState("networkidle");
 
     await page.goto(
-      "http:///keycloak.localtest.me:9081/auth/admin/master/console/#/realms/master/clients"
+      "http://keycloak.localtest.me:9081/auth/admin/master/console/#/realms/master/clients"
     );
 
     await page.waitForLoadState("networkidle");
