@@ -10,7 +10,9 @@ return {
         fields = {
           {
             signature_header_key = {
-              type = "string"
+              type = "string",
+              required = true,
+              default = "X-Edge-Token"
             }
           },
           {

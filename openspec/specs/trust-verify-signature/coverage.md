@@ -5,7 +5,7 @@
 | Surface | Kind | Disposition |
 |---|---|---|
 | `config.direction` | config | Requirement: Direction gating |
-| `config.signature_header_key` | config | Requirements: Request/Response signature verification; quirk `configuration-schema.unset-signature-header-key-500` (no default, handler requires it) |
+| `config.signature_header_key` | config | Requirements: Request/Response signature verification; Configuration schema (`signature-header-key-defaults-to-x-edge-token`) |
 | `config.manifest_type` | config | Requirement: Content-digest manifest check |
 | `config.iss_key_grace_period` | config | Requirement: Configuration schema (accepted, no effect); Out of scope (unreachable refresh code) |
 | `protocols` restriction (HTTP/HTTPS typedef) | config | Requirement: Configuration schema (prose) |
@@ -22,7 +22,7 @@
 | `X-Trust-Verify-Signature-Res` response header (`OK`) | output | Requirement: Response signature verification |
 | Signature header pass-through on success | output | Requirements: Request/Response signature verification (THEN clauses) |
 | 401/403 early exits with JSON `message` body | output | Requirements: Request/Response verification, Issuer key discovery, Content-digest manifest check |
-| 500 runtime failures | output | Quirks `content-digest-check.present-cd-claim-500`, `configuration-schema.unset-signature-header-key-500` |
+| 500 runtime failures | output | Quirk `content-digest-check.present-cd-claim-500` |
 | `key_conversion` module (JWK n/e → PEM) | dead code | Out of scope |
 | Grace-period key refresh block in `signature.lua` | dead code | Out of scope |
 | Commented-out non-200 response skip in `header_filter` | dead code | Out of scope |

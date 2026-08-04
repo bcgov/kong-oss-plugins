@@ -161,9 +161,9 @@ When `config.manifest_type` is `content-digest`, the plugin SHALL require the to
 
 **ID**: `trust-verify-signature.configuration-schema`
 
-The plugin SHALL only apply to HTTP(S) traffic and SHALL enforce its config schema. All fields are optional; none are required and only one has a default:
+The plugin SHALL only apply to HTTP(S) traffic and SHALL enforce its config schema:
 
-- `signature_header_key` (string, optional, **no default**): name of the header carrying the manifest token
+- `signature_header_key` (string, required, default `"X-Edge-Token"`): name of the header carrying the manifest token
 - `direction` (string, optional, one of `request`/`response`)
 - `manifest_type` (string, optional, one of `signature-only`/`content-digest`)
 - `iss_key_grace_period` (number, optional, default `300`): accepted by the schema but has no observable effect (see Out of scope)
@@ -182,13 +182,12 @@ The plugin SHALL only apply to HTTP(S) traffic and SHALL enforce its config sche
 - **WHEN** a plugin config sets `direction` or `manifest_type` to a value outside its allowed set
 - **THEN** the configuration is rejected by schema validation
 
-#### Scenario: Unset signature_header_key breaks verification
+#### Scenario: signature_header_key defaults to X-Edge-Token
 
-**ID**: `trust-verify-signature.configuration-schema.unset-signature-header-key-500`
+**ID**: `trust-verify-signature.configuration-schema.signature-header-key-defaults-to-x-edge-token`
 
-- **TAG**: quirk — the handler unconditionally uses `signature_header_key`, but the schema neither requires it nor defaults it (the producer plugin defaults the same field to `X-Edge-Token`)
-- **WHEN** `direction` is set but `signature_header_key` is unset, and any request is proxied
-- **THEN** the exchange fails with status 500 instead of a controlled 401
+- **WHEN** the plugin is configured without an explicit `signature_header_key`
+- **THEN** the schema applies the default `"X-Edge-Token"`, and verification reads the manifest from the `X-Edge-Token` header
 
 ## Interop / shared contract
 
@@ -196,7 +195,7 @@ The trust-sign spec (`openspec/specs/trust-sign/spec.md`) is the **source of
 truth** for the wire format this plugin consumes. This plugin depends on the
 following subset of that contract:
 
-- **Manifest token**: a JWS compact JWT carried in a header whose name is deployment-configured. This plugin has no default header name; `config.signature_header_key` must be set to match the producer's `signature_header_key` (producer default `X-Edge-Token`).
+- **Manifest token**: a JWS compact JWT carried in the header named by `signature_header_key` (default `X-Edge-Token`, matching the producer).
 - **Token header fields consumed**: `kid` (selects the verification key from the JWKS) and `alg` (names the verification algorithm).
 - **Token payload claims consumed**: `jwks_uri` only (key discovery). The producer's `request_id`, `client_id`, `service_id`, `digest`, `jti`, and `iat` claims are ignored by this plugin.
 - The producer contract marks `jwks_uri` as optional (omitted when the producer has no `jwks_uri` configured); this plugin rejects such tokens with 401 per the key-discovery requirement, so producers feeding this verifier must configure `jwks_uri`.
