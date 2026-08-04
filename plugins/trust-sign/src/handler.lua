@@ -120,7 +120,17 @@ function TrustSignHandler:header_filter(conf)
   if body_digest == nil then
     local alg = "sha-256"
     kong.log.warn("Content-Digest header not present, generating digest")
-    local body = kong.service.response.get_raw_body()
+    -- kong.service.response.get_raw_body() requires buffered upstream
+    -- proxying. Kong-generated responses (request-termination, other
+    -- early exits) never proxy, so buffered_proxying is unset — calling
+    -- get_raw_body then throws and aborts the response. Skip digest in
+    -- that case; the response-digest requirement covers upstream bodies.
+    local body
+    if ngx.ctx.buffered_proxying then
+      body = kong.service.response.get_raw_body()
+    else
+      kong.log.warn("No buffered upstream body (Kong-generated response); skipping Content-Digest")
+    end
     if body == nil then
       kong.log.warn("Body is nil - no raw body available")
     elseif body == "" then

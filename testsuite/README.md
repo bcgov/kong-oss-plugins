@@ -50,11 +50,11 @@ docker compose \
   up -d --build
 ```
 
-Plugin source changes require an image rebuild (`--build`).
+Plugin source changes require rebuilding `kong:e2e` (`--build`).
 
 ## Running Playwright tests
 
-From `testsuite/` (after `npm ci`):
+**Host** (recommended locally — uses your working tree). Stack must already be up. From `testsuite/` after `npm ci`:
 
 ```sh
 npx playwright test                          # full suite
@@ -62,26 +62,32 @@ npx playwright test tests/plugins/<plugin>   # one plugin
 npm run test:ui                              # interactive UI mode
 ```
 
-Or headless in a container, as CI does:
+**Container** (CI-shaped). Specs/helpers are copied into `playwright:e2e` at build time, so rebuild that image after test changes:
 
 ```sh
 KONG_VERSION=3.9.1 KC_VERSION=26.5.3 \
 docker compose --profile tests \
-  -f docker-compose.yml \
-  -f docker-compose-keycloak.yml up --build
+  -f docker-compose.yml -f docker-compose-keycloak.yml \
+  build playwright
 ```
 
-Foreground Playwright logs (stack already up via the `up -d` command above):
+Then, with the stack already up:
 
 ```sh
+# full suite
 KONG_VERSION=3.9.1 KC_VERSION=26.5.3 \
 docker compose --profile tests \
-  -f docker-compose.yml \
-  -f docker-compose-keycloak.yml \
+  -f docker-compose.yml -f docker-compose-keycloak.yml \
   run --rm playwright
+
+# one plugin — pass the full command
+KONG_VERSION=3.9.1 KC_VERSION=26.5.3 \
+docker compose --profile tests \
+  -f docker-compose.yml -f docker-compose-keycloak.yml \
+  run --rm playwright \
+  npx playwright test tests/plugins/<plugin>
 ```
 
-One plugin: append `npx playwright test tests/plugins/<plugin> --workers=1` to that `run` command.
 
 ## Running busted tests
 
