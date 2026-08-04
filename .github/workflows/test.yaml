@@ -4,6 +4,8 @@ on:
   workflow_dispatch: {}
   push:
     branches: ["main", "feature/*"]
+  pull_request:
+    branches: ["main", "feature/*"]
 
 env:
   GIT_COMMIT_BRANCH: ${{ github.ref_name }}
@@ -21,6 +23,10 @@ jobs:
         keycloak: ["26.5.3"]
 
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -68,31 +74,87 @@ jobs:
           done
 
       - name: Upload E2E Test Results HTML Report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kong-${{ matrix.kong }}-keycloak-${{ matrix.keycloak }}-results-html
           path: ${{ github.workspace }}/testsuite/playwright-report/index.html
 
-      - name: Check for failed tests and create Issue
+      - name: Upload E2E Test Results JSON Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kong-${{ matrix.kong }}-keycloak-${{ matrix.keycloak }}-results-json
+          path: ${{ github.workspace }}/testsuite/playwright-results/test-results.json
+
+      - name: Check for failed tests and report results
+        if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          FAILURE_COUNT=$(cat ${{ github.workspace }}/testsuite/playwright-results/test-results.json | jq '.stats.unexpected')
+          RESULTS="${{ github.workspace }}/testsuite/playwright-results/test-results.json"
+          if [[ ! -f "$RESULTS" ]]; then
+            echo "No Playwright JSON results found at $RESULTS"
+            exit 1
+          fi
+
+          FAILURE_COUNT=$(jq '.stats.unexpected' "$RESULTS")
           echo "Fail count ${FAILURE_COUNT}"
           if [[ "$FAILURE_COUNT" -gt 0 ]]; then
-            FAILED_TESTS=""
-            # FAILED_TESTS=$(jq -r '
-            #   .results[] |
-            #   (.file | split("/") | .[2:] | join("/")) as $file |
-            #   .. | 
-            #   .tests? // empty | 
-            #   .[] | 
-            #   select(.fail == true) | 
-            #   "- " + $file + " - " + .title
-            # ' ${{ github.workspace }}/testsuite/playwright-results/test-results.json)
-            STATS=$(cat ${{ github.workspace }}/testsuite/playwright-results/test-results.json | jq -r '.stats | to_entries | map("\(.key)\t\(.value)") | .[]' | column -t)
-            echo -e "Stats: $STATS\n\nFailed Tests:\n$FAILED_TESTS\n\nRun Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" > msg
+            FAILED_TESTS=$(jq -r '
+              .. | .specs? // empty |
+              .[] |
+              select(.ok == false) |
+              "- " + .file + " - " + .title
+            ' "$RESULTS")
+            STATS=$(jq -r '.stats | to_entries | map("\(.key)\t\(.value)") | .[]' "$RESULTS" | column -t)
+            RUN_LINK="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            BRANCH="${{ github.head_ref || github.ref_name }}"
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
+            else
+              COMMIT_SHA="${{ github.sha }}"
+            fi
+            SHORT_SHA="${COMMIT_SHA:0:7}"
+            MATRIX_LABEL="kong-${{ matrix.kong }} keycloak-${{ matrix.keycloak }}"
+            {
+              echo "## Playwright E2E tests failed ($FAILURE_COUNT) — \`$MATRIX_LABEL\`"
+              echo ""
+              echo "**Branch:** \`$BRANCH\` | **Commit:** \`$SHORT_SHA\`"
+              echo ""
+              echo "<details>"
+              echo "<summary>Stats</summary>"
+              echo ""
+              echo '```'
+              echo "$STATS"
+              echo '```'
+              echo ""
+              echo "</details>"
+              echo ""
+              if [[ "$FAILURE_COUNT" -gt 10 ]]; then
+                echo "<details>"
+                echo "<summary>Failed tests ($FAILURE_COUNT)</summary>"
+                echo ""
+                echo "$FAILED_TESTS"
+                echo ""
+                echo "</details>"
+              else
+                echo "### Failed tests ($FAILURE_COUNT)"
+                echo ""
+                echo "$FAILED_TESTS"
+              fi
+              echo ""
+              echo "[View workflow run]($RUN_LINK)"
+            } > msg
             export MSG=$(cat msg)
-            gh issue create --title "FAILED: [kong-${{ matrix.kong }} keycloak-${{ matrix.keycloak }}] Automated Tests ($FAILURE_COUNT)" --body "$MSG" --label "automation" --assignee "${{ env.GIT_COMMIT_AUTHOR }}"
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              gh pr comment ${{ github.event.pull_request.number }} --body "$MSG"
+            else
+              gh issue create \
+                --title "FAILED: [$MATRIX_LABEL] Automated Tests ($FAILURE_COUNT)" \
+                --body "$MSG" \
+                --label "automation" \
+                --assignee "${{ env.GIT_COMMIT_AUTHOR }}"
+            fi
             exit 1
           fi
