@@ -122,9 +122,9 @@ Each plugin with busted tests carries a `.busted` config pointing at `spec/resty
 
 ### Current state
 
-`.github/workflows/test.yaml` runs both harnesses on pushes to `main`/`feature/*`, PRs into those branches, and `workflow_dispatch`:
+`.github/workflows/test.yaml` runs both harnesses on PRs into `main`/`feature/*` and on `workflow_dispatch` (not on push):
 
-- **Playwright** — full containerized suite (Kong 3.9.1 × Keycloak 26.5.3); uploads HTML/JSON reports; comments on the PR (or opens an issue on `push`) on unexpected failures
+- **Playwright** — full containerized suite (Kong 3.9.1 × Keycloak 26.5.3); uploads HTML/JSON reports; comments on the PR (or opens an issue on `workflow_dispatch`) on unexpected failures
 - **Busted** — full matrix over every plugin with `plugins/<plugin>/spec/*_spec.lua`, inside `kong:busted` (`luarocks make && busted`)
 
 ```text
@@ -143,9 +143,9 @@ Path-filtered jobs plus a long-lived `dev` branch (aligned with other APS repos)
 |---|---|
 | PR `feature/*` → `dev` | Affected plugins only (see below) |
 | PR `dev` → `main` | Full busted matrix + full Playwright suite (Kong × Keycloak matrix as applicable) |
-| `workflow_dispatch` / push to `main` | Full suite |
+| `workflow_dispatch` | Full suite |
 
-Until `dev` exists, the same path-filtered jobs can run on PRs into the current default branch, keeping a full-suite job on `main`.
+Until `dev` exists, the same path-filtered jobs can run on PRs into the current default branch.
 
 #### Affected-plugin detection (`feature/*` → `dev`)
 
