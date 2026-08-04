@@ -1,4 +1,4 @@
-name: Playwright E2E Tests
+name: Plugin Tests
 
 on:
   workflow_dispatch: {}
@@ -13,8 +13,91 @@ env:
   GIT_COMMIT_AUTHOR: ${{ github.actor }}
   GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
   GIT_REPO_URL: ${{ github.repository }}
+  KONG_VERSION: "3.9.1"
+  KC_VERSION: "26.5.3"
 
 jobs:
+  build-busted-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write # docker buildx GHA cache
+    outputs:
+      plugins: ${{ steps.plugins.outputs.plugins }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: List plugins with busted specs
+        id: plugins
+        shell: bash
+        run: |
+          set -euo pipefail
+          plugins="$(
+            find plugins -mindepth 3 -maxdepth 3 -name '*_spec.lua' \
+              | sed -E 's|plugins/([^/]+)/.*|\1|' \
+              | sort -u \
+              | jq -Rsc 'split("\n") | map(select(length > 0))'
+          )"
+          echo "plugins=$plugins" >> "$GITHUB_OUTPUT"
+          echo "busted plugins: $plugins"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build kong:busted
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.busted
+          build-args: |
+            KONG_VERSION=${{ env.KONG_VERSION }}
+          tags: kong:busted
+          load: true
+          cache-from: type=gha,scope=kong-busted
+          cache-to: type=gha,mode=max,scope=kong-busted
+
+      - name: Save image
+        run: docker save kong:busted | gzip > kong-busted.tar.gz
+
+      - name: Upload kong:busted image
+        uses: actions/upload-artifact@v4
+        with:
+          name: kong-busted-image
+          path: kong-busted.tar.gz
+          retention-days: 1
+
+  busted:
+    needs: build-busted-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: ${{ fromJson(needs.build-busted-image.outputs.plugins) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download kong:busted image
+        uses: actions/download-artifact@v4
+        with:
+          name: kong-busted-image
+
+      - name: Load image
+        run: gunzip -c kong-busted.tar.gz | docker load
+
+      - name: Run busted for ${{ matrix.plugin }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$(pwd)":/work \
+            -w "/work/plugins/${{ matrix.plugin }}" \
+            -u root \
+            kong:busted \
+            sh -c 'luarocks make && busted'
+
   plugin-tests:
     strategy:
       fail-fast: false
@@ -29,7 +112,7 @@ jobs:
       issues: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Build Docker Images
         working-directory: testsuite
@@ -42,36 +125,49 @@ jobs:
             -f docker-compose-keycloak.yml \
             build
 
-      - name: Spin up Kong and its dependencies and run tests
+      - name: Spin up Kong stack
         working-directory: testsuite
         run: |
           export CI=true
           KONG_VERSION=${{ matrix.kong }} \
-          docker compose --profile tests \
+          KC_VERSION=${{ matrix.keycloak }} \
+          docker compose \
             -f docker-compose.yml \
             -f docker-compose-keycloak.yml \
             up -d
 
-      - name: Wait for tests to finish & clean up
+      - name: Run Playwright tests
         working-directory: testsuite
         run: |
-          # Start following logs in the background with continuous output
-          docker compose logs -f 2>&1 &
+          set -euo pipefail
+          export CI=true
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose-keycloak.yml \
+            logs -f 2>&1 &
           LOG_PID=$!
 
-          while true; do
-            if [ "$(docker ps -aq -f status=exited -f name=playwright)" ]; then
-              echo "E2E tests completed."
-              # cleanup
-              docker compose --profile tests \
-                -f docker-compose.yml \
-                -f docker-compose-keycloak.yml \
-                down
-              break
-            else
-              sleep 30s
-            fi
-          done
+          set +e
+          KONG_VERSION=${{ matrix.kong }} \
+          KC_VERSION=${{ matrix.keycloak }} \
+          docker compose --profile tests \
+            -f docker-compose.yml \
+            -f docker-compose-keycloak.yml \
+            run --rm playwright
+          STATUS=$?
+          set -e
+
+          kill "$LOG_PID" 2>/dev/null || true
+          exit "$STATUS"
+
+      - name: Tear down stack
+        if: always()
+        working-directory: testsuite
+        run: |
+          docker compose --profile tests \
+            -f docker-compose.yml \
+            -f docker-compose-keycloak.yml \
+            down || true
 
       - name: Upload E2E Test Results HTML Report
         if: always()

@@ -122,26 +122,30 @@ Each plugin with busted tests carries a `.busted` config pointing at `spec/resty
 
 ### Current state
 
-`.github/workflows/test.yaml` runs the containerized Playwright suite (Kong 3.9.1 × Keycloak 26.5.3) on pushes to `main`/`feature/*` and manual dispatch, uploads the HTML report, and opens an issue on failure. Busted is not yet wired into CI.
+`.github/workflows/test.yaml` runs both harnesses on pushes to `main`/`feature/*`, PRs into those branches, and `workflow_dispatch`:
 
-### Target state
+- **Playwright** — full containerized suite (Kong 3.9.1 × Keycloak 26.5.3); uploads HTML/JSON reports; comments on the PR (or opens an issue on `push`) on unexpected failures
+- **Busted** — full matrix over every plugin with `plugins/<plugin>/spec/*_spec.lua`, inside `kong:busted` (`luarocks make && busted`)
 
-Both harnesses always run in CI:
-
-- Playwright integration tests
-- Busted unit/schema tests (Kong image + resty runner, per plugin)
+```text
+build-busted-image  → list plugins with busted specs; docker build -f Dockerfile.busted
+busted (matrix)     → per plugin: luarocks make && busted
+plugin-tests        → full Playwright suite
+```
 
 Fail the workflow on any busted failure or Playwright unexpected failure / unexpected pass (`test.fail` XPASS).
 
-#### Branch strategy
+### Target state
 
-Introduce a long-lived `dev` branch (aligned with other APS repos). Until `dev` exists, run the same path-filtered jobs on PRs into the current default branch, keeping a full-suite job on `main`.
+Path-filtered jobs plus a long-lived `dev` branch (aligned with other APS repos):
 
 | Change | What runs |
 |---|---|
 | PR `feature/*` → `dev` | Affected plugins only (see below) |
 | PR `dev` → `main` | Full busted matrix + full Playwright suite (Kong × Keycloak matrix as applicable) |
 | `workflow_dispatch` / push to `main` | Full suite |
+
+Until `dev` exists, the same path-filtered jobs can run on PRs into the current default branch, keeping a full-suite job on `main`.
 
 #### Affected-plugin detection (`feature/*` → `dev`)
 
@@ -165,20 +169,3 @@ busted          → matrix over plugins[] (or all plugins if run_full)
 playwright      → path filter tests/plugins/<p> + interop files
                   (or full suite if run_full)
 ```
-
-Busted jobs share one `kong:busted` image (no plugin code baked in):
-
-```text
-build-busted-image  → docker build -f Dockerfile.busted -t kong:busted .
-                      (cache/push once; matrix jobs pull or load it)
-busted (matrix)     → per plugin:
-                        docker run … kong:busted …
-                          working dir plugins/<plugin>
-                          luarocks make   # installs that plugin only
-                          busted          # .busted → resty runner
-```
-
-#### Clean-room guardrails
-
-- Lightweight CI lint: fail if any Playwright test file imports from `plugins/*/src/`. (Busted tests `require` the plugin modules under test by design — that is loading the SUT, not a violation.)
-- PR checklist for generated tests: "Tests generated clean-room via `spec-to-test`; no plugin source, `coverage.md`, or pre-existing suites in context; every scenario ID cited."
