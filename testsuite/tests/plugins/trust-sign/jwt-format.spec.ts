@@ -132,4 +132,27 @@ test.describe("trust-sign — JWT token format and key resolution", () => {
     // no signed manifest is emitted anywhere
     expect(res.headers()["x-edge-token"]).toBeUndefined();
   });
+
+  // [Verifies: trust-sign.configuration-schema.alg-must-match-key-type]
+  // pending — APS-4798
+  test("RSA alg with an ECDSA key fails the exchange with a 5xx", async ({
+    request,
+  }) => {
+    test.fail(true, "pending — APS-4798");
+
+    const { routePath } = await provisionPluginRoute(request, {
+      prefix: PREFIX,
+      config: {
+        keyid: "ec-p256",
+        private_key_location: `${CONTAINER_KEYS_DIR}/ec-p256.pem`,
+        alg: "RS256", // ECDSA key file + RSA alg
+        direction: "request",
+      },
+    });
+
+    const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
+    expect(res.status()).toBeGreaterThanOrEqual(500);
+    expect(res.status()).toBeLessThan(600);
+    expect(res.headers()["x-edge-token"]).toBeUndefined();
+  });
 });

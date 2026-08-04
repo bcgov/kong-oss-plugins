@@ -61,12 +61,9 @@ test.describe("trust-sign — request manifest signing", () => {
     expect(payload.jwks_uri).toBe(JWKS_URI);
 
     // request_id is the Kong request ID for this exchange
-    expect(typeof payload.request_id).toBe("string");
-    expect(payload.request_id.length).toBeGreaterThan(0);
     const kongRequestId = res.headers()["x-kong-request-id"];
-    if (kongRequestId) {
-      expect(payload.request_id).toBe(kongRequestId);
-    }
+    expect(kongRequestId).toBeTruthy();
+    expect(payload.request_id).toBe(kongRequestId);
   });
 
   // [Verifies: trust-sign.request-manifest-signing.missing-service-tags-empty-identity]
