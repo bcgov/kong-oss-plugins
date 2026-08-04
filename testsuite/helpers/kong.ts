@@ -127,6 +127,9 @@ export async function provisionKong(
  * GETs `${KONG_PROXY_URL}${routePath}/headers` every `intervalMs` until a
  * non-404, then requires `consecutive` further consecutive non-404s (a 404
  * resets the count). Covers the 3 round-robined data planes.
+ *
+ * Each probe uses `perRequestTimeoutMs` so a hung DP/LB connection cannot
+ * block the whole readiness loop until the Playwright test timeout.
  */
 export async function waitForRouteReady(
   request: APIRequestContext,
@@ -135,23 +138,30 @@ export async function waitForRouteReady(
     timeoutMs?: number;
     intervalMs?: number;
     consecutive?: number;
+    perRequestTimeoutMs?: number;
   }
 ): Promise<void> {
   const timeoutMs = options?.timeoutMs ?? 10_000;
   const intervalMs = options?.intervalMs ?? 250;
   const consecutiveNeeded = options?.consecutive ?? 5;
+  const perRequestTimeoutMs = options?.perRequestTimeoutMs ?? 3_000;
   const url = `${KONG_PROXY_URL}${routePath}/headers`;
   const deadline = Date.now() + timeoutMs;
   let consecutive = 0;
 
   while (Date.now() < deadline) {
-    const res = await request.get(url);
-    if (res.status() !== 404) {
-      consecutive += 1;
-      if (consecutive >= consecutiveNeeded) {
-        return;
+    try {
+      const res = await request.get(url, { timeout: perRequestTimeoutMs });
+      if (res.status() !== 404) {
+        consecutive += 1;
+        if (consecutive >= consecutiveNeeded) {
+          return;
+        }
+      } else {
+        consecutive = 0;
       }
-    } else {
+    } catch {
+      // Timeout / connection error: treat as not ready and keep polling.
       consecutive = 0;
     }
     await new Promise((r) => setTimeout(r, intervalMs));
