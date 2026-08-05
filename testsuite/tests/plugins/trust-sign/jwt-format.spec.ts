@@ -75,12 +75,12 @@ test.describe("trust-sign — JWT token format and key resolution", () => {
   // [Verifies: trust-sign.jwt-token-format.header-alg-single-source-of-truth.rs512]
   // pending — APS-4798
   test("RS512 signatures verify with sha512", async ({ request }) => {
-    test.fail(true, "pending — APS-4798");
-
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
       config: baseConfig("RS512"),
     });
+
+    test.fail(true, "pending — APS-4798");
 
     const token = await fetchEmittedToken(request, routePath);
     const jwt = decodeJwt(token);
@@ -119,12 +119,12 @@ test.describe("trust-sign — JWT token format and key resolution", () => {
   test("ECDSA alg with an RSA key fails the exchange with a 5xx", async ({
     request,
   }) => {
-    test.fail(true, "pending — APS-4798");
-
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
       config: baseConfig("ES256"), // RSA key file + ECDSA alg
     });
+
+    test.fail(true, "pending — APS-4798");
 
     const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
     expect(res.status()).toBeGreaterThanOrEqual(500);
@@ -138,8 +138,6 @@ test.describe("trust-sign — JWT token format and key resolution", () => {
   test("RSA alg with an ECDSA key fails the exchange with a 5xx", async ({
     request,
   }) => {
-    test.fail(true, "pending — APS-4798");
-
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
       config: {
@@ -149,6 +147,8 @@ test.describe("trust-sign — JWT token format and key resolution", () => {
         direction: "request",
       },
     });
+
+    test.fail(true, "pending — APS-4798");
 
     const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
     expect(res.status()).toBeGreaterThanOrEqual(500);

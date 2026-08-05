@@ -107,12 +107,15 @@ Prefer one test per scenario. A test may cite multiple IDs only when it genuinel
 | `quirk` | Hard assert, identically to contract (the tag is spec-review metadata; you may echo the reason in a comment) |
 | `pending — <ticket>` | Assert the **desired** behavior; mark expected-failure; cite the ticket |
 
-**Playwright pending** — use `test.fail` so the test runs and must fail until the bug is fixed (an unexpected pass then fails CI, prompting removal of the annotation and the spec tag together):
+**Playwright pending** — use `test.fail` so the test runs and must fail until the bug is fixed (an unexpected pass then fails CI, prompting removal of the annotation and the spec tag together). Call `test.fail` only **after** provisioning and other preconditions succeed — otherwise a setup/fixture failure is counted as the expected pending failure and leaves CI green:
 
 ```ts
 // [Verifies: trust-sign.some.scenario]
 // pending — APS-XXXX
 test("…", async ({ request }) => {
+  const { routePath } = await provisionPluginRoute(/* … */);
+  // other preconditions that must succeed for real
+
   test.fail(true, "pending — APS-XXXX");
   // assertions for *desired* behavior
 });
