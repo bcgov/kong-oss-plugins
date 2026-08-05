@@ -41,9 +41,7 @@ function TrustVerifySignatureHandler:access(conf)
   local request = kong.service.request
 
   if conf.direction == "request" then
-    local headers = kong.request.get_headers()
-
-    local sig = headers[conf.signature_header_key]
+    local sig = kong.request.get_header(conf.signature_header_key)
     if not sig then
       return log.exit_with_reason(
         {plugin = PLUGIN_NAME, reason = "request is missing signature header '" .. conf.signature_header_key .. "'"},
@@ -75,9 +73,7 @@ function TrustVerifySignatureHandler:header_filter(conf)
 
   if conf.direction == "response" then
     kong.log.warn("X-Trust-Verify-Signature-Res")
-    local headers = kong.response.get_headers()
-
-    local sig = headers[conf.signature_header_key]
+    local sig = kong.response.get_header(conf.signature_header_key)
     if not sig then
       return log.exit_with_reason(
         {plugin = PLUGIN_NAME, reason = "upstream response is missing signature header '" .. conf.signature_header_key .. "'"},
