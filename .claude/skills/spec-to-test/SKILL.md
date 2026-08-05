@@ -145,7 +145,7 @@ end)
 
 The compose stack (`testsuite/docker-compose.yml`, project `e2e`) runs Kong in CP/DP mode with plugins **baked into the `kong:e2e` image** at build time:
 
-- **Admin API**: default `http://kong.localtest.me:8001` (control plane). Import `KONG_ADMIN_URL` from `testsuite/helpers/kong.ts`.
+- **Admin API**: default `http://kong.localtest.me:8001` on the host (published CP port). In-compose clients (Playwright, deck) use `http://kong-cp:8001` — `kong.localtest.me` is also aliased to the nginx proxy, which only listens on `:8000`. Import `KONG_ADMIN_URL` from `testsuite/helpers/kong.ts`.
 - **Proxy**: default `http://kong.localtest.me:8000` — nginx load balancer round-robining **3 Kong data-plane replicas**. Import `KONG_PROXY_URL` from the same module. Routes must set `hosts: ["kong.localtest.me"]`.
 - **Upstream echo**: [httpbun](https://github.com/sharat87/httpbun) at `upstream.localtest.me:80` inside the network. Point services at it via `upstreamServiceDefaults` from `testsuite/helpers/upstream.ts`. Useful endpoints: `/headers` (echoes request headers as JSON), `/anything` (echoes method/headers/body), `/status/{code}`, `/response-headers?Header=value` (pre-set response headers), `/bytes/{n}` (arbitrary body; `/bytes/0` or `/status/204` for empty), `/mix/…/b64=…`. Do not introduce a per-plugin upstream unless echo cannot express the behavior.
 - **CP→DP propagation**: entities created via the Admin API are not instantly routable, and each of the 3 DP replicas syncs independently. Never sleep blindly; call `waitForRouteReady` from `helpers/kong.ts` after provisioning.
