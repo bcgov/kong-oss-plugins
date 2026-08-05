@@ -120,17 +120,10 @@ test("…", async ({ request }) => {
 
 Never use `test.fixme` / `test.skip` / busted `pending()` for a `pending` tag — those skip execution and will not detect accidental fixes.
 
-**Busted pending** — prefer moving the scenario to Playwright if it is observable over HTTP. If it must stay in busted, create `plugins/_testlib/xfail.lua` (once, as part of the same change) with exactly this behavior, and set in the plugin's `.busted` config: `lpath = "./src/?.lua;./src/?/?.lua;./src/?/init.lua;../_testlib/?.lua"` (setting `lpath` replaces busted's defaults, so the `./src` patterns must be restated):
+**Busted pending** — prefer moving the scenario to Playwright if it is observable over HTTP. If it must stay in busted, use the shared helper at `plugins/_testlib/xfail.lua`. It treats only luassert assertion failures as the expected failure and re-raises module-load / runtime errors. Point the plugin's `.busted` `lpath` at `_testlib` (setting `lpath` replaces busted's defaults, so the `./src` patterns must be restated):
 
-```lua
--- plugins/_testlib/xfail.lua
--- Expected-failure helper for busted (no native xfail).
-return function(ticket, fn)
-  local ok = pcall(fn)
-  if ok then
-    error("XPASS: " .. ticket .. " — assertions now pass; remove xfail and drop the pending tag from the spec")
-  end
-end
+```
+lpath = "./src/?.lua;./src/?/?.lua;./src/?/init.lua;../_testlib/?.lua"
 ```
 
 ```lua
