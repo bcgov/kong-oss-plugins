@@ -14,9 +14,9 @@ source = {
 }
 
 description = {
-  summary = "Kong Gateway plugin used to verify a Signature using Signature Inputs",
+  summary = "Kong Gateway plugin that verifies a signed JWT manifest header via JWKS",
   detailed = [[
-      kong-plugin-trust-verify-signature is an Open Source plugin which verifies a Signature
+      kong-plugin-trust-verify-signature verifies the signed JWT manifest produced by trust-sign
   ]],
   homepage = "https://github.com/bcgov/kong-oss-plugins/plugins/trust-verify-signature",
   license = "Apache 2.0",
@@ -30,7 +30,6 @@ build = {
   modules = {
     ["kong.plugins."..plugin_name..".handler"] = "src/handler.lua",
     ["kong.plugins."..plugin_name..".jwks"] = "src/jwks.lua",
-    ["kong.plugins."..plugin_name..".key_conversion"] = "src/key_conversion.lua",
     ["kong.plugins."..plugin_name..".schema"] = "src/schema.lua",
     ["kong.plugins."..plugin_name..".signature"] = "src/signature.lua",
   }

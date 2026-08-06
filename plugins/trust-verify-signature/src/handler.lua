@@ -1,8 +1,5 @@
-local json = require("cjson")
-local https = require("ssl.https")
 local jwt_decoder = require "kong.plugins.jwt.jwt_parser"
 local signature = require("kong.plugins.trust-verify-signature.signature")
-local btoa = ngx.encode_base64
 local kong_meta = require "kong.meta"
 local log = require("kong.plugins.plugin-log.log")
 local kong = kong
@@ -67,10 +64,6 @@ function TrustVerifySignatureHandler:access(conf)
 end
 
 function TrustVerifySignatureHandler:header_filter(conf)
-  -- if kong.response.status ~= 200 then
-  --   return
-  -- end
-
   if conf.direction == "response" then
     kong.log.warn("X-Trust-Verify-Signature-Res")
     local sig = kong.response.get_header(conf.signature_header_key)

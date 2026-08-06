@@ -3,7 +3,6 @@ local http = require "socket.http"
 local https = require "ssl.https"
 local ltn12 = require "ltn12"
 local cjson_safe = require "cjson.safe"
-local convert = require "kong.plugins.trust-verify-signature.key_conversion"
 
 local function get_request(req_url, scheme, port)
     local req
