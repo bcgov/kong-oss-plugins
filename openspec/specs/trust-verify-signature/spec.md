@@ -132,42 +132,41 @@ The plugin SHALL resolve verification keys from the JWKS endpoint named by the t
 
 **ID**: `trust-verify-signature.content-digest-check`
 
-When `config.manifest_type` is `content-digest` and `config.direction` is `request`, the plugin SHALL require the token payload to contain a `cd` claim before signature verification is attempted, and reject the exchange when it is absent. When the claim is present, the plugin SHALL compare it to the inbound request's `Content-Digest` header and reject when they differ (including when the header is absent). The check SHALL NOT apply when `direction` is `response` (the producer binds the request digest into request tokens; response tokens echo that claim and do not bind the response `Content-Digest`). When `manifest_type` is `signature-only` or unset, the plugin SHALL perform no manifest-content checks.
+When `config.manifest_type` is `content-digest` and `config.direction` is `request`, the plugin SHALL require the token payload to contain a `digest` claim before signature verification is attempted, and reject the exchange when it is absent. When the claim is present, the plugin SHALL compare it to the inbound request's `Content-Digest` header and reject when they differ (including when the header is absent). The check SHALL NOT apply when `direction` is `response` (the producer binds the request digest into request tokens; response tokens echo that claim and do not bind the response `Content-Digest`). When `manifest_type` is `signature-only` or unset, the plugin SHALL perform no manifest-content checks.
 
 #### Scenario: signature-only and unset add no manifest checks
 
 **ID**: `trust-verify-signature.content-digest-check.signature-only-or-unset-no-checks`
 
-- **WHEN** `manifest_type` is `signature-only` or unset and an otherwise-valid token is presented without any `cd` claim
+- **WHEN** `manifest_type` is `signature-only` or unset and an otherwise-valid token is presented without any `digest` claim
 - **THEN** verification proceeds and succeeds per the key-discovery requirement
 
 #### Scenario: Response direction skips content-digest checks
 
 **ID**: `trust-verify-signature.content-digest-check.response-direction-skips-checks`
 
-- **WHEN** `direction` is `response`, `manifest_type` is `content-digest`, and an otherwise-valid token is presented without a `cd` claim (and regardless of any response `Content-Digest` header)
+- **WHEN** `direction` is `response`, `manifest_type` is `content-digest`, and an otherwise-valid token is presented without a `digest` claim (and regardless of any response `Content-Digest` header)
 - **THEN** no content-digest check is performed; verification proceeds and succeeds per the key-discovery requirement
 
-#### Scenario: Missing cd claim is rejected in content-digest mode
+#### Scenario: Missing digest claim is rejected in content-digest mode
 
-**ID**: `trust-verify-signature.content-digest-check.missing-cd-claim-401`
+**ID**: `trust-verify-signature.content-digest-check.missing-digest-claim-401`
 
-- **TAG**: quirk — the producer contract (trust-sign) defines a `digest` claim, not `cd`, so every token produced per that contract is rejected in this mode
-- **WHEN** `direction` is `request`, `manifest_type` is `content-digest`, and the presented token parses but has no `cd` payload claim (regardless of signature validity)
-- **THEN** the client receives status 401 with `message` = `Signature missing content digest manifest (cd)`, before any key discovery occurs
+- **WHEN** `direction` is `request`, `manifest_type` is `content-digest`, and the presented token parses but has no `digest` payload claim (regardless of signature validity)
+- **THEN** the client receives status 401 with `message` = `Signature missing content digest manifest (digest)`, before any key discovery occurs
 
 #### Scenario: Matching Content-Digest is accepted
 
 **ID**: `trust-verify-signature.content-digest-check.matching-content-digest-accepted`
 
-- **WHEN** `direction` is `request`, `manifest_type` is `content-digest`, the token has a `cd` claim, and the inbound request's `Content-Digest` header equals that claim
+- **WHEN** `direction` is `request`, `manifest_type` is `content-digest`, the token has a `digest` claim, and the inbound request's `Content-Digest` header equals that claim
 - **THEN** the content-digest check passes and verification continues to key discovery
 
 #### Scenario: Mismatched or missing Content-Digest is rejected
 
 **ID**: `trust-verify-signature.content-digest-check.mismatched-content-digest-401`
 
-- **WHEN** `direction` is `request`, `manifest_type` is `content-digest`, the token has a `cd` claim, and the inbound request's `Content-Digest` header is absent or differs from that claim
+- **WHEN** `direction` is `request`, `manifest_type` is `content-digest`, the token has a `digest` claim, and the inbound request's `Content-Digest` header is absent or differs from that claim
 - **THEN** the client receives status 401 with `message` = `Content-Digest header does not match signature manifest`, before any key discovery occurs
 
 ### Requirement: Configuration schema
@@ -210,9 +209,8 @@ following subset of that contract:
 
 - **Manifest token**: a JWS compact JWT carried in the header named by `signature_header_key` (default `X-Edge-Token`, matching the producer).
 - **Token header fields consumed**: `kid` (selects the verification key from the JWKS) and `alg` (names the verification algorithm).
-- **Token payload claims consumed**: `jwks_uri` only (key discovery). The producer's `request_id`, `client_id`, `service_id`, `digest`, `jti`, and `iat` claims are ignored by this plugin.
+- **Token payload claims consumed**: `jwks_uri` (key discovery); `digest` when `manifest_type` is `content-digest` and `direction` is `request` (compared to the request `Content-Digest` header). The producer's `request_id`, `client_id`, `service_id`, `jti`, and `iat` claims are ignored by this plugin.
 - The producer contract marks `jwks_uri` as optional (omitted when the producer has no `jwks_uri` configured); this plugin rejects such tokens with 401 per the key-discovery requirement, so producers feeding this verifier must configure `jwks_uri`.
-- **Contract mismatch**: this plugin's `content-digest` mode (request direction only) expects a `cd` payload claim, which the producer contract does not define (the producer emits `digest`). See the quirk-tagged scenarios under the content-digest manifest check requirement.
 - **JWKS document** (not part of the producer spec; consumed from the endpoint named by `jwks_uri`): HTTP 200, JSON object with a `keys` array of JWK objects each carrying a `kid` and public key material for the token's `alg`.
 
 ## Out of scope

@@ -16,7 +16,7 @@
 | Token header `kid` | input | Requirement: Issuer key discovery (key selection; `unknown-kid-401`) |
 | Token header `alg` | input | Requirement: Issuer key discovery (verification algorithm); unsupported values fail parse under `request-verification.unparseable-token-401` |
 | Token payload claim `jwks_uri` | input | Requirement: Issuer key discovery (`jwks-uri-claim-trusted`); quirk `keys-shared-across-issuers` |
-| Token payload claim `cd` | input | Requirement: Content-digest manifest check; quirk `missing-cd-claim-401` (producer emits `digest`) |
+| Token payload claim `digest` | input | Requirement: Content-digest manifest check (`missing-digest-claim-401`, `matching-content-digest-accepted`, `mismatched-content-digest-401`); request direction only |
 | JWKS endpoint response (status, JSON shape, JWK entries) | input | Requirement: Issuer key discovery (`jwks-fetch-failure-403`, `malformed-jwk-401`, `signature-mismatch-401`) |
 | Upstream response status (any code, incl. Kong-generated) | input | Requirement: Response signature verification (prose: verified regardless of status); commented-out 200-only gate → Out of scope |
 | `X-Trust-Verify-Signature-Req` request header (`OK`) | output | Requirement: Request signature verification |

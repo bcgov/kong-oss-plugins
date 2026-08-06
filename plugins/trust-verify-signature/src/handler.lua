@@ -25,11 +25,11 @@ local function verify_jwt_signature(conf, token)
     -- no additional checks
   elseif conf.manifest_type == "content-digest" and conf.direction == "request" then
     local payload = jwt.claims
-    if not payload or not payload["cd"] then
-      return false, {status = 401, message = "Signature missing content digest manifest (cd)"}
+    if not payload or not payload["digest"] then
+      return false, {status = 401, message = "Signature missing content digest manifest (digest)"}
     end
 
-    if kong.request.get_header("Content-Digest") ~= payload["cd"] then
+    if kong.request.get_header("Content-Digest") ~= payload["digest"] then
       return false, {status = 401, message = "Content-Digest header does not match signature manifest"}
     end
   end
