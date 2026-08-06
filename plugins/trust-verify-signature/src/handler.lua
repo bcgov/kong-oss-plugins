@@ -30,7 +30,7 @@ local function verify_jwt_signature(conf, token)
     end
 
     if kong.request.get_header("Content-Digest") ~= payload["digest"] then
-      return false, {status = 401, message = "Content-Digest header does not match signature manifest"}
+      return false, {status = 400, message = "Content-Digest header does not match signature manifest"}
     end
   end
 

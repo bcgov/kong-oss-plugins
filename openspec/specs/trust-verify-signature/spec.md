@@ -163,10 +163,10 @@ When `config.manifest_type` is `content-digest` and `config.direction` is `reque
 
 #### Scenario: Mismatched or missing Content-Digest is rejected
 
-**ID**: `trust-verify-signature.content-digest-check.mismatched-content-digest-401`
+**ID**: `trust-verify-signature.content-digest-check.mismatched-content-digest-400`
 
 - **WHEN** `direction` is `request`, `manifest_type` is `content-digest`, the token has a `digest` claim, and the inbound request's `Content-Digest` header is absent or differs from that claim
-- **THEN** the client receives status 401 with `message` = `Content-Digest header does not match signature manifest`, before any key discovery occurs
+- **THEN** the client receives status 400 with `message` = `Content-Digest header does not match signature manifest`, before any key discovery occurs
 
 ### Requirement: Configuration schema
 
