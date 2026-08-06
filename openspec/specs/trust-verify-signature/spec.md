@@ -87,10 +87,10 @@ The plugin SHALL resolve verification keys from the JWKS endpoint named by the t
 
 #### Scenario: Unusable JWKS endpoint is rejected
 
-**ID**: `trust-verify-signature.key-discovery.jwks-fetch-failure-403`
+**ID**: `trust-verify-signature.key-discovery.jwks-fetch-failure-401`
 
 - **WHEN** the endpoint named by `jwks_uri` is unreachable, responds with a non-200 status, or returns a body that is not JSON with a `keys` array
-- **THEN** the client receives status 403 with `message` = `Unable to get public keys`
+- **THEN** the client receives status 401 with `message` = `Unable to get public keys`
 
 #### Scenario: Unknown kid is rejected
 

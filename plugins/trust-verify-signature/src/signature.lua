@@ -31,7 +31,7 @@ local function verify_jwt_signature(conf, jwt, second_call)
     if err then
       kong.log.err(err)
     end
-    return false, {status = 403, message = "Unable to get public keys"}
+    return false, {status = 401, message = "Unable to get public keys"}
   end
 
   local matching_jwk = public_keys.keys[jwt.header.kid]

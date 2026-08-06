@@ -17,12 +17,12 @@
 | Token header `alg` | input | Requirement: Issuer key discovery (verification algorithm); unsupported values fail parse under `request-verification.unparseable-token-401` |
 | Token payload claim `jwks_uri` | input | Requirement: Issuer key discovery (`jwks-uri-claim-trusted`, `jwks-cache-keyed-by-uri`) |
 | Token payload claim `digest` | input | Requirement: Content-digest manifest check (`missing-digest-claim-401`, `matching-content-digest-accepted`, `mismatched-content-digest-400`); request direction only |
-| JWKS endpoint response (status, JSON shape, JWK entries) | input | Requirement: Issuer key discovery (`jwks-fetch-failure-403`, `malformed-jwk-401`, `signature-mismatch-401`) |
+| JWKS endpoint response (status, JSON shape, JWK entries) | input | Requirement: Issuer key discovery (`jwks-fetch-failure-401`, `malformed-jwk-401`, `signature-mismatch-401`) |
 | Upstream response status (any code, incl. Kong-generated) | input | Requirement: Response signature verification (prose: verified regardless of status); commented-out 200-only gate → Out of scope |
 | `X-Trust-Verify-Signature-Req` request header (`OK`) | output | Requirement: Request signature verification |
 | `X-Trust-Verify-Signature-Res` response header (`OK`) | output | Requirement: Response signature verification |
 | Signature header pass-through on success | output | Requirements: Request/Response signature verification (THEN clauses) |
-| 400/401/403 early exits with JSON `message` body | output | Requirements: Request/Response verification, Issuer key discovery, Content-digest manifest check |
+| 400/401 early exits with JSON `message` body | output | Requirements: Request/Response verification, Issuer key discovery, Content-digest manifest check |
 | `key_conversion` module (JWK n/e → PEM) | dead code | Out of scope |
 | Grace-period key refresh block in `signature.lua` | dead code | Out of scope |
 | Commented-out non-200 response skip in `header_filter` | dead code | Out of scope |
