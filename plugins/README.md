@@ -18,4 +18,4 @@
 | trust-timestamp        | Calls a Timestamping Authority using the RFC-3161 Time-Stamp Protocol             |
 | trust-ledger           | Log RFC-3161 message to an Immutable Ledger                                       |
 | trust-verify-digest    | Verify that the content-digest matches the payload body                           |
-| trust-verify-signature | Verify that the signature matches using RFC-9421 HTTP Message Signatures          |
+| trust-verify-signature | Verifies the signed JWT manifest header produced by trust-sign                    |
