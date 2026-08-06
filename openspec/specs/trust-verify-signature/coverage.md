@@ -15,7 +15,7 @@
 | Response `Content-Digest` header | input | Not consumed — content-digest checks are request-only (`response-direction-skips-checks`) |
 | Token header `kid` | input | Requirement: Issuer key discovery (key selection; `unknown-kid-401`) |
 | Token header `alg` | input | Requirement: Issuer key discovery (verification algorithm); unsupported values fail parse under `request-verification.unparseable-token-401` |
-| Token payload claim `jwks_uri` | input | Requirement: Issuer key discovery (`jwks-uri-claim-trusted`); quirk `keys-shared-across-issuers` |
+| Token payload claim `jwks_uri` | input | Requirement: Issuer key discovery (`jwks-uri-claim-trusted`, `jwks-cache-keyed-by-uri`) |
 | Token payload claim `digest` | input | Requirement: Content-digest manifest check (`missing-digest-claim-401`, `matching-content-digest-accepted`, `mismatched-content-digest-401`); request direction only |
 | JWKS endpoint response (status, JSON shape, JWK entries) | input | Requirement: Issuer key discovery (`jwks-fetch-failure-403`, `malformed-jwk-401`, `signature-mismatch-401`) |
 | Upstream response status (any code, incl. Kong-generated) | input | Requirement: Response signature verification (prose: verified regardless of status); commented-out 200-only gate → Out of scope |

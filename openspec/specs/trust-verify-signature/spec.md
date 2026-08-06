@@ -76,7 +76,7 @@ With `direction = response`, the plugin SHALL read the upstream response header 
 
 **ID**: `trust-verify-signature.key-discovery`
 
-The plugin SHALL resolve verification keys from the JWKS endpoint named by the token's own `jwks_uri` payload claim. The endpoint must respond with HTTP 200 and a JSON object containing a `keys` array of JWK objects; the verification key is the entry whose `kid` equals the token header's `kid`. The signature SHALL be verified against that JWK using the algorithm named in the token header's `alg`. Failures reject the exchange with the statuses and `message` values below (in the request direction as a request rejection, in the response direction by replacing the response).
+The plugin SHALL resolve verification keys from the JWKS endpoint named by the token's own `jwks_uri` payload claim. The endpoint must respond with HTTP 200 and a JSON object containing a `keys` array of JWK objects; the verification key is the entry whose `kid` equals the token header's `kid`. The signature SHALL be verified against that JWK using the algorithm named in the token header's `alg`. Fetched JWKS documents SHALL be cached keyed by `jwks_uri` so distinct issuers do not share a keyset. Failures reject the exchange with the statuses and `message` values below (in the request direction as a request rejection, in the response direction by replacing the response).
 
 #### Scenario: Missing jwks_uri claim is rejected
 
@@ -120,13 +120,12 @@ The plugin SHALL resolve verification keys from the JWKS endpoint named by the t
 - **WHEN** a token's `jwks_uri` claim points to an endpoint serving the public key that matches the token's `kid` and signature (and that endpoint is not configured on this plugin instance)
 - **THEN** verification succeeds and the exchange is marked verified
 
-#### Scenario: Fetched keys are shared across issuers
+#### Scenario: JWKS cache entries are keyed by jwks_uri
 
-**ID**: `trust-verify-signature.key-discovery.keys-shared-across-issuers`
+**ID**: `trust-verify-signature.key-discovery.jwks-cache-keyed-by-uri`
 
-- **TAG**: quirk — fetched keys are cached under a single key regardless of which jwks_uri they came from, so distinct issuers briefly share a keyset
 - **WHEN** a request bearing a token with `jwks_uri` A is verified, and immediately afterwards a second request arrives bearing a token whose `jwks_uri` B serves a matching key for its `kid`, where that `kid` is absent from A's keyset
-- **THEN** the second request is rejected with status 401 and `message` = `Signature public key not found`, because it is checked against A's keys
+- **THEN** the second request is verified against B's keyset and succeeds
 
 ### Requirement: Content-digest manifest check
 
