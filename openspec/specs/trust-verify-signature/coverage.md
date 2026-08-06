@@ -6,6 +6,7 @@
 |---|---|---|
 | `config.direction` | config | Requirement: Direction gating |
 | `config.signature_header_key` | config | Requirements: Request/Response signature verification; Configuration schema (`signature-header-key-defaults-to-x-edge-token`) |
+| `config.allowed_jwks_uri_prefix` | config | Requirement: Issuer key discovery (`jwks-uri-not-allowed-401`, `allowed-jwks-uri-used`); Configuration schema (`allowed-jwks-uri-prefix-required`) |
 | `config.manifest_type` | config | Requirement: Content-digest manifest check |
 | `config.iss_key_grace_period` | config | Requirement: Configuration schema (accepted, no effect); Out of scope (unreachable refresh code) |
 | `protocols` restriction (HTTP/HTTPS typedef) | config | Requirement: Configuration schema (prose) |
@@ -15,7 +16,7 @@
 | Response `Content-Digest` header | input | Not consumed — content-digest checks are request-only (`response-direction-skips-checks`) |
 | Token header `kid` | input | Requirement: Issuer key discovery (key selection; `unknown-kid-401`) |
 | Token header `alg` | input | Requirement: Issuer key discovery (verification algorithm); unsupported values fail parse under `request-verification.unparseable-token-401` |
-| Token payload claim `jwks_uri` | input | Requirement: Issuer key discovery (`jwks-uri-claim-trusted`, `jwks-cache-keyed-by-uri`) |
+| Token payload claim `jwks_uri` | input | Requirement: Issuer key discovery (`allowed-jwks-uri-used`, `jwks-uri-not-allowed-401`, `jwks-cache-keyed-by-uri`) |
 | Token payload claim `digest` | input | Requirement: Content-digest manifest check (`missing-digest-claim-401`, `matching-content-digest-accepted`, `mismatched-content-digest-400`); request direction only |
 | JWKS endpoint response (status, JSON shape, JWK entries) | input | Requirement: Issuer key discovery (`jwks-fetch-failure-401`, `malformed-jwk-401`, `signature-mismatch-401`) |
 | Upstream response status (any code, incl. Kong-generated) | input | Requirement: Response signature verification (prose: verified regardless of status); commented-out 200-only gate → Out of scope |

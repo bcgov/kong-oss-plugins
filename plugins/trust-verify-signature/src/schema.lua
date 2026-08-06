@@ -16,6 +16,13 @@ return {
             }
           },
           {
+            allowed_jwks_uri_prefix = {
+              type = "set",
+              elements = {type = "string"},
+              required = true
+            }
+          },
+          {
             direction = {
               type = "string",
               one_of = {

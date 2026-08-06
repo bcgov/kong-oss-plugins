@@ -15,11 +15,40 @@ local function cache_helper_issuer_get_keys(well_known_endpoint)
   }
 end
 
+-- True when jwks_uri equals a configured prefix or continues past it at a "/"
+-- boundary (so "https://host" does not match "https://host.evil.com").
+local function jwks_uri_allowed(allowed_prefixes, jwks_uri)
+  if type(allowed_prefixes) ~= "table" then
+    return false
+  end
+
+  for _, prefix in pairs(allowed_prefixes) do
+    if type(prefix) == "string" and #prefix > 0 then
+      if jwks_uri == prefix then
+        return true
+      end
+      if string.sub(jwks_uri, 1, #prefix) == prefix then
+        local next_char = string.sub(jwks_uri, #prefix + 1, #prefix + 1)
+        if string.sub(prefix, -1) == "/" or next_char == "/" then
+          return true
+        end
+      end
+    end
+  end
+
+  return false
+end
+
 local function verify_jwt_signature(conf, jwt, second_call)
   local jwks_endpoint = jwt.claims.jwks_uri
   if not jwks_endpoint then
     kong.log.warn("JWT token missing 'jwks_uri' claim")
     return false, {status = 401, message = "Signature missing 'jwks_uri' claim"}
+  end
+
+  if not jwks_uri_allowed(conf.allowed_jwks_uri_prefix, jwks_endpoint) then
+    kong.log.warn("JWT jwks_uri not in allowed_jwks_uri_prefix: ", jwks_endpoint)
+    return false, {status = 401, message = "JWKS URI not allowed"}
   end
 
   local jwks_cache_key = "trust_verify_signature_keys:" .. jwks_endpoint
