@@ -112,7 +112,7 @@ With `direction = request`, the plugin SHALL set the request header named by `co
 
 **ID**: `trust-sign.jwt-token-format`
 
-Every manifest token the plugin emits SHALL be a JWS compact serialization (three base64url-encoded segments): a JSON header containing `alg` (from required `config.alg`) and `kid` (from `config.keyid`); a JSON payload containing the manifest claims plus `jti` (a fresh UUID per token) and `iat` (issue time, Unix seconds); and a signature over `<header>.<payload>` produced with the resolved private key using the digest derived from `config.alg` (`RS256`/`ES256` → sha256, `RS512`/`ES512` → sha512; ECDSA signatures use raw r||s form). `config.hash_alg`, if present, SHALL be ignored.
+Every manifest token the plugin emits SHALL be a JWS compact serialization (three base64url-encoded segments): a JSON header containing `alg` (from required `config.alg`) and `kid` (from `config.keyid`); a JSON payload containing the manifest claims plus `jti` (a fresh UUID per token) and `iat` (issue time, Unix seconds); and a signature over `<header>.<payload>` produced with the resolved private key using the digest derived from `config.alg` (`RS256`/`ES256` → sha256, `RS512`/`ES512` → sha512; for `ES256`/`ES512`, the signature is the JWA raw concatenation of `r` and `s`, not ASN.1/DER). `config.hash_alg`, if present, SHALL be ignored.
 
 #### Scenario: Token structure
 
