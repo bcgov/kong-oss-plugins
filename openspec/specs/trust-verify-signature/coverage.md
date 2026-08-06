@@ -8,7 +8,7 @@
 | `config.signature_header_key` | config | Requirements: Request/Response signature verification; Configuration schema (`signature-header-key-defaults-to-x-edge-token`) |
 | `config.allowed_jwks_uri_prefix` | config | Requirement: Issuer key discovery (`jwks-uri-not-allowed-401`, `allowed-jwks-uri-used`); Configuration schema (`allowed-jwks-uri-prefix-required`) |
 | `config.manifest_type` | config | Requirement: Content-digest manifest check |
-| `config.iss_key_grace_period` | config | Requirement: Configuration schema (accepted, no effect); Out of scope (unreachable refresh code) |
+| `config.iss_key_grace_period` | config | Requirement: Issuer key discovery (`missing-kid-refreshes-after-grace`, `missing-kid-no-refresh-within-grace`) |
 | `protocols` restriction (HTTP/HTTPS typedef) | config | Requirement: Configuration schema (prose) |
 | Request header `<signature_header_key>` | input | Requirement: Request signature verification |
 | Response header `<signature_header_key>` | input | Requirement: Response signature verification |
@@ -25,6 +25,5 @@
 | Signature header pass-through on success | output | Requirements: Request/Response signature verification (THEN clauses) |
 | 400/401 early exits with JSON `message` body | output | Requirements: Request/Response verification, Issuer key discovery, Content-digest manifest check |
 | `key_conversion` module (JWK n/e → PEM) | dead code | Out of scope |
-| Grace-period key refresh block in `signature.lua` | dead code | Out of scope |
 | Commented-out non-200 response skip in `header_filter` | dead code | Out of scope |
 | README description (RFC-9421 HTTP Message Signatures) | doc mismatch | Out of scope |

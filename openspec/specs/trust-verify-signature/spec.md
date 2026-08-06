@@ -76,7 +76,7 @@ With `direction = response`, the plugin SHALL read the upstream response header 
 
 **ID**: `trust-verify-signature.key-discovery`
 
-The plugin SHALL resolve verification keys from the JWKS endpoint named by the token's own `jwks_uri` payload claim, but only when that URI is allowed by `config.allowed_jwks_uri_prefix`. A URI is allowed when it equals a configured prefix or continues past it at a `/` boundary (so a prefix of `https://jwks.example.com` allows `https://jwks.example.com/keys.json` but not `https://jwks.example.com.evil/keys.json`). The allowlist check SHALL run before any outbound JWKS fetch. The endpoint must respond with HTTP 200 and a JSON object containing a `keys` array of JWK objects; the verification key is the entry whose `kid` equals the token header's `kid`. The signature SHALL be verified against that JWK using the algorithm named in the token header's `alg`. Fetched JWKS documents SHALL be cached keyed by `jwks_uri` so distinct issuers do not share a keyset. Failures reject the exchange with the statuses and `message` values below (in the request direction as a request rejection, in the response direction by replacing the response).
+The plugin SHALL resolve verification keys from the JWKS endpoint named by the token's own `jwks_uri` payload claim, but only when that URI is allowed by `config.allowed_jwks_uri_prefix`. A URI is allowed when it equals a configured prefix or continues past it at a `/` boundary (so a prefix of `https://jwks.example.com` allows `https://jwks.example.com/keys.json` but not `https://jwks.example.com.evil/keys.json`). The allowlist check SHALL run before any outbound JWKS fetch. The endpoint must respond with HTTP 200 and a JSON object containing a `keys` array of JWK objects; the verification key is the entry whose `kid` equals the token header's `kid`. The signature SHALL be verified against that JWK using the algorithm named in the token header's `alg`. Fetched JWKS documents SHALL be cached keyed by `jwks_uri` with no TTL. When the cached keyset has no entry for the token's `kid` and the cache entry is older than `config.iss_key_grace_period` seconds, the plugin SHALL invalidate that cache entry, fetch the JWKS once more, and retry verification; if the `kid` is still absent (or the cache is younger than the grace period), the exchange is rejected. Failures reject the exchange with the statuses and `message` values below (in the request direction as a request rejection, in the response direction by replacing the response).
 
 #### Scenario: Missing jwks_uri claim is rejected
 
@@ -103,8 +103,22 @@ The plugin SHALL resolve verification keys from the JWKS endpoint named by the t
 
 **ID**: `trust-verify-signature.key-discovery.unknown-kid-401`
 
-- **WHEN** the JWKS response contains no key whose `kid` equals the token header's `kid`
+- **WHEN** the (possibly refreshed) JWKS keyset contains no key whose `kid` equals the token header's `kid`
 - **THEN** the client receives status 401 with `message` = `Signature public key not found`
+
+#### Scenario: Missing kid refreshes keyset after grace period
+
+**ID**: `trust-verify-signature.key-discovery.missing-kid-refreshes-after-grace`
+
+- **WHEN** a cached JWKS for an allowed `jwks_uri` was fetched more than `config.iss_key_grace_period` seconds ago, the token's `kid` is absent from that cache, and a fresh fetch of the same `jwks_uri` returns a keyset that includes that `kid` and verifies the signature
+- **THEN** the plugin invalidates the cache, refetches once, and verification succeeds
+
+#### Scenario: Missing kid does not refresh within grace period
+
+**ID**: `trust-verify-signature.key-discovery.missing-kid-no-refresh-within-grace`
+
+- **WHEN** a cached JWKS for an allowed `jwks_uri` was fetched within `config.iss_key_grace_period` seconds, and the token's `kid` is absent from that cache (even if the live JWKS endpoint would now serve that `kid`)
+- **THEN** the client receives status 401 with `message` = `Signature public key not found`, and no JWKS refetch is performed
 
 #### Scenario: Malformed JWK is rejected
 
@@ -185,7 +199,7 @@ The plugin SHALL only apply to HTTP(S) traffic and SHALL enforce its config sche
 - `allowed_jwks_uri_prefix` (set of strings, required): URI prefixes that a token's `jwks_uri` must equal or continue past at a `/` boundary before any JWKS fetch; typically a scheme+host and optional path segment provisioned per gateway pattern
 - `direction` (string, optional, one of `request`/`response`)
 - `manifest_type` (string, optional, one of `signature-only`/`content-digest`)
-- `iss_key_grace_period` (number, optional, default `300`): accepted by the schema but has no observable effect (see Out of scope)
+- `iss_key_grace_period` (number, optional, default `300`): minimum age in seconds of a cached JWKS before a missing-`kid` miss triggers one refetch
 
 #### Scenario: Canonical valid config accepted
 
@@ -229,7 +243,6 @@ following subset of that contract:
 
 ## Out of scope
 
-- Issuer key refresh via `config.iss_key_grace_period`: the retry/refresh code is unreachable (every branch before it returns), so the field has no observable effect.
 - JWK n/e-to-PEM conversion module (`key_conversion`): loaded but never invoked.
 - Commented-out gate that would skip response verification for non-200 upstream statuses.
 - RFC 9421 HTTP Message Signatures: the plugin catalogue describes this plugin as RFC-9421 verification, but the implementation verifies a JWT manifest header instead.

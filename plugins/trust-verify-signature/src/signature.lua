@@ -1,5 +1,6 @@
 local jwks = require("kong.plugins.trust-verify-signature.jwks")
 local cjson = require("cjson.safe")
+local socket = require "socket"
 
 local function cache_helper_issuer_get_keys(well_known_endpoint)
   kong.log.debug("Getting public keys from token issuer")
@@ -53,8 +54,9 @@ local function verify_jwt_signature(conf, jwt, second_call)
 
   local jwks_cache_key = "trust_verify_signature_keys:" .. jwks_endpoint
 
+  -- No TTL: keys stay until miss-driven refresh via iss_key_grace_period
   local public_keys,
-    err = kong.cache:get(jwks_cache_key, {ttl = 15}, cache_helper_issuer_get_keys, jwks_endpoint)
+    err = kong.cache:get(jwks_cache_key, nil, cache_helper_issuer_get_keys, jwks_endpoint)
 
   if not public_keys then
     if err then
@@ -87,23 +89,25 @@ local function verify_jwt_signature(conf, jwt, second_call)
     end
 
     return true
-  else
-    kong.log.warn("No matching JWK found for key ID: ", jwt.header.kid)
-    return false, {status = 401, message = "Signature public key not found"}
   end
 
-  -- -- We could not validate signature, try to get a new keyset?
+  -- kid missing — possible key rotation. Refetch once if the cached keyset is
+  -- older than iss_key_grace_period
   local since_last_update = socket.gettime() - public_keys.updated_at
   if not second_call and since_last_update > conf.iss_key_grace_period then
-    kong.log.debug("Could not validate signature. Keys updated last " .. since_last_update .. " seconds ago")
-    -- can it be that the signature key of the issuer has changed ... ?
-    -- invalidate the old keys in kong cache and do a current lookup to the signature keys
-    -- of the token issuer
+    kong.log.debug(
+      "No matching JWK for key ID: ",
+      jwt.header.kid,
+      ". Keys updated last ",
+      since_last_update,
+      " seconds ago; refreshing keyset"
+    )
     kong.cache:invalidate_local(jwks_cache_key)
     return verify_jwt_signature(conf, jwt, true)
   end
 
-  return false, {status = 401, message = "Invalid trust signature"}
+  kong.log.warn("No matching JWK found for key ID: ", jwt.header.kid)
+  return false, {status = 401, message = "Signature public key not found"}
 end
 
 return {
