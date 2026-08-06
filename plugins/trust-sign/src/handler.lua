@@ -19,8 +19,8 @@ local function get_ids_from_service()
   local svc = kong.router.get_service()
   -- split svc tags by ":" and find the tags for client and service
   local svc_tags = svc and svc.tags or {}
-  local client_tag = ""
-  local service_tag = ""
+  local client_tag
+  local service_tag
   for _, tag in ipairs(svc_tags) do
     local key,
       value = tag:match("^(.-):(.-)$")

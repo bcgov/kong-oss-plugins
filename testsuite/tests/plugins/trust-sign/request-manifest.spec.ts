@@ -66,8 +66,8 @@ test.describe("trust-sign — request manifest signing", () => {
     expect(payload.request_id).toBe(kongRequestId);
   });
 
-  // [Verifies: trust-sign.request-manifest-signing.missing-service-tags-empty-identity]
-  test("yields empty identity claims when the service has no tags", async ({
+  // [Verifies: trust-sign.request-manifest-signing.missing-service-tags-omit-identity]
+  test("omits identity claims when the service has no tags", async ({
     request,
   }) => {
     const { routePath } = await provisionPluginRoute(request, {
@@ -84,8 +84,8 @@ test.describe("trust-sign — request manifest signing", () => {
     expect(token).toBeTruthy();
 
     const { payload } = decodeJwt(token!);
-    expect(payload.client_id).toBe("");
-    expect(payload.service_id).toBe("");
+    expect(payload).not.toHaveProperty("client_id");
+    expect(payload).not.toHaveProperty("service_id");
   });
 
   // [Verifies: trust-sign.request-manifest-signing.jwks-uri-unset-omits-claim]

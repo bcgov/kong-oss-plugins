@@ -78,7 +78,7 @@ With `direction = request`, when the incoming request has no `Content-Digest` he
 
 **ID**: `trust-sign.request-manifest-signing`
 
-With `direction = request`, the plugin SHALL set the request header named by `config.signature_header_key` to a signed JWT whose payload contains the claims `request_id` (the Kong request ID), `client_id` and `service_id` (from service tags), `digest` (the `Content-Digest` value, when available), and `jwks_uri` (from `config.jwks_uri`), plus the standard claims defined in the JWT token format requirement.
+With `direction = request`, the plugin SHALL set the request header named by `config.signature_header_key` to a signed JWT whose payload contains the claims `request_id` (the Kong request ID), `client_id` and `service_id` when present on the service as `client:` / `service:` tags (omitted when absent), `digest` (the `Content-Digest` value, when available), and `jwks_uri` (from `config.jwks_uri`), plus the standard claims defined in the JWT token format requirement.
 
 #### Scenario: Standard request signing
 
@@ -87,12 +87,12 @@ With `direction = request`, the plugin SHALL set the request header named by `co
 - **WHEN** `direction` is `request` and a request is proxied to a service tagged `client:c1` and `service:s1`
 - **THEN** the upstream request carries the configured signature header containing a JWT with claims `request_id` = the Kong request ID, `client_id` = `"c1"`, `service_id` = `"s1"`, `digest` = the `Content-Digest` value, and `jwks_uri` = the configured value
 
-#### Scenario: Missing service tags yield empty identity claims
+#### Scenario: Missing service tags omit identity claims
 
-**ID**: `trust-sign.request-manifest-signing.missing-service-tags-empty-identity`
+**ID**: `trust-sign.request-manifest-signing.missing-service-tags-omit-identity`
 
 - **WHEN** the matched service has no `client:` or `service:` tags (or there is no service)
-- **THEN** the manifest claims `client_id` and `service_id` are empty strings
+- **THEN** the manifest contains no `client_id` or `service_id` claim
 
 #### Scenario: jwks_uri unset omits the claim
 
