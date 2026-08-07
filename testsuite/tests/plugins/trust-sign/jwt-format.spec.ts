@@ -124,13 +124,9 @@ test.describe("trust-sign — JWT token format and key resolution", () => {
       config: baseConfig("ES256"), // RSA key file + ECDSA alg
     });
 
-<<<<<<< HEAD
     test.fail(true, "pending — APS-4798");
 
-    const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
-=======
     const res = await proxyGet(request, routePath);
->>>>>>> b0516ee (add tests for trust-verify-signature. update helpers + skill)
     expect(res.status()).toBeGreaterThanOrEqual(500);
     expect(res.status()).toBeLessThan(600);
     // no signed manifest is emitted anywhere
@@ -152,13 +148,9 @@ test.describe("trust-sign — JWT token format and key resolution", () => {
       },
     });
 
-<<<<<<< HEAD
     test.fail(true, "pending — APS-4798");
 
-    const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
-=======
     const res = await proxyGet(request, routePath);
->>>>>>> b0516ee (add tests for trust-verify-signature. update helpers + skill)
     expect(res.status()).toBeGreaterThanOrEqual(500);
     expect(res.status()).toBeLessThan(600);
     expect(res.headers()["x-edge-token"]).toBeUndefined();
