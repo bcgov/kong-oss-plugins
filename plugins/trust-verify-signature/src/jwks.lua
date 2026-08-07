@@ -3,7 +3,6 @@ local http = require "socket.http"
 local https = require "ssl.https"
 local ltn12 = require "ltn12"
 local cjson_safe = require "cjson.safe"
-local convert = require "kong.plugins.trust-verify-signature.key_conversion"
 
 local function get_request(req_url, scheme, port)
     local req
@@ -39,6 +38,10 @@ local function get_request(req_url, scheme, port)
 end
 
 local function get_issuer_key_from_jwks_content(jwks_content)
+    if type(jwks_content["keys"]) ~= "table" then
+        return nil, "JWKS response missing keys array"
+    end
+
     local keys = {}
     for i, key in ipairs(jwks_content["keys"]) do
         keys[key.kid] = key

@@ -1,8 +1,5 @@
-local json = require("cjson")
-local https = require("ssl.https")
 local jwt_decoder = require "kong.plugins.jwt.jwt_parser"
 local signature = require("kong.plugins.trust-verify-signature.signature")
-local btoa = ngx.encode_base64
 local kong_meta = require "kong.meta"
 local log = require("kong.plugins.plugin-log.log")
 local kong = kong
@@ -23,14 +20,14 @@ local function verify_jwt_signature(conf, token)
 
   if conf.manifest_type == "signature-only" then
     -- no additional checks
-  elseif conf.manifest_type == "content-digest" then
+  elseif conf.manifest_type == "content-digest" and conf.direction == "request" then
     local payload = jwt.claims
-    if not payload or not payload["cd"] then
-      return false, {status = 401, message = "Signature missing content digest manifest (cd)"}
+    if not payload or not payload["digest"] then
+      return false, {status = 401, message = "Signature missing content digest manifest (digest)"}
     end
 
-    if kong.service.request.get_header("Content-Digest") ~= payload["cd"] then
-      return false, {status = 401, message = "Content-Digest header does not match signature manifest"}
+    if kong.request.get_header("Content-Digest") ~= payload["digest"] then
+      return false, {status = 400, message = "Content-Digest header does not match signature manifest"}
     end
   end
 
@@ -41,9 +38,7 @@ function TrustVerifySignatureHandler:access(conf)
   local request = kong.service.request
 
   if conf.direction == "request" then
-    local headers = kong.request.get_headers()
-
-    local sig = headers[conf.signature_header_key]
+    local sig = kong.request.get_header(conf.signature_header_key)
     if not sig then
       return log.exit_with_reason(
         {plugin = PLUGIN_NAME, reason = "request is missing signature header '" .. conf.signature_header_key .. "'"},
@@ -69,15 +64,9 @@ function TrustVerifySignatureHandler:access(conf)
 end
 
 function TrustVerifySignatureHandler:header_filter(conf)
-  -- if kong.response.status ~= 200 then
-  --   return
-  -- end
-
   if conf.direction == "response" then
     kong.log.warn("X-Trust-Verify-Signature-Res")
-    local headers = kong.response.get_headers()
-
-    local sig = headers[conf.signature_header_key]
+    local sig = kong.response.get_header(conf.signature_header_key)
     if not sig then
       return log.exit_with_reason(
         {plugin = PLUGIN_NAME, reason = "upstream response is missing signature header '" .. conf.signature_header_key .. "'"},

@@ -65,17 +65,15 @@ This builds a Kong image with all 18 plugins installed via luarocks. The build p
 cd testsuite
 
 # Build all test images including Kong, Keycloak, and Playwright (takes ~22 seconds)
-KONG_VERSION=3.9.1 KC_VERSION=15.1.1 \
+KONG_VERSION=3.9.1 KC_VERSION=26.5.3 \
 docker compose \
   -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml build
+  -f docker-compose-keycloak.yml build
 ```
 
 **Supported versions**:
-- Kong: 2.8.5, 3.9.0, 3.9.1 (3.9.1 is latest and recommended)
-- Keycloak: 15.1.1 (Spring-based), 26.1.0 (Quarkus-based)
-
-For Keycloak 26.1.0, use `docker-compose-keycloak-quarkus.yml` instead.
+- Kong: 3.9.1
+- Keycloak: 26.5.3
 
 ### Running E2E Tests
 
@@ -88,10 +86,10 @@ cd testsuite
 npm install
 
 # Run full test suite with Docker Compose
-KONG_VERSION=3.9.1 KC_VERSION=15.1.1 \
+KONG_VERSION=3.9.1 KC_VERSION=26.5.3 \
 docker compose --profile tests \
   -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml up
+  -f docker-compose-keycloak.yml up
 ```
 
 This starts all services (Kong CP/DP, Postgres, Redis, Keycloak, deck) and runs Playwright tests in a container. Tests complete automatically when the `playwright` container exits.
@@ -102,10 +100,10 @@ This starts all services (Kong CP/DP, Postgres, Redis, Keycloak, deck) and runs 
 cd testsuite
 
 # Start Kong and Keycloak without tests
-KONG_VERSION=3.9.1 KC_VERSION=15.1.1 \
+KONG_VERSION=3.9.1 KC_VERSION=26.5.3 \
 docker compose \
   -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml up
+  -f docker-compose-keycloak.yml up
 
 # In another terminal, run Playwright UI
 npm run test:ui
@@ -178,7 +176,7 @@ busted
 
 **Trigger**: Push to `main` or `feature/*` branches, or manual workflow dispatch
 
-**Strategy**: Matrix testing across Kong versions (2.8.5, 3.9.1) and Keycloak versions (15.1.1 currently active, 26.1.0 commented out)
+**Strategy**: Matrix testing across Kong (`3.9.1`) and Keycloak (`26.5.3`)
 
 **Steps**:
 1. Build Docker images (~22s)
@@ -189,7 +187,7 @@ busted
 
 **Critical environment variables**:
 - `KONG_VERSION`: Kong version to test (e.g., 3.9.1)
-- `KC_VERSION`: Keycloak version (e.g., 15.1.1)
+- `KC_VERSION`: Keycloak version (e.g., 26.5.3)
 - `CI=true`: Enables CI mode for Playwright (disables parallel workers, enables retries)
 
 **Test results location**:
@@ -202,19 +200,20 @@ busted
 
 1. **ALWAYS use environment variables for versions**:
    ```bash
-   KONG_VERSION=3.9.1 KC_VERSION=15.1.1 docker compose ...
+   KONG_VERSION=3.9.1 KC_VERSION=26.5.3 docker compose ...
    ```
    Without these, defaults may not match your needs.
 
-2. **Use correct Docker Compose file for Keycloak version**:
-   - Keycloak 15.x: `docker-compose-keycloak-spring.yml`
-   - Keycloak 26.x: `docker-compose-keycloak-quarkus.yml`
+2. **Include the Keycloak overlay**:
+   ```bash
+   -f docker-compose.yml -f docker-compose-keycloak.yml
+   ```
 
 3. **Clean up containers between test runs**:
    ```bash
    docker compose --profile tests \
      -f docker-compose.yml \
-     -f docker-compose-keycloak-spring.yml down
+     -f docker-compose-keycloak.yml down
    ```
 
 ### Plugin Development
@@ -258,7 +257,7 @@ busted
 
 1. Edit Lua source files in `plugins/<plugin-name>/src/`
 2. Rebuild Kong image: `docker build -t kong:e2e --build-arg KONG_VERSION=3.9.1 -f Dockerfile .`
-3. Rebuild test infrastructure: `cd testsuite && KONG_VERSION=3.9.1 KC_VERSION=15.1.1 docker compose -f docker-compose.yml -f docker-compose-keycloak-spring.yml build`
+3. Rebuild test infrastructure: `cd testsuite && KONG_VERSION=3.9.1 KC_VERSION=26.5.3 docker compose -f docker-compose.yml -f docker-compose-keycloak.yml build`
 4. Run E2E tests to validate changes
 5. Run luacheck to ensure code quality
 

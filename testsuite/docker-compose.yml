@@ -17,15 +17,27 @@ services:
         condition: service_healthy
       deck:
         condition: service_completed_successfully
+      httpbun:
+        condition: service_started
     environment:
-      - BASE_URL=http://admin-api.localtest.me:8081
-      - KONG_VERSION=${KONG_VERSION:-2.8.5}
+      - KONG_ADMIN_URL=http://kong-cp:8001
+      - KONG_PROXY_URL=http://kong.localtest.me:8000
+      # Playwright baseURL — Admin API (suite also needs KONG_PROXY_URL separately)
+      - BASE_URL=http://kong-cp:8001
+      - KONG_VERSION=${KONG_VERSION:-3.9.1}
     volumes:
       - ./playwright-report:/e2e-playwright/playwright-report
       - ./playwright-results:/e2e-playwright/playwright-results
     networks:
       - net
     profiles: ["tests"]
+
+  httpbun:
+    image: sharat87/httpbun
+    networks:
+      net:
+        aliases:
+          - upstream.localtest.me
 
   kong-cp:
     image: kong:e2e
@@ -49,7 +61,7 @@ services:
         aliases:
           - kong.localtest.me
     healthcheck:
-      test: ["CMD", "/tmp/kong/${KONG_VERSION:-2.8.5}/health"]
+      test: ["CMD", "/tmp/kong/health"]
       interval: 10s
       timeout: 5s
       retries: 4
@@ -60,6 +72,8 @@ services:
       - "8000:8000"
     volumes:
       - ./local/nginx:/etc/nginx/conf.d
+      # Reachable JWKS / key fixtures at http://kong:8000/__fixtures__/…
+      - ./local/kong/fixtures:/var/fixtures:ro
     depends_on:
       kong-dp:
         condition: service_healthy
@@ -86,7 +100,7 @@ services:
     volumes:
       - ./local/kong:/tmp/kong
     healthcheck:
-      test: ["CMD", "/tmp/kong/${KONG_VERSION:-2.8.5}/health"]
+      test: ["CMD", "/tmp/kong/health"]
       interval: 10s
       timeout: 5s
       retries: 4
@@ -105,7 +119,7 @@ services:
     command:
       - gateway
       - --kong-addr
-      - http://kong.localtest.me:8001
+      - http://kong-cp:8001
       - sync
       - /tmp/kong/kong.yaml
     networks:
@@ -136,7 +150,7 @@ services:
       # context up a level so that the Dockerfile can pull in plugin source
       context: ../.
       args:
-        - KONG_VERSION=${KONG_VERSION:-2.8.5}
+        - KONG_VERSION=${KONG_VERSION:-3.9.1}
     # platform: linux/amd64 # Needed for 3.8.5 if on Apple silicon
     command: kong migrations bootstrap
     volumes:

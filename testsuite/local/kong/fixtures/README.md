@@ -1,0 +1,24 @@
+# Shared test fixtures
+
+Signing keys and JWKS files used by Playwright / Kong plugin tests.
+
+## Layout
+
+```text
+fixtures/
+  keys/
+    rsa-2048.pem / rsa-2048.pub.pem / rsa-2048.jwks.json
+    ec-p256.pem  / ec-p256.pub.pem  / ec-p256.jwks.json
+    README.md    # how each file was generated
+```
+
+- **Inside Kong containers** (config values): `/tmp/kong/fixtures/keys/…`
+  (`./local/kong` is mounted at `/tmp/kong` on CP/DP).
+- **Reachable JWKS URL** (from Kong or other containers on the compose network):
+  `http://kong:8000/__fixtures__/keys/<name>.jwks.json`
+  The nginx load balancer (`kong` service) serves this directory statically —
+  do **not** expose fixtures through a Kong route (the data plane deadlocks
+  proxying to itself). From the host / Playwright: `${KONG_PROXY_URL}/__fixtures__/keys/…`.
+
+Generate keys under `keys/` when a scenario needs them; do not change the
+nginx location or compose mount for fixtures.

@@ -1,12 +1,19 @@
 import { APIRequestContext } from "playwright";
 import logger from "./logger";
+import { upstreamServiceDefaults } from "./upstream";
+
+/** Kong Admin API — override with KONG_ADMIN_URL (compose / .env.e2e). */
+export const KONG_ADMIN_URL =
+  process.env.KONG_ADMIN_URL ?? "http://kong.localtest.me:8001";
+
+/** Kong proxy (nginx → DP replicas) — override with KONG_PROXY_URL. */
+export const KONG_PROXY_URL =
+  process.env.KONG_PROXY_URL ?? "http://kong.localtest.me:8000";
 
 const base_service = {
   id: "00000000-0000-0000-0000-00000000000",
   name: "NAME",
-  host: "httpbin.org",
-  port: 443,
-  protocol: "https",
+  ...upstreamServiceDefaults,
 };
 
 const base_route = {
@@ -113,4 +120,54 @@ export async function provisionKong(
     status: response.status(),
     body: responseBody,
   } as KongProvisionResponse;
+}
+
+/**
+ * Poll until a newly provisioned route is live on all DP replicas.
+ * GETs `${KONG_PROXY_URL}${routePath}/headers` every `intervalMs` until a
+ * non-404, then requires `consecutive` further consecutive non-404s (a 404
+ * resets the count). Covers the 3 round-robined data planes.
+ *
+ * Each probe uses `perRequestTimeoutMs` so a hung DP/LB connection cannot
+ * block the whole readiness loop until the Playwright test timeout.
+ */
+export async function waitForRouteReady(
+  request: APIRequestContext,
+  routePath: string,
+  options?: {
+    timeoutMs?: number;
+    intervalMs?: number;
+    consecutive?: number;
+    perRequestTimeoutMs?: number;
+  }
+): Promise<void> {
+  const timeoutMs = options?.timeoutMs ?? 10_000;
+  const intervalMs = options?.intervalMs ?? 250;
+  const consecutiveNeeded = options?.consecutive ?? 5;
+  const perRequestTimeoutMs = options?.perRequestTimeoutMs ?? 3_000;
+  const url = `${KONG_PROXY_URL}${routePath}/headers`;
+  const deadline = Date.now() + timeoutMs;
+  let consecutive = 0;
+
+  while (Date.now() < deadline) {
+    try {
+      const res = await request.get(url, { timeout: perRequestTimeoutMs });
+      if (res.status() !== 404) {
+        consecutive += 1;
+        if (consecutive >= consecutiveNeeded) {
+          return;
+        }
+      } else {
+        consecutive = 0;
+      }
+    } catch {
+      // Timeout / connection error: treat as not ready and keep polling.
+      consecutive = 0;
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+
+  throw new Error(
+    `route not ready after ${timeoutMs}ms: ${url} (need ${consecutiveNeeded} consecutive non-404)`
+  );
 }

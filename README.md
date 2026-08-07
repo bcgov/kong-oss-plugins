@@ -2,71 +2,22 @@
 
 ## Testing
 
-There are various configurations for testing to cover different versions of Keycloak and Kong.
+See [testsuite/README.md](testsuite/README.md) for the full testing guide: running the docker compose stack, executing Playwright and busted tests, spec-driven test generation, and the CI strategy.
 
-### Running
-
-#### Kong 2.x
-
-For `Kong v.2.8.5` and `Keycloak v.15.1.1`, run the following:
+Quickstart (for `Kong v.3.9.1` and `Keycloak v.26.5.3`):
 
 ```sh
 cd testsuite
 
-KONG_VERSION=2.8.5 KC_VERSION=15.1.1 \
+KONG_VERSION=3.9.1 KC_VERSION=26.5.3 \
 docker compose \
   -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml build
-```
-
-```sh
-KONG_VERSION=2.8.5 KC_VERSION=15.1.1 \
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml up
+  -f docker-compose-keycloak.yml \
+  up -d --build
 ```
 
 - Admin: http://localhost:8001
 - Proxy: http://localhost:8000
-
-#### Kong 3.x
-
-For `Kong v.3.9.0` and `Keycloak v.15.1.1`, run the following:
-
-```sh
-cd testsuite
-
-KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml build
-```
-
-```sh
-KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml up
-```
-
-- Admin: http://localhost:8001
-- Proxy: http://localhost:8000
-
-### Playright Tests
-
-```sh
-npm run test:ui
-```
-
-To run the test suite headless, use docker compose:
-
-```sh
-KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \
-docker compose --profile tests \
-  -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml up
-
-```
 
 ## Development
 
@@ -114,23 +65,11 @@ docker run -ti --rm \
 
 ### Running tests with busted
 
-#### jwt-keycloak
+See [testsuite/README.md](testsuite/README.md#running-busted-tests). For a fast local loop, build once then re-run:
 
 ```sh
-docker run -ti --rm --net=host -v `pwd`:/work -u root -w /work \
-  openresty/openresty:latest /bin/bash
+docker build -f Dockerfile.busted -t kong:busted .
 
-apt-get update && apt-get install -y libssl-dev luarocks libyaml-dev libexpat1-dev
-
-luarocks install busted
-luarocks install LuaSocket
-luarocks install luasec
-
-luarocks install kong --deps-mode none
-
-luarocks install kong
-
-luarocks build
-
-busted --lua=/usr/bin/lua
+docker run --rm -v "$(pwd)":/work -w /work/plugins/jwt-keycloak -u root \
+  kong:busted sh -c 'luarocks make && busted'
 ```
