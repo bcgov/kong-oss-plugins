@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { KONG_PROXY_URL } from "../../../helpers/kong";
+import { uniquePrefix, proxyGet } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
   cleanupByPrefix,
@@ -12,7 +12,7 @@ import {
   CONTAINER_KEYS_DIR,
 } from "../../../helpers/trust-sign";
 
-const PREFIX = `trust-sign-${Date.now()}-${process.pid}`;
+const PREFIX = uniquePrefix("trust-sign");
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,7 +30,7 @@ async function fetchEmittedToken(
   request: any,
   routePath: string
 ): Promise<string> {
-  const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
+  const res = await proxyGet(request, routePath);
   expect(res.status()).toBe(200);
   const echoedHeaders = (await res.json()).headers;
   const token = findHeader(echoedHeaders, "X-Edge-Token");
@@ -124,9 +124,13 @@ test.describe("trust-sign — JWT token format and key resolution", () => {
       config: baseConfig("ES256"), // RSA key file + ECDSA alg
     });
 
+<<<<<<< HEAD
     test.fail(true, "pending — APS-4798");
 
     const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
+=======
+    const res = await proxyGet(request, routePath);
+>>>>>>> b0516ee (add tests for trust-verify-signature. update helpers + skill)
     expect(res.status()).toBeGreaterThanOrEqual(500);
     expect(res.status()).toBeLessThan(600);
     // no signed manifest is emitted anywhere
@@ -148,9 +152,13 @@ test.describe("trust-sign — JWT token format and key resolution", () => {
       },
     });
 
+<<<<<<< HEAD
     test.fail(true, "pending — APS-4798");
 
     const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
+=======
+    const res = await proxyGet(request, routePath);
+>>>>>>> b0516ee (add tests for trust-verify-signature. update helpers + skill)
     expect(res.status()).toBeGreaterThanOrEqual(500);
     expect(res.status()).toBeLessThan(600);
     expect(res.headers()["x-edge-token"]).toBeUndefined();

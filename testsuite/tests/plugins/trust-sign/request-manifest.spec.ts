@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { KONG_PROXY_URL } from "../../../helpers/kong";
+import { uniquePrefix, proxyGet, proxyRequest } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
   cleanupByPrefix,
@@ -9,7 +9,7 @@ import {
   CONTAINER_KEYS_DIR,
 } from "../../../helpers/trust-sign";
 
-const PREFIX = `trust-sign-${Date.now()}-${process.pid}`;
+const PREFIX = uniquePrefix("trust-sign");
 
 const requestConfig = {
   keyid: "rsa-2048",
@@ -44,7 +44,9 @@ test.describe("trust-sign — request manifest signing", () => {
     });
 
     const body = "standard signing body";
-    const res = await request.post(`${KONG_PROXY_URL}${routePath}/anything`, {
+    const res = await proxyRequest(request, routePath, {
+      method: "POST",
+      pathSuffix: "/anything",
       data: body,
       headers: { "Content-Type": "text/plain" },
     });
@@ -76,7 +78,7 @@ test.describe("trust-sign — request manifest signing", () => {
       config: { ...requestConfig, jwks_uri: JWKS_URI },
     });
 
-    const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
+    const res = await proxyGet(request, routePath);
     expect(res.status()).toBe(200);
 
     const echoedHeaders = (await res.json()).headers;
@@ -97,7 +99,7 @@ test.describe("trust-sign — request manifest signing", () => {
       config: { ...requestConfig }, // jwks_uri deliberately unset
     });
 
-    const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
+    const res = await proxyGet(request, routePath);
     expect(res.status()).toBe(200);
 
     const echoedHeaders = (await res.json()).headers;
@@ -115,7 +117,7 @@ test.describe("trust-sign — request manifest signing", () => {
       config: { ...requestConfig }, // signature_header_key deliberately omitted
     });
 
-    const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
+    const res = await proxyGet(request, routePath);
     expect(res.status()).toBe(200);
 
     const echoedHeaders = (await res.json()).headers;

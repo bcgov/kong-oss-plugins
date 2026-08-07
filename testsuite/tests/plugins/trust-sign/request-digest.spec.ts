@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { KONG_PROXY_URL } from "../../../helpers/kong";
+import { uniquePrefix, proxyRequest } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
   cleanupByPrefix,
@@ -10,7 +10,7 @@ import {
   CONTAINER_KEYS_DIR,
 } from "../../../helpers/trust-sign";
 
-const PREFIX = `trust-sign-${Date.now()}-${process.pid}`;
+const PREFIX = uniquePrefix("trust-sign");
 
 const requestConfig = {
   keyid: "rsa-2048",
@@ -39,7 +39,9 @@ test.describe("trust-sign — request digest generation", () => {
 
     const body = "trust-sign digest body";
     const expectedDigest = contentDigestOf(body);
-    const res = await request.post(`${KONG_PROXY_URL}${routePath}/anything`, {
+    const res = await proxyRequest(request, routePath, {
+      method: "POST",
+      pathSuffix: "/anything",
       data: body,
       headers: { "Content-Type": "text/plain" },
     });
@@ -63,7 +65,9 @@ test.describe("trust-sign — request digest generation", () => {
     });
 
     const expectedDigest = contentDigestOf(""); // sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:
-    const res = await request.post(`${KONG_PROXY_URL}${routePath}/anything`, {
+    const res = await proxyRequest(request, routePath, {
+      method: "POST",
+      pathSuffix: "/anything",
       data: "",
       headers: { "Content-Type": "text/plain" },
     });
@@ -90,7 +94,9 @@ test.describe("trust-sign — request digest generation", () => {
     // disk, making the raw body unavailable to the plugin (the scenario's
     // "no body at all (raw body unavailable)" condition).
     const largeBody = "x".repeat(1024 * 1024);
-    const res = await request.post(`${KONG_PROXY_URL}${routePath}/anything`, {
+    const res = await proxyRequest(request, routePath, {
+      method: "POST",
+      pathSuffix: "/anything",
       data: largeBody,
       headers: { "Content-Type": "text/plain" },
     });
@@ -119,7 +125,9 @@ test.describe("trust-sign — request digest generation", () => {
     const bogusDigest = contentDigestOf("a completely different body");
     expect(bogusDigest).not.toBe(contentDigestOf(body));
 
-    const res = await request.post(`${KONG_PROXY_URL}${routePath}/anything`, {
+    const res = await proxyRequest(request, routePath, {
+      method: "POST",
+      pathSuffix: "/anything",
       data: body,
       headers: {
         "Content-Type": "text/plain",

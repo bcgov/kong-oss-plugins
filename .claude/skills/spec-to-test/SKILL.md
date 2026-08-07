@@ -157,22 +157,30 @@ URLs come from env (`KONG_ADMIN_URL`, `KONG_PROXY_URL`) with the defaults above 
 
 Layout: `testsuite/tests/plugins/<plugin>/*.spec.ts`. Prefer focused files grouped by requirement (`direction.spec.ts`, `request-digest.spec.ts`, …); a single `default.spec.ts` is fine for small plugins. Interop: `testsuite/tests/interop/<producer>-<consumer>.spec.ts`.
 
+**Parallelism is required.** Spec files run across Playwright workers (validate with `--workers=5` even if CI uses 1). Design for that from the start:
+
+- Use `uniquePrefix("<plugin>")` from `helpers/kong.ts` for the file's entity prefix (timestamp + entropy — `Date.now()` alone can collide across workers).
+- In `beforeAll` / `afterAll`, clean **only that file's PREFIX** (or age-based stale cleanup). Never wipe a shared base like `"<plugin>-"` — that deletes sibling workers' entities.
+- After provision, call `waitForRouteReady(request, routePath, { timeoutMs: 30_000, consecutive: 9 })` (9 non-404s ≈ 2s of LB sampling across the 3 DPs).
+- Hit the proxy via `proxyGet` / `proxyRequest` from `helpers/kong.ts` (not bare `request.get/post` to `KONG_PROXY_URL`). They retry residual 404s and re-run readiness; happy path is a single request.
+
 Lifecycle (required):
 
-- Unique run-ID prefix on every entity name (`<plugin>-<Date.now()>`)
-- Stale-entity pre-cleanup for the plugin's name prefix in `beforeAll`
-- Provision + readiness probe before asserting
+- Per-file `PREFIX = uniquePrefix("<plugin>")` on every entity name
+- Pre-cleanup scoped to that PREFIX (or stale-by-age), never the shared plugin base
+- Provision + `waitForRouteReady` before asserting
 - Cleanup in `afterAll` (and `afterEach` where a test provisions its own entities)
+- Proxy calls through `proxyGet` / `proxyRequest`
 
 ### Plugin helper contract — `testsuite/helpers/<plugin>.ts`
 
-Import `KONG_ADMIN_URL`, `KONG_PROXY_URL`, `provisionKong`, and `waitForRouteReady` from `testsuite/helpers/kong.ts` (do not redefine or hardcode those URLs; do not reimplement the readiness probe).
+Import `KONG_ADMIN_URL`, `KONG_PROXY_URL`, `provisionKong`, `waitForRouteReady`, `uniquePrefix`, and `proxyGet` / `proxyRequest` from `testsuite/helpers/kong.ts` (do not redefine or hardcode those URLs; do not reimplement the readiness probe or proxy retry). Re-export `uniquePrefix` if specs import it from the plugin helper.
 
 Export:
 
 - `provisionPluginRoute(request, { prefix, config, serviceTags?, … })`:
   1. POST a service (name `<prefix>-svc-<n>`, spread `upstreamServiceDefaults`, `tags: serviceTags` when given), a route (name `<prefix>-rt-<n>`, `hosts: ["kong.localtest.me"]`, `paths: ["/<prefix>-<n>"]`, `strip_path: true`), and the plugin (`{ name: "<plugin>", route: { id }, config }`) via `provisionKong`. Valid `config` values come from the spec's Configuration schema requirement; key paths come from Fixtures below.
-  2. Call `await waitForRouteReady(request, routePath)` (shared helper: polls `/headers` until non-404, then **5 consecutive** non-404s across the round-robined DPs).
+  2. Call `await waitForRouteReady(request, routePath, { timeoutMs: 30_000, consecutive: 9 })`.
   3. Return `{ routePath, serviceId, routeId, pluginId }`.
 - `cleanupByPrefix(request, prefix)`: list `GET ${KONG_ADMIN_URL}/routes?size=1000` and `/services?size=1000` (follow `next` pages), delete routes whose name starts with the prefix (route-scoped plugins cascade), then matching services.
 
@@ -184,17 +192,18 @@ The only exemplar you may pattern-match against (config values here are illustra
 
 ```ts
 import { test, expect } from "@playwright/test";
-import { KONG_PROXY_URL } from "../../../helpers/kong";
+import { uniquePrefix, proxyGet } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
   cleanupByPrefix,
 } from "../../../helpers/trust-sign";
 
-const PREFIX = `trust-sign-${Date.now()}`;
+const PREFIX = uniquePrefix("trust-sign");
 
 test.describe("trust-sign — direction gating", () => {
   test.beforeAll(async ({ request }) => {
-    await cleanupByPrefix(request, "trust-sign-"); // stale entities from prior runs
+    // Only this file's PREFIX — wiping "trust-sign-" races with parallel workers.
+    await cleanupByPrefix(request, PREFIX);
   });
 
   test.afterAll(async ({ request }) => {
@@ -212,7 +221,7 @@ test.describe("trust-sign — direction gating", () => {
       },
     });
 
-    const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
+    const res = await proxyGet(request, routePath);
     expect(res.status()).toBe(200);
     const echoedHeaders = (await res.json()).headers; // upstream request headers, echoed by httpbun
     expect(echoedHeaders["X-Edge-Token"]).toBeUndefined();
@@ -330,10 +339,10 @@ Stack (from `testsuite/`; add `-f docker-compose-keycloak.yml` only if the plugi
 KONG_VERSION=3.9.1 docker compose -f docker-compose.yml up -d --build
 ```
 
-Playwright (from `testsuite/`; `npm ci` first time):
+Playwright (from `testsuite/`; `npm ci` first time). Prefer a parallel check even when CI uses one worker:
 
 ```sh
-npx playwright test tests/plugins/<plugin> tests/interop
+npx playwright test tests/plugins/<plugin> tests/interop --workers=5
 ```
 
 Busted (from the repo root; per plugin):
@@ -370,7 +379,9 @@ Reject these in your own output — they look like coverage but catch nothing:
 - Write tests for out-of-scope bullets, or invent requirements for uncovered surfaces
 - Soften quirk assertions, or use skip mechanisms for `pending` scenarios
 - Sleep without a condition instead of calling `waitForRouteReady`
-- Reimplement the readiness probe in a plugin helper (use `waitForRouteReady` from `helpers/kong.ts`)
+- Reimplement the readiness probe or proxy 404-retry in a plugin helper (use `waitForRouteReady` / `proxyGet` / `proxyRequest` from `helpers/kong.ts`)
+- Wipe a shared Admin prefix like `"<plugin>-"` in `beforeAll` (races with parallel workers — clean only this file's `uniquePrefix`)
+- Bare `request.get/post` to `KONG_PROXY_URL` in new specs (use `proxyGet` / `proxyRequest`)
 - Hardcode Admin/Proxy host:port in plugin helpers (import `KONG_ADMIN_URL` / `KONG_PROXY_URL` from `helpers/kong.ts`)
 - Modify plugin source, the spec, or the behavior of existing shared helpers
 - Edit `docker-compose.yml` or nginx to serve fixtures / JWKS (harness already exposes `/__fixtures__/`)

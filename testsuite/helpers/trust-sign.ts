@@ -85,9 +85,13 @@ export async function provisionPluginRoute(
     });
   }
 
-  // 3 DPs sync independently; right after a stack (re)start propagation can
-  // exceed the probe's 10s default.
-  await waitForRouteReady(request, routePath, { timeoutMs: 30_000 });
+  // 3 DPs sync independently; under parallel Admin load a short probe can
+  // return while one replica still 404s. consecutive: 9 @ 250ms ≈ 2s of RR
+  // sampling before we treat the route as ready.
+  await waitForRouteReady(request, routePath, {
+    timeoutMs: 30_000,
+    consecutive: 9,
+  });
 
   return { routePath, serviceId, routeId, pluginId };
 }
@@ -127,7 +131,7 @@ export async function cleanupByPrefix(
 /**
  * Stale-entity pre-cleanup for beforeAll hooks. Spec files run in parallel
  * workers, so deleting everything under "trust-sign-" would wipe entities a
- * sibling worker just provisioned. Names embed a Date.now() run ID
+ * sibling worker just provisioned. Names embed a uniquePrefix run ID
  * (`trust-sign-<ms>-…`), so only delete entities older than `olderThanMs`.
  */
 export async function cleanupStale(

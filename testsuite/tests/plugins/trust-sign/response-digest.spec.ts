@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { KONG_PROXY_URL } from "../../../helpers/kong";
+import { uniquePrefix, proxyGet } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
   cleanupByPrefix,
@@ -8,7 +8,7 @@ import {
   CONTAINER_KEYS_DIR,
 } from "../../../helpers/trust-sign";
 
-const PREFIX = `trust-sign-${Date.now()}-${process.pid}`;
+const PREFIX = uniquePrefix("trust-sign");
 
 const responseConfig = {
   keyid: "rsa-2048",
@@ -35,7 +35,7 @@ test.describe("trust-sign — response digest generation", () => {
       config: { ...responseConfig },
     });
 
-    const res = await request.get(`${KONG_PROXY_URL}${routePath}/anything`);
+    const res = await proxyGet(request, routePath, { pathSuffix: "/anything" });
     expect(res.status()).toBe(200);
 
     const body = await res.body();
@@ -52,7 +52,7 @@ test.describe("trust-sign — response digest generation", () => {
       config: { ...responseConfig },
     });
 
-    const res = await request.get(`${KONG_PROXY_URL}${routePath}/bytes/0`);
+    const res = await proxyGet(request, routePath, { pathSuffix: "/bytes/0" });
     expect(res.status()).toBe(200);
 
     const body = await res.body();
@@ -73,11 +73,11 @@ test.describe("trust-sign — response digest generation", () => {
 
     // deliberately not the digest of the actual response body
     const presetDigest = "sha-256=:cHJlc2V0LWRpZ2VzdA==:";
-    const res = await request.get(
-      `${KONG_PROXY_URL}${routePath}/response-headers?Content-Digest=${encodeURIComponent(
+    const res = await proxyGet(request, routePath, {
+      pathSuffix: `/response-headers?Content-Digest=${encodeURIComponent(
         presetDigest
-      )}`
-    );
+      )}`,
+    });
     expect(res.status()).toBe(200);
 
     expect(res.headers()["content-digest"]).toBe(presetDigest);
