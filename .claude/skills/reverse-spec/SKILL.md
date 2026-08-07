@@ -78,7 +78,7 @@ The plugin SHALL <observable behavior>.
 - <one bullet per dead/commented-out or documented-but-unimplemented feature>
 ```
 
-Keep it complete but short and reviewable — not a code walkthrough. Every requirement needs at least one scenario.
+Keep it complete and reviewable — not a code walkthrough. Prefer more scenarios over OR'd WHENs when branches need their own tests (see **One WHEN per scenario** below). Every requirement needs at least one scenario.
 
 ### Stable IDs (required)
 
@@ -115,6 +115,14 @@ Scenarios are what become mandatory tests, so emit them only where the plugin co
 - **One scenario** for a canonical valid config being accepted.
 
 Also spec what happens on meaningful config branches (e.g. a field unset making the plugin a no-op). Watch for schema/handler disagreement while reading — a field the handler requires but the schema does not (or vice versa) is a `quirk`, and no schema test will catch it, so the spec is the only place it surfaces.
+
+**One WHEN per scenario** — clean-room test generation gates completion on scenario IDs (`[Verifies: <id>]`), not on English disjuncts inside a WHEN. So:
+
+- **Default**: one scenario = one `**WHEN**` = one `**THEN**` = one ID. Distinct input conditions that exercise different branches each get their own scenario, even when they share the same status/`message` THEN.
+- **Do not** collapse distinct branches into one WHEN with `or` / `and/or` (e.g. unreachable **or** non-200 **or** malformed JWKS body). That lets a single test cite the ID while leaving other branches untested.
+- **Split when** the WHENs are different failure/success modes, security-relevant edges, or code paths a reviewer would want independently covered (fetch failures, allowlist exact vs `/`-prefix, grace refresh vs no-refresh, missing vs mismatched header, …).
+- **Roll up only when** the alternate setups are truly equivalent ways to reach the *same* behavior (e.g. two ways to omit the same required header) and you would not want a separate test per setup.
+- Prefer a longer scenario list over an ungatable OR. More scenarios is expected and correct.
 
 **Scenario tagging** — after `**ID**`, the first bullet may be a tag:
 
@@ -174,6 +182,7 @@ A blank or `⚠️ GAP` disposition is a **spec gap**. Call it out in the summar
 Before finishing, walk every scenario:
 
 - Ambiguous WHEN/THEN → rewrite now (no “should work” / “behaves correctly”).
+- WHEN joined with `or` / `and/or` across distinct branches → split into separate scenarios now (see **One WHEN per scenario**).
 - Not practical on the wire, but an export already exists → add the seam line on the requirement.
 - Not practical on the wire and no export → leave the scenario; list its ID as `blocked — needs seam` (do not invent an export).
 - Process-global env that isn’t the plugin’s primary path → prefer a seam if one exists; otherwise list as `deferred — process-global-env`.
