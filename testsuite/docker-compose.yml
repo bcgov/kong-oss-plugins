@@ -28,6 +28,7 @@ services:
     volumes:
       - ./playwright-report:/e2e-playwright/playwright-report
       - ./playwright-results:/e2e-playwright/playwright-results
+      - ./local/kong/fixtures:/e2e-playwright/local/kong/fixtures
     networks:
       - net
     profiles: ["tests"]
