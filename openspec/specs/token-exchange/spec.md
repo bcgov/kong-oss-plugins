@@ -264,7 +264,6 @@ SHALL not proxy the request upstream or replace its `Authorization` header.
 
 **ID**: `token-exchange.token-endpoint-failure-mapping.non-200-json-e2`
 
-- **TAG**: quirk — every IdP status, including 5xx, is discarded and rewritten as client status 400
 - **WHEN** the token endpoint returns any status other than 200 with a JSON body
 - **THEN** the client receives status 400 with `error.code = "E2"` and `error.detail` equal to the decoded IdP body
 
