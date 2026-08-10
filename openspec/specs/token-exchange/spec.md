@@ -278,7 +278,6 @@ SHALL not proxy the request upstream or replace its `Authorization` header.
 
 **ID**: `token-exchange.token-endpoint-failure-mapping.invalid-200-json-e3`
 
-- **TAG**: quirk — a malformed successful IdP response is reported to the client as a 400-level request error
 - **WHEN** the token endpoint returns status 200 with a body that cannot be decoded as JSON
 - **THEN** the client receives status 400 with `error` equal to an object containing `code = "E3"`
 
