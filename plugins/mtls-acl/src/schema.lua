@@ -11,7 +11,7 @@ return {
                 fields = {
                     { allow = { type = "array", required = false, elements = { type = "string" } } },
                     { deny = { type = "array", required = false, elements = { type = "string" } } },
-                    { certificate_header_name = { type = "string", required = true } },
+                    { certificate_header_name = typedefs.header_name { required = true } },
                     { hide_certificate_header = { type = "boolean", required = false, default = false } }
                 },
             },

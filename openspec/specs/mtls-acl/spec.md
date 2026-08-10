@@ -20,20 +20,30 @@ request header that this plugin then reads by name.
 The plugin SHALL only apply to HTTP(S) traffic and SHALL NOT be configurable
 at consumer scope. Its config schema is:
 
-- `certificate_header_name` (string, required, no default)
+- `certificate_header_name` (HTTP header name via `typedefs.header_name`,
+  required, no default)
 - `allow` (array of strings, optional, no default)
 - `deny` (array of strings, optional, no default)
 - `hide_certificate_header` (boolean, optional, default `false`)
 
 The plugin SHALL enforce exactly one of `config.allow` / `config.deny` being
-set: both configured at once, and neither configured, SHALL each be rejected
-by schema validation.
+set: both configured at once, neither configured, and either field set to an
+explicitly empty array, SHALL each be rejected by schema validation. An
+invalid HTTP header name for `certificate_header_name` SHALL also be rejected.
 
 #### Scenario: Required field enforced
 
 **ID**: `mtls-acl.configuration-schema.required-field`
 
 - **WHEN** a plugin config omits `certificate_header_name`
+- **THEN** the configuration is rejected by schema validation
+
+#### Scenario: Invalid certificate_header_name is rejected
+
+**ID**: `mtls-acl.configuration-schema.invalid-header-name-rejected`
+
+- **WHEN** a plugin config sets `certificate_header_name` to a string that is
+  not a valid HTTP header name
 - **THEN** the configuration is rejected by schema validation
 
 #### Scenario: Configuring both allow and deny is rejected
@@ -48,6 +58,22 @@ by schema validation.
 **ID**: `mtls-acl.configuration-schema.neither-allow-nor-deny-rejected`
 
 - **WHEN** a plugin config sets neither `allow` nor `deny`
+- **THEN** the configuration is rejected by schema validation
+
+#### Scenario: Explicitly empty allow array is rejected
+
+**ID**: `mtls-acl.configuration-schema.empty-allow-rejected`
+
+- **WHEN** a plugin config sets `allow` to an empty array and does not set
+  `deny`
+- **THEN** the configuration is rejected by schema validation
+
+#### Scenario: Explicitly empty deny array is rejected
+
+**ID**: `mtls-acl.configuration-schema.empty-deny-rejected`
+
+- **WHEN** a plugin config sets `deny` to an empty array and does not set
+  `allow`
 - **THEN** the configuration is rejected by schema validation
 
 #### Scenario: Canonical valid config is accepted
@@ -142,6 +168,15 @@ Default deny requirement.
 - **THEN** the client receives status 403 with the Default deny response body,
   and no request reaches the upstream service
 
+#### Scenario: Case-only mismatch against the allow list is rejected
+
+**ID**: `mtls-acl.allow-list-evaluation.case-only-mismatch-rejected`
+
+- **WHEN** `config.allow` is set to an entry such as `Abc`, and the extracted
+  certificate value differs only in letter case (e.g. `abc`)
+- **THEN** the client receives status 403 with the Default deny response body,
+  and no request reaches the upstream service
+
 ### Requirement: Deny-list evaluation
 
 **ID**: `mtls-acl.deny-list-evaluation`
@@ -157,6 +192,14 @@ the Default deny requirement.
 
 - **WHEN** `config.deny` is set and the extracted certificate value does not
   equal any of its entries
+- **THEN** the request is proxied to the upstream service
+
+#### Scenario: Case-only mismatch against the deny list is granted access
+
+**ID**: `mtls-acl.deny-list-evaluation.case-only-mismatch-grants-access`
+
+- **WHEN** `config.deny` is set to an entry such as `Abc`, and the extracted
+  certificate value differs only in letter case (e.g. `abc`)
 - **THEN** the request is proxied to the upstream service
 
 #### Scenario: Certificate value in the deny list is rejected

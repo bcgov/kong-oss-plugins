@@ -4,7 +4,7 @@
 
 | Surface | Kind | Disposition |
 |---|---|---|
-| `config.certificate_header_name` (string, required) | config | Requirement: Configuration schema; Requirement: Certificate header extraction |
+| `config.certificate_header_name` (`typedefs.header_name`, required) | config | Requirement: Configuration schema; Requirement: Certificate header extraction |
 | `config.allow` (array of strings, optional) | config | Requirement: Configuration schema; Requirement: Allow-list evaluation |
 | `config.deny` (array of strings, optional) | config | Requirement: Configuration schema; Requirement: Deny-list evaluation |
 | `config.hide_certificate_header` (boolean, optional, default false) | config | Requirement: Certificate header hiding on success |
