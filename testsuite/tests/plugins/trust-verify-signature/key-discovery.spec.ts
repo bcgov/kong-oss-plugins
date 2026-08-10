@@ -66,25 +66,47 @@ test.describe("trust-verify-signature — key discovery", () => {
     expect(body.message).toBe("Signature missing 'jwks_uri' claim");
   });
 
-  // [Verifies: trust-verify-signature.key-discovery.jwks-uri-not-allowed-401]
-  test("disallowed jwks_uri is rejected before fetch", async ({
-    request,
-  }) => {
-    const { routePath } = await verifyRoute(request, [RSA_JWKS_URL]);
+  test.describe("disallowed jwks_uri is rejected before fetch", () => {
+    // [Verifies: trust-verify-signature.key-discovery.jwks-uri-not-allowed-401]
+    test("wholly unrelated URI", async ({ request }) => {
+      const { routePath } = await verifyRoute(request, [RSA_JWKS_URL]);
 
-    const token = signManifestToken({
-      alg: "RS256",
-      kid: "rsa-2048",
-      privateKeyPem: RSA_PRIVATE_KEY,
-      payload: { jwks_uri: "https://evil.example.com/keys.json" },
+      const token = signManifestToken({
+        alg: "RS256",
+        kid: "rsa-2048",
+        privateKeyPem: RSA_PRIVATE_KEY,
+        payload: { jwks_uri: "https://evil.example.com/keys.json" },
+      });
+
+      const res = await proxyGet(request, routePath, {
+        headers: { "X-Edge-Token": token },
+      });
+      expect(res.status()).toBe(401);
+      const body = await res.json();
+      expect(body.message).toBe("JWKS URI not allowed");
     });
 
-    const res = await proxyGet(request, routePath, {
-      headers: { "X-Edge-Token": token },
+    // [Verifies: trust-verify-signature.key-discovery.jwks-uri-not-allowed-401]
+    test("shared prefix without a / boundary", async ({ request }) => {
+      // Naive string-prefix matching would accept this; the allow check must
+      // require an exact match or a "/"-bounded continuation.
+      const allowedPrefix = `${KONG_PROXY_URL}/__fixtures__`;
+      const { routePath } = await verifyRoute(request, [allowedPrefix]);
+
+      const token = signManifestToken({
+        alg: "RS256",
+        kid: "rsa-2048",
+        privateKeyPem: RSA_PRIVATE_KEY,
+        payload: { jwks_uri: `${allowedPrefix}.evil/keys.json` },
+      });
+
+      const res = await proxyGet(request, routePath, {
+        headers: { "X-Edge-Token": token },
+      });
+      expect(res.status()).toBe(401);
+      const body = await res.json();
+      expect(body.message).toBe("JWKS URI not allowed");
     });
-    expect(res.status()).toBe(401);
-    const body = await res.json();
-    expect(body.message).toBe("JWKS URI not allowed");
   });
 
   test.describe("unusable JWKS endpoint is rejected", () => {
@@ -356,10 +378,14 @@ test.describe("trust-verify-signature — key discovery", () => {
       privateKeyPem: RSA_PRIVATE_KEY,
       payload: { jwks_uri: RSA_JWKS_URL },
     });
-    const resA = await proxyGet(request, routePath, {
-      headers: { "X-Edge-Token": tokenA },
+    // Warm every DP replica with A's keyset so B cannot pass via a cold
+    // per-DP cache that never saw A (which would hide shared-key bugs).
+    await primeAllReplicas(async () => {
+      const resA = await proxyGet(request, routePath, {
+        headers: { "X-Edge-Token": tokenA },
+      });
+      expect(resA.status()).toBe(200);
     });
-    expect(resA.status()).toBe(200);
 
     // ec-p256's kid is absent from RSA_JWKS_URL's keyset; this must be
     // verified against EC_JWKS_URL's own cache entry, not A's.

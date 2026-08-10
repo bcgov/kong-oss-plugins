@@ -44,9 +44,12 @@ export async function provisionPluginRoute(
   }
 ): Promise<ProvisionResult> {
   const n = ++routeCounter;
+  // Zero-pad so Kong's path-prefix match cannot treat /…-1 as a prefix of
+  // /…-10 (waitForRouteReady would otherwise succeed against the wrong route).
+  const seq = String(n).padStart(4, "0");
 
   const serviceBody: Record<string, unknown> = {
-    name: `${opts.prefix}-svc-${n}`,
+    name: `${opts.prefix}-svc-${seq}`,
     ...upstreamServiceDefaults,
   };
   if (opts.serviceTags) {
@@ -59,9 +62,9 @@ export async function provisionPluginRoute(
   );
   const serviceId = serviceRes.body.id;
 
-  const routePath = `/${opts.prefix}-${n}`;
+  const routePath = `/${opts.prefix}-${seq}`;
   const routeRes = await provisionKong(request, `${KONG_ADMIN_URL}/routes`, {
-    name: `${opts.prefix}-rt-${n}`,
+    name: `${opts.prefix}-rt-${seq}`,
     hosts: ["kong.localtest.me"],
     paths: [routePath],
     strip_path: true,

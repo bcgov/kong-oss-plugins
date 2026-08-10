@@ -50,6 +50,34 @@ test.describe("trust-verify-signature — request verification", () => {
     expect(echoedHeaders["X-Edge-Token"]).toBe(token);
   });
 
+  // [Verifies: trust-verify-signature.configuration-schema.signature-header-key-defaults-to-x-edge-token]
+  test("reads the manifest from X-Edge-Token when signature_header_key is omitted", async ({
+    request,
+  }) => {
+    const { routePath } = await provisionPluginRoute(request, {
+      prefix: PREFIX,
+      config: {
+        // signature_header_key deliberately omitted — schema default applies
+        allowed_jwks_uri_prefix: [RSA_JWKS_URL],
+        direction: "request",
+      },
+    });
+
+    const token = signManifestToken({
+      alg: "RS256",
+      kid: "rsa-2048",
+      privateKeyPem: RSA_PRIVATE_KEY,
+      payload: { jwks_uri: RSA_JWKS_URL },
+    });
+
+    const res = await proxyGet(request, routePath, {
+      headers: { "X-Edge-Token": token },
+    });
+    expect(res.status()).toBe(200);
+    const echoedHeaders = (await res.json()).headers;
+    expect(echoedHeaders["X-Trust-Verify-Signature-Req"]).toBe("OK");
+  });
+
   // [Verifies: trust-verify-signature.request-verification.missing-header-401]
   test("missing signature header is rejected", async ({ request }) => {
     const { routePath } = await provisionPluginRoute(request, {

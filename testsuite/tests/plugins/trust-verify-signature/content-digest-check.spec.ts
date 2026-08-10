@@ -181,12 +181,13 @@ test.describe("trust-verify-signature — content-digest manifest check", () => 
         },
       });
 
+      // No jwks_uri: digest check must run before key discovery, ensuring
+      // we surface the digest 400 and not the missing-jwks-uri 401.
       const token = signManifestToken({
         alg: "RS256",
         kid: "rsa-2048",
         privateKeyPem: RSA_PRIVATE_KEY,
         payload: {
-          jwks_uri: RSA_JWKS_URL,
           digest: "sha-256=:dGVzdC1kaWdlc3Q=:",
         },
       });
@@ -221,7 +222,6 @@ test.describe("trust-verify-signature — content-digest manifest check", () => 
         kid: "rsa-2048",
         privateKeyPem: RSA_PRIVATE_KEY,
         payload: {
-          jwks_uri: RSA_JWKS_URL,
           digest: "sha-256=:dGVzdC1kaWdlc3Q=:",
         },
       });
