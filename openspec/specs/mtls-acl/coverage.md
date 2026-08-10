@@ -14,7 +14,8 @@
 | `entity_checks: at_least_one_of(config.allow, config.deny)` | config | Requirement: Configuration schema |
 | Request header named by `certificate_header_name` (value) | input | Requirement: Certificate header extraction |
 | Request header named by `certificate_header_name` (case of header name) | input | Requirement: Certificate header extraction |
-| Request header named by `certificate_header_name` (repeated / multi-valued) | input | Requirement: Certificate header extraction (quirk) |
+| Request header named by `certificate_header_name` (repeated / multi-valued, allow-list) | input | Requirement: Certificate header extraction (quirk — fail closed) |
+| Request header named by `certificate_header_name` (repeated / multi-valued, deny-list) | input | Requirement: Deny-list evaluation (quirk — fail open) |
 | Missing / empty-string certificate header | input | Requirement: Default deny |
 | `contains()` match semantics (exact, case-sensitive string equality) | logic | Requirement: Allow-list evaluation; Requirement: Deny-list evaluation |
 | 403 rejection status/body | output | Requirement: Default deny |

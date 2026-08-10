@@ -211,6 +211,18 @@ the Default deny requirement.
 - **THEN** the client receives status 403 with the Default deny response body,
   and no request reaches the upstream service
 
+#### Scenario: Duplicate header bypasses the deny list
+
+**ID**: `mtls-acl.deny-list-evaluation.duplicate-header-grants-access`
+
+- **TAG**: quirk — a repeated header is received as a list; string-to-list
+  comparisons in `contains` all fail, so `not contains` is true and access is
+  granted even when every repeated value would individually match `config.deny`
+- **WHEN** `config.deny` is set, the client's request carries the header named
+  by `certificate_header_name` more than once, and each individual value would
+  match an entry in `config.deny`
+- **THEN** the request is proxied to the upstream service
+
 ### Requirement: Certificate header hiding on success
 
 **ID**: `mtls-acl.certificate-header-hiding`
