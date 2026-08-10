@@ -62,8 +62,9 @@ contain `iss` and `sub` equal to `config.client_id`, `aud` equal to
 `config.token_endpoint`, `iat` equal to the current Unix time in seconds, `exp`
 equal to `iat + config.expiration`, and a fresh `jti` represented by 32
 hexadecimal characters. The signature SHALL cover the base64url-encoded header
-and payload, use SHA-256 regardless of the `alg` label, and use JWA raw `r || s`
-encoding when the configured PEM key is elliptic-curve.
+and payload, use the SHA-256, SHA-384, or SHA-512 digest identified by the `alg`
+label, and use JWA raw `r || s` encoding when the configured PEM key is
+elliptic-curve.
 
 #### Scenario: Default assertion metadata
 
@@ -79,13 +80,12 @@ encoding when the configured PEM key is elliptic-curve.
 - **WHEN** `key_id`, `algorithm`, and `expiration` are explicitly configured
 - **THEN** the assertion header contains that `kid` and algorithm label, and its payload has `exp = iat + expiration`
 
-#### Scenario: Non-SHA-256 algorithm labels still use SHA-256
+#### Scenario: Signing digest matches the algorithm label
 
 **ID**: `token-exchange.client-assertion-contents.non-sha256-label-uses-sha256`
 
-- **TAG**: quirk — allowed RS384/RS512/ES384/ES512 labels disagree with the digest actually used to sign
-- **WHEN** `algorithm` is `RS384`, `RS512`, `ES384`, or `ES512` and a client assertion is emitted
-- **THEN** the protected header carries the configured label but the signature was produced with SHA-256 rather than the digest named by that label
+- **WHEN** `algorithm` is `RS256`/`ES256`, `RS384`/`ES384`, or `RS512`/`ES512` and a client assertion is emitted
+- **THEN** the signature uses SHA-256, SHA-384, or SHA-512 respectively, matching the protected-header algorithm label
 
 #### Scenario: Algorithm label need not match the private key type
 

@@ -7,6 +7,15 @@ local table_concat = table.concat
 local kong = kong
 local jwk_sign = require("kong.plugins.trust-sign.sign")
 
+local digest_by_algorithm = {
+  RS256 = "sha256",
+  RS384 = "sha384",
+  RS512 = "sha512",
+  ES256 = "sha256",
+  ES384 = "sha384",
+  ES512 = "sha512"
+}
+
 --- Generate a unique identifier (jti) for the JWT
 -- @return string A unique identifier
 local function generate_jti()
@@ -22,6 +31,7 @@ end
 -- @return the encoded JWT token
 local function encode_jwt_token(conf, payload, key)
   local algorithm = conf.algorithm or "RS256"
+  local digest = assert(digest_by_algorithm[algorithm], "unsupported signing algorithm")
 
   local header = {
     alg = algorithm
@@ -43,7 +53,7 @@ local function encode_jwt_token(conf, payload, key)
     assert(
     openssl_pkey.new(key):sign(
       signing_input,
-      "sha256",
+      digest,
       nil,
       {
         ecdsa_use_raw = true
