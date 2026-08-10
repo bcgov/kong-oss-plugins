@@ -36,7 +36,7 @@
 | Client status/body for transport failure (`E1`) | output | Requirement: Token endpoint failure mapping |
 | Client status/body for non-200 endpoint response (`E2`) | output | Requirement: Token endpoint failure mapping |
 | Client status/body for invalid 200 JSON (`E3`) | output | Requirement: Token endpoint failure mapping |
-| Ephemeral RSA assertion key generated when the configured key file cannot be read | output | Requirement: Private key resolution |
+| Handled 500 when the configured key file cannot be read | output | Requirement: Private key resolution |
 | 5xx from missing request Authorization or missing response `access_token`; handled 500 from malformed key contents | output | Requirement: Subject token extraction; Requirement: Private key resolution; Requirement: Successful exchange |
 | Repository claim of token introspection | documented but unimplemented | Out of scope |
 | Packaged `client_token.get_access_token_string` client-credentials flow | unintegrated code | Out of scope |

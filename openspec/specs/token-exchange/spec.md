@@ -124,13 +124,12 @@ The plugin SHALL resolve the PEM signing key path from
 - **WHEN** a previously unused `private_key_location` is readable but does not contain a parseable private key
 - **THEN** no token-endpoint request is made, no upstream `Authorization` header is set, and the client receives status 500 with an error explaining that the private key could not be parsed
 
-#### Scenario: Unreadable key path generates an ephemeral key
+#### Scenario: Unreadable key path aborts the request
 
 **ID**: `token-exchange.private-key-resolution.unreadable-key-generates-ephemeral-key`
 
-- **TAG**: quirk — a nil key value is passed to the OpenSSL constructor, which generates a new default RSA key
 - **WHEN** a previously unused `private_key_location` names a file that cannot be read
-- **THEN** the plugin generates a fresh RSA private key, signs the client assertion with it, and still sends the token-endpoint request
+- **THEN** no token-endpoint request is made, no upstream `Authorization` header is set, and the client receives status 500 with an error explaining that the private key could not be read
 
 ### Requirement: Subject token extraction
 
