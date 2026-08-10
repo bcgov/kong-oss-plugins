@@ -43,7 +43,8 @@ return {
           {
             expiration = {
               type = "number",
-              default = 60
+              default = 60,
+              gt = 0
             }
           },
           {

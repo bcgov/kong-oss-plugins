@@ -20,7 +20,7 @@ with these fields: `private_key_location` (required string), `client_id`
 default `RS256`, one of `RS256`/`RS384`/`RS512`/`ES256`/`ES384`/`ES512`),
 `expiration` (number, default `60`), `key_id` (optional string), `scopes` (array
 of strings, default empty), `audience` (optional string), and `timeout` (number,
-default `10000`). The schema imposes no range constraint on `expiration`.
+default `10000`). `expiration` SHALL be greater than zero.
 
 #### Scenario: Required fields are enforced
 
@@ -43,13 +43,12 @@ default `10000`). The schema imposes no range constraint on `expiration`.
 - **WHEN** a config supplies valid strings for `private_key_location`, `client_id`, and `token_endpoint` and omits all optional fields
 - **THEN** schema validation accepts it with `algorithm = RS256`, `expiration = 60`, `scopes` equal to an empty array, and `timeout = 10000`
 
-#### Scenario: Nonpositive expiration is accepted
+#### Scenario: Nonpositive expiration is rejected
 
 **ID**: `token-exchange.configuration-schema.nonpositive-expiration-accepted`
 
-- **TAG**: quirk — the schema permits assertions that expire immediately or before they are issued
 - **WHEN** `expiration` is zero or a negative number
-- **THEN** schema validation accepts the configuration and the assertion's `exp` claim equals `iat + expiration`
+- **THEN** schema validation rejects the configuration
 
 ### Requirement: Client assertion contents
 

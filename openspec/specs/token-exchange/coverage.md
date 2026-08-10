@@ -9,7 +9,7 @@
 | `config.client_id` (required string) | config | Requirement: Configuration schema; Requirement: Client assertion contents; Requirement: Token endpoint request |
 | `config.token_endpoint` (required string) | config | Requirement: Configuration schema; Requirement: Client assertion contents; Requirement: Token endpoint request |
 | `config.algorithm` (six-value enum, default `RS256`) | config | Requirement: Configuration schema; Requirement: Client assertion contents |
-| `config.expiration` (number, default `60`, no range) | config | Requirement: Configuration schema; Requirement: Client assertion contents |
+| `config.expiration` (number greater than zero, default `60`) | config | Requirement: Configuration schema; Requirement: Client assertion contents |
 | `config.key_id` (optional string) | config | Requirement: Configuration schema; Requirement: Client assertion contents |
 | `config.scopes` (string array, default empty) | config | Requirement: Configuration schema; Requirement: Token endpoint request |
 | `config.audience` (optional string) | config | Requirement: Configuration schema; Requirement: Token endpoint request |
