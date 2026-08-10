@@ -7,6 +7,20 @@ local table_concat = table.concat
 local kong = kong
 local jwk_sign = require("kong.plugins.trust-sign.sign")
 
+local digest_by_algorithm = {
+  RS256 = "sha256",
+  RS384 = "sha384",
+  RS512 = "sha512",
+  ES256 = "sha256",
+  ES384 = "sha384",
+  ES512 = "sha512"
+}
+
+local key_type_oid_by_family = {
+  RS = "1.2.840.113549.1.1.1",
+  ES = "1.2.840.10045.2.1"
+}
+
 --- Generate a unique identifier (jti) for the JWT
 -- @return string A unique identifier
 local function generate_jti()
@@ -22,6 +36,21 @@ end
 -- @return the encoded JWT token
 local function encode_jwt_token(conf, payload, key)
   local algorithm = conf.algorithm or "RS256"
+  local digest = assert(digest_by_algorithm[algorithm], "unsupported signing algorithm")
+  local private_key, key_err = openssl_pkey.new(key)
+  if not private_key then
+    return nil, "unable to parse private key: " .. (key_err or "unknown error")
+  end
+
+  local key_type, type_err = private_key:get_key_type()
+  if not key_type then
+    return nil, "unable to determine private key type: " .. (type_err or "unknown error")
+  end
+
+  local expected_key_type = key_type_oid_by_family[algorithm:sub(1, 2)]
+  if key_type.id ~= expected_key_type then
+    return nil, "private key type does not match signing algorithm " .. algorithm
+  end
 
   local header = {
     alg = algorithm
@@ -41,9 +70,9 @@ local function encode_jwt_token(conf, payload, key)
 
   local signature =
     assert(
-    openssl_pkey.new(key):sign(
+    private_key:sign(
       signing_input,
-      "sha256",
+      digest,
       nil,
       {
         ecdsa_use_raw = true
@@ -95,13 +124,17 @@ function create_client_assertion(config)
   }
 
   -- Create and sign the JWT
+  local private_key_location = jwk_sign.get_private_key_location(config)
   local kong_private_key =
-    jwk_sign.get_kong_key("token_exchange_pkey_" .. config.private_key_location, config.private_key_location)
+    jwk_sign.get_kong_key("token_exchange_pkey_" .. config.private_key_location, private_key_location)
+  if not kong_private_key then
+    return nil, "unable to read private key"
+  end
 
-  local jwt_token = encode_jwt_token(config, payload, kong_private_key)
+  local jwt_token, err = encode_jwt_token(config, payload, kong_private_key)
 
   if not jwt_token then
-    return nil, "unable to prepare client assertion"
+    return nil, err or "unable to prepare client assertion"
   end
 
   return jwt_token

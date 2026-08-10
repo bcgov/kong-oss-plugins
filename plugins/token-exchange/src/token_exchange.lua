@@ -39,7 +39,7 @@ local function do_token_exchange(conf)
   local client_assertion_token,
     err = client_assertion.create_client_assertion(conf)
   if not client_assertion_token then
-    return nil, "failed to create client assertion: " .. (err or "unknown error")
+    return nil, "failed to create client assertion: " .. (err or "unknown error"), 500
   end
 
   -- prepare the token exchange request parameters
@@ -83,8 +83,14 @@ local function do_token_exchange(conf)
   end
 
   if res.status ~= 200 then
-    local result = cjson.decode(res.body)
-    return nil, {code = "E2", detail = result}
+    local decoded_body = cjson.decode(res.body)
+    return nil,
+      {code = "E2"},
+      nil,
+      {
+        idp_status = res.status,
+        idp_response = decoded_body or res.body
+      }
   end
 
   -- decode the token response and return all the data
@@ -92,6 +98,10 @@ local function do_token_exchange(conf)
     decode_err = cjson.decode(res.body)
   if not token_response then
     kong.log.err("Failed to decode token response: ", decode_err)
+    return nil, {code = "E3"}
+  end
+  if type(token_response.access_token) ~= "string" or token_response.access_token == "" then
+    kong.log.err("Token response does not contain a non-empty string access_token")
     return nil, {code = "E3"}
   end
 

@@ -43,7 +43,14 @@ return {
           {
             expiration = {
               type = "number",
-              default = 60
+              default = 60,
+              gt = 0
+            }
+          },
+          {
+            timeout = {
+              type = "number",
+              default = 10000
             }
           },
           {
