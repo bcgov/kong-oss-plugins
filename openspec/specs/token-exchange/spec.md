@@ -218,9 +218,10 @@ schema-valid plugin configuration. Unit tests MAY call `do_token_exchange`
 
 **ID**: `token-exchange.successful-exchange`
 
-The plugin SHALL accept only an HTTP 200 token-endpoint response as successful,
-decode its body as JSON, and replace the upstream request's `Authorization`
-header with `Bearer <access_token>` from the decoded response.
+The plugin SHALL accept only an HTTP 200 token-endpoint response containing a
+JSON string `access_token` as successful and SHALL replace the upstream
+request's `Authorization` header with `Bearer <access_token>`. A decoded
+response without a string `access_token` SHALL fail with error code `E3`.
 
 #### Scenario: Exchanged access token replaces inbound credentials
 
@@ -236,13 +237,12 @@ header with `Bearer <access_token>` from the decoded response.
 - **WHEN** a successful token response also contains members such as `token_type`, `expires_in`, or `scope`
 - **THEN** only `access_token` is used to modify the upstream request
 
-#### Scenario: Successful response without access token raises an unhandled failure
+#### Scenario: Successful response without access token is rejected
 
 **ID**: `token-exchange.successful-exchange.missing-access-token-unhandled-failure`
 
-- **TAG**: quirk — a decoded 200 response is not checked for `access_token` before header concatenation
-- **WHEN** the token endpoint returns status 200 with a JSON object that has no `access_token`
-- **THEN** the request is not proxied and the client receives a Kong-generated 5xx response rather than the plugin's structured 400 response
+- **WHEN** the token endpoint returns status 200 with a JSON object that has no string `access_token`
+- **THEN** the request is not proxied and the client receives status 400 with `error` equal to an object containing `code = "E3"`
 
 ### Requirement: Token endpoint failure mapping
 
