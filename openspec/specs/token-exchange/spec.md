@@ -259,12 +259,12 @@ SHALL not proxy the request upstream or replace its `Authorization` header.
 - **WHEN** the HTTP client cannot obtain a response from the token endpoint
 - **THEN** the client receives status 400 with `error` equal to an object containing `code = "E1"`
 
-#### Scenario: Non-200 JSON response maps to E2 with detail
+#### Scenario: Non-200 JSON response maps to E2 without detail
 
 **ID**: `token-exchange.token-endpoint-failure-mapping.non-200-json-e2`
 
 - **WHEN** the token endpoint returns any status other than 200 with a JSON body
-- **THEN** the client receives status 400 with `error.code = "E2"` and `error.detail` equal to the decoded IdP body
+- **THEN** the client receives status 400 with `error.code = "E2"` and no `error.detail` member
 
 #### Scenario: Non-200 non-JSON response maps to E2 without detail
 

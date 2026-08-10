@@ -34,7 +34,7 @@
 | Unspecified form parameter order and form encoding | output | Requirement: Token endpoint request |
 | Upstream `Authorization: Bearer <access_token>` replacement | output | Requirement: Successful exchange |
 | Client status/body for transport failure (`E1`) | output | Requirement: Token endpoint failure mapping |
-| Client status/body for non-200 endpoint response (`E2`) | output | Requirement: Token endpoint failure mapping |
+| Redacted client status/body for non-200 endpoint response (`E2`) | output | Requirement: Token endpoint failure mapping |
 | Client status/body for invalid 200 JSON (`E3`) | output | Requirement: Token endpoint failure mapping |
 | Handled 500 when the configured key file cannot be read | output | Requirement: Private key resolution |
 | 5xx from missing request Authorization; handled 500 from malformed key contents; handled 400 from a missing response `access_token` | output | Requirement: Subject token extraction; Requirement: Private key resolution; Requirement: Successful exchange |

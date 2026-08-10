@@ -83,8 +83,7 @@ local function do_token_exchange(conf)
   end
 
   if res.status ~= 200 then
-    local result = cjson.decode(res.body)
-    return nil, {code = "E2", detail = result}
+    return nil, {code = "E2"}
   end
 
   -- decode the token response and return all the data
