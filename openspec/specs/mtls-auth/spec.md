@@ -17,11 +17,18 @@ configuration.
 
 The plugin SHALL allow the request to proceed only when the nginx variable `ssl_client_verify` is exactly the string `"SUCCESS"`. Otherwise the plugin SHALL immediately terminate the request with status `config.error_response_code` (default `401`), a JSON body `{"error": "invalid_request", "error_description": "mTLS client not provided or invalid"}`, and header `Content-Type: application/json`; the request SHALL NOT be proxied upstream and none of the headers described in the other requirements SHALL be set.
 
-#### Scenario: Missing or invalid client certificate is rejected with the default status
+#### Scenario: Missing client certificate is rejected with the default status
 
-**ID**: `mtls-auth.certificate-verification-gate.default-rejection`
+**ID**: `mtls-auth.certificate-verification-gate.missing-certificate`
 
-- **WHEN** a request arrives whose TLS client-certificate verification result is not `"SUCCESS"` (no client certificate was presented, or one was presented but failed verification), and `config.error_response_code` is unset
+- **WHEN** a request arrives with no client certificate presented (`ssl_client_verify` is `"NONE"`), and `config.error_response_code` is unset
+- **THEN** the client receives status 401 with a JSON body containing `error` = `"invalid_request"` and `error_description` = `"mTLS client not provided or invalid"`, `Content-Type: application/json`, and no request reaches the upstream service
+
+#### Scenario: Failed client certificate verification is rejected with the default status
+
+**ID**: `mtls-auth.certificate-verification-gate.failed-verification`
+
+- **WHEN** a request arrives with a client certificate that failed verification (`ssl_client_verify` is a `"FAILED:…"` value), and `config.error_response_code` is unset
 - **THEN** the client receives status 401 with a JSON body containing `error` = `"invalid_request"` and `error_description` = `"mTLS client not provided or invalid"`, `Content-Type: application/json`, and no request reaches the upstream service
 
 #### Scenario: error_response_code overrides the rejection status
@@ -111,6 +118,20 @@ When `config.upstream_cert_cn_header` is set to a non-empty string, the plugin S
 - **WHEN** `upstream_cert_cn_header` (or `upstream_cert_org_header`) is configured, but the verified client certificate's subject DN contains no `CN` (respectively `O`) RDN
 - **THEN** the request fails with a 5xx response and no request is proxied upstream
 
+#### Scenario: Plugin-computed CN overwrites a client-supplied header of the same name
+
+**ID**: `mtls-auth.subject-dn-derived-headers.overwrites-client-cn-header`
+
+- **WHEN** `upstream_cert_cn_header` is configured to a header name, the verified client certificate's subject DN contains a `CN` RDN, and the incoming client request already carries a header with that same name set to an attacker-chosen value
+- **THEN** the upstream request carries only the plugin-computed `CN` value for that header; the client-supplied value is discarded, not appended
+
+#### Scenario: Plugin-computed Organization overwrites a client-supplied header of the same name
+
+**ID**: `mtls-auth.subject-dn-derived-headers.overwrites-client-org-header`
+
+- **WHEN** `upstream_cert_org_header` is configured to a header name, the verified client certificate's subject DN contains an `O` RDN, and the incoming client request already carries a header with that same name set to an attacker-chosen value
+- **THEN** the upstream request carries only the plugin-computed `O` value for that header; the client-supplied value is discarded, not appended
+
 ### Requirement: Fixed TLS metadata headers
 
 **ID**: `mtls-auth.fixed-tls-metadata-headers`
@@ -123,6 +144,20 @@ Independent of configuration, whenever the client certificate is successfully ve
 
 - **WHEN** a request with a verified client certificate is proxied, regardless of which (if any) of the other config fields are set
 - **THEN** the upstream request carries `X-Tls-Server-Name` equal to the SNI hostname used for the TLS connection, and `X-Tls-Client-Verify` equal to `"SUCCESS"`
+
+#### Scenario: X-Tls-Server-Name overwrites a client-supplied header of the same name
+
+**ID**: `mtls-auth.fixed-tls-metadata-headers.overwrites-client-server-name`
+
+- **WHEN** a request with a verified client certificate is proxied, and the incoming client request already carries an `X-Tls-Server-Name` header set to an attacker-chosen value
+- **THEN** the upstream request carries only the TLS SNI hostname in `X-Tls-Server-Name`; the client-supplied value is discarded, not appended
+
+#### Scenario: X-Tls-Client-Verify overwrites a client-supplied header of the same name
+
+**ID**: `mtls-auth.fixed-tls-metadata-headers.overwrites-client-client-verify`
+
+- **WHEN** a request with a verified client certificate is proxied, and the incoming client request already carries an `X-Tls-Client-Verify` header set to an attacker-chosen value
+- **THEN** the upstream request carries only `"SUCCESS"` in `X-Tls-Client-Verify`; the client-supplied value is discarded, not appended
 
 ### Requirement: Configuration schema
 
