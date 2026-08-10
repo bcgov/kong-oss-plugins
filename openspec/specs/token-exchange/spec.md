@@ -159,7 +159,6 @@ direct-invocation cases below therefore do not occur in that supported pipeline.
 
 **ID**: `token-exchange.subject-token-extraction.nonmatching-header-omits-subject-token`
 
-- **TAG**: quirk — malformed, differently cased, and non-Bearer credentials are forwarded to the IdP without a subject token
 - **WHEN** the inbound `Authorization` value does not contain the exact case-sensitive pattern `Bearer` followed by whitespace and at least one character
 - **THEN** the plugin still calls the token endpoint but omits `subject_token` from the form body
 
