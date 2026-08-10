@@ -21,11 +21,21 @@ function TokenExchangeHandler:access(conf)
   -- token exchange
   local token_response,
     err,
-    status = token_exchange.do_token_exchange(conf)
+    status,
+    detail = token_exchange.do_token_exchange(conf)
   if err then
     kong.log.err("Error during token exchange: ", err)
+    local error_code = type(err) == "table" and err.code or err
+    local plugin_result = {
+      plugin = PLUGIN_NAME,
+      reason = "token exchange with IdP failed: " .. tostring(error_code)
+    }
+    if detail then
+      plugin_result.detail = detail
+    end
+
     return log.exit_with_reason(
-      {plugin = PLUGIN_NAME, reason = "token exchange with IdP failed: " .. tostring(err)},
+      plugin_result,
       status or 400,
       {
         message = "Token exchange failed",
