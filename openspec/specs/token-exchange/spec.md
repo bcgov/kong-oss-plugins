@@ -19,8 +19,8 @@ with these fields: `private_key_location` (required string), `client_id`
 (required string), `token_endpoint` (required string), `algorithm` (string,
 default `RS256`, one of `RS256`/`RS384`/`RS512`/`ES256`/`ES384`/`ES512`),
 `expiration` (number, default `60`), `key_id` (optional string), `scopes` (array
-of strings, default empty), and `audience` (optional string). The schema defines
-no `timeout` field and imposes no range constraint on `expiration`.
+of strings, default empty), `audience` (optional string), and `timeout` (number,
+default `10000`). The schema imposes no range constraint on `expiration`.
 
 #### Scenario: Required fields are enforced
 
@@ -41,7 +41,7 @@ no `timeout` field and imposes no range constraint on `expiration`.
 **ID**: `token-exchange.configuration-schema.canonical-config-accepted`
 
 - **WHEN** a config supplies valid strings for `private_key_location`, `client_id`, and `token_endpoint` and omits all optional fields
-- **THEN** schema validation accepts it with `algorithm = RS256`, `expiration = 60`, and `scopes` equal to an empty array
+- **THEN** schema validation accepts it with `algorithm = RS256`, `expiration = 60`, `scopes` equal to an empty array, and `timeout = 10000`
 
 #### Scenario: Nonpositive expiration is accepted
 
@@ -207,13 +207,12 @@ schema-valid plugin configuration. Unit tests MAY call `do_token_exchange`
 - **WHEN** `scopes` contains one or more strings
 - **THEN** the exchange form contains one `scope` parameter formed by joining them in array order with single spaces; when `scopes` is empty, the parameter is omitted
 
-#### Scenario: Runtime timeout field is unavailable through the schema
+#### Scenario: Configured token-endpoint timeout is used
 
 **ID**: `token-exchange.token-endpoint-request.timeout-field-unavailable`
 
-- **TAG**: quirk — runtime consults `conf.timeout`, but the plugin schema does not declare that field
-- **WHEN** an administrator attempts to add `timeout` to the plugin configuration
-- **THEN** schema validation rejects the unknown field, so a schema-valid plugin instance always uses the 10,000 millisecond fallback
+- **WHEN** an administrator configures `timeout` to a number of milliseconds
+- **THEN** schema validation accepts the field and the token-endpoint HTTP request uses that timeout; when omitted, the request uses 10,000 milliseconds
 
 ### Requirement: Successful exchange
 

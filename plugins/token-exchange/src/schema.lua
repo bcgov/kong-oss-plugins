@@ -47,6 +47,12 @@ return {
             }
           },
           {
+            timeout = {
+              type = "number",
+              default = 10000
+            }
+          },
+          {
             key_id = {
               type = "string",
               required = false

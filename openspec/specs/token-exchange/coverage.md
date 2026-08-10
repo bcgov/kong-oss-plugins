@@ -13,7 +13,7 @@
 | `config.key_id` (optional string) | config | Requirement: Configuration schema; Requirement: Client assertion contents |
 | `config.scopes` (string array, default empty) | config | Requirement: Configuration schema; Requirement: Token endpoint request |
 | `config.audience` (optional string) | config | Requirement: Configuration schema; Requirement: Token endpoint request |
-| Runtime read of undeclared `conf.timeout` and 10,000 ms fallback | config/runtime | Requirement: Token endpoint request |
+| `config.timeout` (number, default `10000`) | config/runtime | Requirement: Configuration schema; Requirement: Token endpoint request |
 | PEM file at `private_key_location` | input | Requirement: Private key resolution |
 | `KONG_SIGNING_CERT_KEY` environment variable | input | Requirement: Private key resolution |
 | Current Unix time | input | Requirement: Client assertion contents |
