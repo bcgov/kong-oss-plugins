@@ -137,7 +137,9 @@ The plugin SHALL resolve the PEM signing key path from
 
 The plugin SHALL derive the exchange `subject_token` by applying the
 case-sensitive Lua pattern `Bearer%s+(.+)` to the inbound `Authorization` header.
-The pattern is not anchored to the beginning of the header.
+The pattern is not anchored to the beginning of the header. The default
+deployment SHALL run token validation before token exchange; the
+direct-invocation cases below therefore do not occur in that supported pipeline.
 
 #### Scenario: Bearer token becomes the subject token
 
@@ -150,7 +152,6 @@ The pattern is not anchored to the beginning of the header.
 
 **ID**: `token-exchange.subject-token-extraction.missing-header-unhandled-failure`
 
-- **TAG**: quirk — the code calls string matching on a nil header instead of rejecting the request deliberately
 - **WHEN** the inbound request has no `Authorization` header
 - **THEN** no token-endpoint request is made and the client receives a Kong-generated 5xx response rather than the plugin's structured 400 response
 
