@@ -20,12 +20,13 @@ function TokenExchangeHandler:access(conf)
 
   -- token exchange
   local token_response,
-    err = token_exchange.do_token_exchange(conf)
+    err,
+    status = token_exchange.do_token_exchange(conf)
   if err then
     kong.log.err("Error during token exchange: ", err)
     return log.exit_with_reason(
       {plugin = PLUGIN_NAME, reason = "token exchange with IdP failed: " .. tostring(err)},
-      400,
+      status or 400,
       {
         message = "Token exchange failed",
         error = err

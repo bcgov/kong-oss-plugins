@@ -39,7 +39,7 @@ local function do_token_exchange(conf)
   local client_assertion_token,
     err = client_assertion.create_client_assertion(conf)
   if not client_assertion_token then
-    return nil, "failed to create client assertion: " .. (err or "unknown error")
+    return nil, "failed to create client assertion: " .. (err or "unknown error"), 500
   end
 
   -- prepare the token exchange request parameters

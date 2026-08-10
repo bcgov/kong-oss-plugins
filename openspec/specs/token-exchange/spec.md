@@ -87,13 +87,12 @@ elliptic-curve.
 - **WHEN** `algorithm` is `RS256`/`ES256`, `RS384`/`ES384`, or `RS512`/`ES512` and a client assertion is emitted
 - **THEN** the signature uses SHA-256, SHA-384, or SHA-512 respectively, matching the protected-header algorithm label
 
-#### Scenario: Algorithm label need not match the private key type
+#### Scenario: Algorithm and private key types must match
 
 **ID**: `token-exchange.client-assertion-contents.algorithm-key-type-mismatch`
 
-- **TAG**: quirk — no validation binds an RS/ES algorithm label to the actual signing-key type
 - **WHEN** an `RS*` label is configured with an elliptic-curve key or an `ES*` label is configured with an RSA key
-- **THEN** the assertion header retains the configured label while the signature operation uses the actual key type, producing a token that a standards-based verifier for the labeled algorithm cannot verify
+- **THEN** no token-endpoint request is made and the client receives status 500 with an error explaining that the private key type does not match the signing algorithm
 
 ### Requirement: Private key resolution
 
@@ -124,7 +123,7 @@ the Kong process has `KONG_SIGNING_CERT_KEY` set. Unit tests MAY call
 **ID**: `token-exchange.private-key-resolution.malformed-key-aborts-request`
 
 - **WHEN** a previously unused `private_key_location` is readable but does not contain a parseable private key
-- **THEN** no token-endpoint request is made, no upstream `Authorization` header is set, and the client receives a Kong-generated 5xx response
+- **THEN** no token-endpoint request is made, no upstream `Authorization` header is set, and the client receives status 500 with an error explaining that the private key could not be parsed
 
 #### Scenario: Unreadable key path generates an ephemeral key
 
