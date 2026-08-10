@@ -93,8 +93,8 @@ local function do_token_exchange(conf)
     kong.log.err("Failed to decode token response: ", decode_err)
     return nil, {code = "E3"}
   end
-  if type(token_response.access_token) ~= "string" then
-    kong.log.err("Token response does not contain a string access_token")
+  if type(token_response.access_token) ~= "string" or token_response.access_token == "" then
+    kong.log.err("Token response does not contain a non-empty string access_token")
     return nil, {code = "E3"}
   end
 

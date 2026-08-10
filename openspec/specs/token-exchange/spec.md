@@ -218,9 +218,10 @@ schema-valid plugin configuration. Unit tests MAY call `do_token_exchange`
 **ID**: `token-exchange.successful-exchange`
 
 The plugin SHALL accept only an HTTP 200 token-endpoint response containing a
-JSON string `access_token` as successful and SHALL replace the upstream
-request's `Authorization` header with `Bearer <access_token>`. A decoded
-response without a string `access_token` SHALL fail with error code `E3`.
+non-empty JSON string `access_token` as successful and SHALL replace the
+upstream request's `Authorization` header with `Bearer <access_token>`. A
+decoded response without a non-empty string `access_token` SHALL fail with
+error code `E3`.
 
 #### Scenario: Exchanged access token replaces inbound credentials
 
@@ -240,7 +241,7 @@ response without a string `access_token` SHALL fail with error code `E3`.
 
 **ID**: `token-exchange.successful-exchange.missing-access-token-unhandled-failure`
 
-- **WHEN** the token endpoint returns status 200 with a JSON object that has no string `access_token`
+- **WHEN** the token endpoint returns status 200 with a JSON object whose `access_token` is missing, non-string, or empty
 - **THEN** the request is not proxied and the client receives status 400 with `error` equal to an object containing `code = "E3"`
 
 ### Requirement: Token endpoint failure mapping
