@@ -98,10 +98,10 @@ elliptic-curve.
 
 **ID**: `token-exchange.private-key-resolution`
 
-The plugin SHALL read the PEM signing key from the path in
-`config.private_key_location`. It SHALL use that exact configured path even when
-the Kong process has `KONG_SIGNING_CERT_KEY` set. Unit tests MAY call
-`create_client_assertion` (`require "client_assertion"`).
+The plugin SHALL resolve the PEM signing key path from
+`KONG_SIGNING_CERT_KEY` when that environment variable is set, otherwise from
+`config.private_key_location`. Unit tests MAY call `create_client_assertion`
+(`require "client_assertion"`).
 
 #### Scenario: Configured private key signs the assertion
 
@@ -110,13 +110,12 @@ the Kong process has `KONG_SIGNING_CERT_KEY` set. Unit tests MAY call
 - **WHEN** `private_key_location` names a readable valid PEM private key
 - **THEN** the client assertion signature is produced by that key
 
-#### Scenario: Signing key environment override is ignored
+#### Scenario: Signing key environment override is used
 
 **ID**: `token-exchange.private-key-resolution.environment-override-ignored`
 
-- **TAG**: quirk — the shared signing module's environment override is bypassed by the token-exchange call path
 - **WHEN** `KONG_SIGNING_CERT_KEY` names a different key from `private_key_location`
-- **THEN** the client assertion is still signed by the key at `private_key_location`
+- **THEN** the client assertion is signed by the key named by `KONG_SIGNING_CERT_KEY`
 
 #### Scenario: Malformed key aborts the request
 

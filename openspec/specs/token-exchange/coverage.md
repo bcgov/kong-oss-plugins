@@ -15,7 +15,7 @@
 | `config.audience` (optional string) | config | Requirement: Configuration schema; Requirement: Token endpoint request |
 | Runtime read of undeclared `conf.timeout` and 10,000 ms fallback | config/runtime | Requirement: Token endpoint request |
 | PEM file at `private_key_location` | input | Requirement: Private key resolution |
-| `KONG_SIGNING_CERT_KEY` environment variable | input | Requirement: Private key resolution (ignored on this call path) |
+| `KONG_SIGNING_CERT_KEY` environment variable | input | Requirement: Private key resolution |
 | Current Unix time | input | Requirement: Client assertion contents |
 | 16 random bytes per assertion | input | Requirement: Client assertion contents (`jti`) |
 | Inbound `Authorization` header | input | Requirement: Subject token extraction |

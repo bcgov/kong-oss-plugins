@@ -124,8 +124,9 @@ function create_client_assertion(config)
   }
 
   -- Create and sign the JWT
+  local private_key_location = jwk_sign.get_private_key_location(config)
   local kong_private_key =
-    jwk_sign.get_kong_key("token_exchange_pkey_" .. config.private_key_location, config.private_key_location)
+    jwk_sign.get_kong_key("token_exchange_pkey_" .. config.private_key_location, private_key_location)
 
   local jwt_token, err = encode_jwt_token(config, payload, kong_private_key)
 
