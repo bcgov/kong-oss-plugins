@@ -4,6 +4,11 @@ local clear_header = kong.service.request.clear_header
 
 local PLUGIN_NAME = "mtls-acl"
 
+-- kong.request.get_headers() normalizes header name case and dash/underscore
+-- equivalence for us, and raising the limit to the PDK's maximum avoids
+-- silently dropping the configured header on requests with many headers.
+local MAX_HEADERS = 1000
+
 -- utils
 local function is_empty(s)
     return s == nil or s == ''
@@ -18,14 +23,15 @@ local function contains (tab, val)
     return false
 end
 
+-- Returns the header value and a boolean indicating whether the header was
+-- sent more than once (kong.request.get_headers() returns a table of values
+-- in that case, rather than a single string).
 local function get_header_value(header_name)
-    local h = ngx.req.get_headers()
-    for k, v in pairs(h) do
-        if string.lower(k) == string.lower(header_name) then
-            return v
-        end
+    local v = kong.request.get_headers(MAX_HEADERS)[header_name]
+    if type(v) == "table" then
+        return nil, true
     end
-    return nil
+    return v, false
 end
 
 local MtlsAcl = {
@@ -35,7 +41,16 @@ local MtlsAcl = {
 
 
 function MtlsAcl:access(plugin_conf)
-    local certificate = get_header_value(plugin_conf.certificate_header_name)
+    local certificate, duplicated = get_header_value(plugin_conf.certificate_header_name)
+    if duplicated then
+        return log.exit_with_reason(
+            {plugin = PLUGIN_NAME, reason = "certificate header sent more than once"},
+            403,
+            {
+                message = "You cannot consume this service"
+            }
+        )
+    end
     if not is_empty(certificate) then
 		if not is_empty(plugin_conf.allow) then
 		    if contains(plugin_conf.allow, certificate) then
