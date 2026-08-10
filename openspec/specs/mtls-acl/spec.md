@@ -257,14 +257,30 @@ rejected, the plugin SHALL NOT remove the header.
 
 mtls-acl places no requirements on the structure or origin of the header
 value it reads — it treats `config.certificate_header_name` as an opaque
-string and compares it verbatim against `config.allow`/`config.deny`. In
-deployments that also enable `mtls-auth`, operators typically point
+string and compares it verbatim against `config.allow`/`config.deny`, without
+verifying who set it. This means mtls-acl provides no security guarantee on
+its own: if a request can reach mtls-acl with an untrusted, client-supplied
+value in the configured header, that value is evaluated exactly like a
+value derived from a verified certificate. mtls-acl's access control is
+only meaningful when a trusted preceding component in the plugin chain
+(typically `mtls-auth`, running at a higher priority) authoritatively sets
+or clears the configured header on every request that reaches mtls-acl —
+overwriting any client-supplied value when it has one to assert, and
+removing the header entirely when it does not. A preceding component that
+merely skips setting the header when it has no value to assert (leaving
+whatever the client sent intact) does not satisfy this precondition, and
+reintroduces client control over the ACL decision.
+
+In deployments that also enable `mtls-auth`, operators typically point
 `certificate_header_name` at one of the headers `mtls-auth` populates (e.g.
 its fingerprint, serial, subject-DN, CN, or Organization header — see the
 `mtls-auth` spec's Certificate detail headers / Common Name and Organization
 headers requirements), and populate `allow`/`deny` with the corresponding
-certificate values. This coupling is a deployment convention, not something
-mtls-acl's code depends on or enforces.
+certificate values. `mtls-auth`'s Common Name and Organization headers are
+a notable case to verify against this precondition: when the subject DN
+lacks the target attribute, `mtls-auth` must clear the configured header
+rather than leave it untouched, or a client-supplied value for that same
+header name would survive to mtls-acl unmodified.
 
 ## Out of scope
 
