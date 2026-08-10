@@ -257,7 +257,6 @@ SHALL not proxy the request upstream or replace its `Authorization` header.
 
 **ID**: `token-exchange.token-endpoint-failure-mapping.transport-failure-e1`
 
-- **TAG**: quirk — an IdP transport failure is reported to the client as a 400-level request error
 - **WHEN** the HTTP client cannot obtain a response from the token endpoint
 - **THEN** the client receives status 400 with `error` equal to an object containing `code = "E1"`
 
