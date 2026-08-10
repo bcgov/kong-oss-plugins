@@ -166,7 +166,6 @@ direct-invocation cases below therefore do not occur in that supported pipeline.
 
 **ID**: `token-exchange.subject-token-extraction.embedded-bearer-substring-accepted`
 
-- **TAG**: quirk — the extraction pattern is unanchored and can accept text before the Bearer credential
 - **WHEN** an `Authorization` value contains arbitrary text followed later by `Bearer <token>`
 - **THEN** the token endpoint receives `<token>` as the `subject_token`
 
