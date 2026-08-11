@@ -4,9 +4,6 @@ local clear_header = kong.service.request.clear_header
 
 local PLUGIN_NAME = "mtls-acl"
 
--- kong.request.get_headers() normalizes header name case and dash/underscore
--- equivalence for us, and raising the limit to the PDK's maximum avoids
--- silently dropping the configured header on requests with many headers.
 local MAX_HEADERS = 1000
 
 -- utils
@@ -23,15 +20,33 @@ local function contains (tab, val)
     return false
 end
 
--- Returns the header value and a boolean indicating whether the header was
--- sent more than once (kong.request.get_headers() returns a table of values
--- in that case, rather than a single string).
+-- '-' and '_' are treated as equivalent, mirroring how nginx variables and
+-- CGI-style upstreams normalize header names, so name variants cannot smuggle
+-- a second value past the duplicate check or the hide feature.
+local function normalize_header_name(name)
+    return (string.gsub(string.lower(name), "_", "-"))
+end
+
+-- Returns the certificate header's value, a boolean indicating whether the
+-- header appeared more than once (repeated exact name, or under a case or
+-- '-'/'_' name variant), and the name form the client actually sent.
 local function get_header_value(header_name)
-    local v = kong.request.get_headers(MAX_HEADERS)[header_name]
-    if type(v) == "table" then
-        return nil, true
+    local canonical = normalize_header_name(header_name)
+    local value, matched_name
+    local matches = 0
+    local duplicated = false
+    for name, v in pairs(kong.request.get_headers(MAX_HEADERS)) do
+        if normalize_header_name(name) == canonical then
+            matches = matches + 1
+            matched_name = name
+            if type(v) == "table" then
+                duplicated = true
+            else
+                value = v
+            end
+        end
     end
-    return v, false
+    return value, duplicated or matches > 1, matched_name
 end
 
 local MtlsAcl = {
@@ -41,7 +56,7 @@ local MtlsAcl = {
 
 
 function MtlsAcl:access(plugin_conf)
-    local certificate, duplicated = get_header_value(plugin_conf.certificate_header_name)
+    local certificate, duplicated, matched_name = get_header_value(plugin_conf.certificate_header_name)
     if duplicated then
         return log.exit_with_reason(
             {plugin = PLUGIN_NAME, reason = "certificate header sent more than once"},
@@ -55,7 +70,7 @@ function MtlsAcl:access(plugin_conf)
 		if not is_empty(plugin_conf.allow) then
 		    if contains(plugin_conf.allow, certificate) then
 				if (plugin_conf.hide_certificate_header) then
-					clear_header(plugin_conf.certificate_header_name)
+					clear_header(matched_name)
 				end
 		        log.continue_with_reason({plugin = PLUGIN_NAME, reason = "certificate allowed"})
 		        return
@@ -64,7 +79,7 @@ function MtlsAcl:access(plugin_conf)
 		if not is_empty(plugin_conf.deny) then
 		    if not contains(plugin_conf.deny, certificate) then
 				if (plugin_conf.hide_certificate_header) then
-					clear_header(plugin_conf.certificate_header_name)
+					clear_header(matched_name)
 				end
 		        log.continue_with_reason({plugin = PLUGIN_NAME, reason = "certificate not denied"})
 		        return

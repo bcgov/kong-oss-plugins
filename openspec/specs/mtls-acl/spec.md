@@ -97,14 +97,17 @@ invalid HTTP header name for `certificate_header_name` SHALL also be rejected.
 **ID**: `mtls-acl.certificate-header-extraction`
 
 The plugin SHALL read the certificate value from the incoming request header
-named by `config.certificate_header_name`, matching the header name
-case-insensitively regardless of the letter case used by the client. A
-request that does not carry this header, or carries it with an empty-string
-value, SHALL be treated identically to a request with no allow/deny match:
-rejected per the Default deny requirement. A request that carries this
-header more than once SHALL be rejected per the Default deny requirement,
-regardless of whether the individual repeated values would otherwise satisfy
-`config.allow` or `config.deny`.
+named by `config.certificate_header_name`. Header names are matched
+case-insensitively and with `-` and `_` treated as interchangeable (the same
+normalization nginx variables and CGI-style upstream frameworks apply), so
+all request headers whose names are equivalent under that normalization are
+treated as the same header. A request that does not carry this header, or
+carries it with an empty-string value, SHALL be treated identically to a
+request with no allow/deny match: rejected per the Default deny requirement.
+A request that carries this header more than once — whether repeated under
+the exact same name or spread across case or `-`/`_` name variants — SHALL
+be rejected per the Default deny requirement, regardless of whether the
+individual values would otherwise satisfy `config.allow` or `config.deny`.
 
 #### Scenario: Header name matched case-insensitively
 
@@ -115,6 +118,16 @@ regardless of whether the individual repeated values would otherwise satisfy
   letter case) whose value matches an entry in `config.allow`
 - **THEN** the plugin extracts the header value and grants access
 
+#### Scenario: Header name matched across dash/underscore variants
+
+**ID**: `mtls-acl.certificate-header-extraction.dash-underscore-equivalent-match`
+
+- **WHEN** `certificate_header_name` is configured as `X-Client-Cert-Fp` and
+  the client's request carries a single header named `X_Client_Cert_Fp`
+  (underscores instead of dashes) whose value matches an entry in
+  `config.allow`
+- **THEN** the plugin extracts the header value and grants access
+
 #### Scenario: Header sent more than once is rejected
 
 **ID**: `mtls-acl.certificate-header-extraction.duplicate-header-rejected`
@@ -123,6 +136,16 @@ regardless of whether the individual repeated values would otherwise satisfy
   `certificate_header_name` more than once, regardless of whether the
   individual repeated values would match an entry in `config.allow` or
   `config.deny`
+- **THEN** the client receives status 403 with the Default deny response
+  body, and no request reaches the upstream service
+
+#### Scenario: Header sent under two equivalent name variants is rejected
+
+**ID**: `mtls-acl.certificate-header-extraction.variant-name-duplicate-rejected`
+
+- **WHEN** `certificate_header_name` is configured as `X-Client-Cert-Fp` and
+  the client's request carries both an `X-Client-Cert-Fp` header and an
+  `X_Client_Cert_Fp` header, regardless of their values
 - **THEN** the client receives status 403 with the Default deny response
   body, and no request reaches the upstream service
 
@@ -220,9 +243,12 @@ the Default deny requirement.
 **ID**: `mtls-acl.certificate-header-hiding`
 
 When `config.hide_certificate_header` is `true`, the plugin SHALL remove the
-header named by `config.certificate_header_name` from the request before it
-is proxied to the upstream service, whenever access is granted (whether by
-the Allow-list evaluation or Deny-list evaluation requirement). When
+matched certificate header from the request before it is proxied to the
+upstream service, whenever access is granted (whether by the Allow-list
+evaluation or Deny-list evaluation requirement). Removal applies to the
+header as the client actually sent it, whatever letter case or `-`/`_` name
+form was used (per the Certificate header extraction requirement, at most
+one equivalent header can be present on a granted request). When
 `hide_certificate_header` is `false` (the default), or when the request is
 rejected, the plugin SHALL NOT remove the header.
 
@@ -252,6 +278,16 @@ rejected, the plugin SHALL NOT remove the header.
   access is granted
 - **THEN** the upstream request still carries the
   `certificate_header_name` header with the client-supplied value
+
+#### Scenario: Header removed regardless of the name form the client used
+
+**ID**: `mtls-acl.certificate-header-hiding.variant-name-form-removed`
+
+- **WHEN** `hide_certificate_header` is `true`, `certificate_header_name` is
+  configured as `X-Client-Cert-Fp`, access is granted, and the client sent
+  the matching header as `X_Client_Cert_Fp` (underscores instead of dashes)
+- **THEN** the upstream request carries no header whose name is equivalent to
+  `X-Client-Cert-Fp` under case and `-`/`_` normalization
 
 ## Interop / shared contract
 
