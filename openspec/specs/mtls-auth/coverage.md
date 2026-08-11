@@ -38,5 +38,5 @@
 | DN parsing: split on unescaped commas | logic | Requirement: Common Name and Organization headers derived from the subject DN |
 | DN parsing: escaped comma retains literal backslash | logic | Requirement: Common Name and Organization headers derived from the subject DN (quirk) |
 | DN parsing: duplicate attribute type, last wins | logic | Requirement: Common Name and Organization headers derived from the subject DN |
-| DN parsing: missing target attribute → nil header value | logic | Requirement: Common Name and Organization headers derived from the subject DN (quirk) |
+| DN parsing: missing target attribute → configured header cleared, client-supplied value discarded | logic | Requirement: Common Name and Organization headers derived from the subject DN |
 | `X-Tls-Client-Verify` truthiness check (`if ngx.var.ssl_client_verify then`) | logic | Requirement: Fixed TLS metadata headers (always true once past the verification gate; no separate scenario needed) |

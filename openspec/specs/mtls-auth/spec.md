@@ -88,6 +88,8 @@ The plugin SHALL parse the verified client certificate's subject distinguished n
 
 When `config.upstream_cert_cn_header` is set to a non-empty string, the plugin SHALL set that header on the upstream request to the parsed `CN` value. When `config.upstream_cert_org_header` is set to a non-empty string, the plugin SHALL set that header to the parsed `O` value. Each of these headers, like the others in this plugin, overwrites any header of the same name the client already sent.
 
+When the subject DN contains no RDN of the target type (`CN` or `O`), the plugin SHALL instead remove the configured header from the request — including any value the client supplied with that same header name — and SHALL continue processing the request normally, still setting every other configured header. The plugin SHALL NOT leave a client-supplied value on that header name intact: omitting the derived value means clearing the header, not skipping the header entirely.
+
 #### Scenario: CN and Organization extracted from a simple subject DN
 
 **ID**: `mtls-auth.subject-dn-derived-headers.simple-extraction`
@@ -110,13 +112,19 @@ When `config.upstream_cert_cn_header` is set to a non-empty string, the plugin S
 - **WHEN** `upstream_cert_cn_header` is configured and the subject DN contains two RDNs of type `CN`, e.g. `CN=First,OU=Sales,CN=Second`
 - **THEN** the CN header carries `Second`
 
-#### Scenario: Missing target attribute fails the request
+#### Scenario: Missing CN clears the configured header and the request continues
 
-**ID**: `mtls-auth.subject-dn-derived-headers.missing-attribute-fails-request`
+**ID**: `mtls-auth.subject-dn-derived-headers.cn-missing-header-cleared`
 
-- **TAG**: quirk — the plugin does not guard against the target RDN being absent; setting a header to a missing value raises an uncaught error instead of skipping the header or failing gracefully
-- **WHEN** `upstream_cert_cn_header` (or `upstream_cert_org_header`) is configured, but the verified client certificate's subject DN contains no `CN` (respectively `O`) RDN
-- **THEN** the request fails with a 5xx response and no request is proxied upstream
+- **WHEN** `upstream_cert_cn_header` is configured, and the verified client certificate's subject DN contains no `CN` RDN
+- **THEN** the request is proxied to the upstream service without the `upstream_cert_cn_header` header present — even if the client's original request carried a header with that name — and every other configured header is still set
+
+#### Scenario: Missing Organization clears the configured header and the request continues
+
+**ID**: `mtls-auth.subject-dn-derived-headers.org-missing-header-cleared`
+
+- **WHEN** `upstream_cert_org_header` is configured, and the verified client certificate's subject DN contains no `O` RDN
+- **THEN** the request is proxied to the upstream service without the `upstream_cert_org_header` header present — even if the client's original request carried a header with that name — and every other configured header is still set
 
 #### Scenario: Plugin-computed CN overwrites a client-supplied header of the same name
 

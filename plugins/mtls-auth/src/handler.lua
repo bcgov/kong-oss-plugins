@@ -1,6 +1,7 @@
 local kong_meta = require "kong.meta"
 local log = require("kong.plugins.plugin-log.log")
 local set_header = kong.service.request.set_header
+local clear_header = kong.service.request.clear_header
 
 local PLUGIN_NAME = "mtls-auth"
 
@@ -78,11 +79,21 @@ function MtlsAuth:access(config)
     end
 
     if not is_empty(config.upstream_cert_cn_header) then
-        set_header(config.upstream_cert_cn_header, cert_dn["CN"])
+        if cert_dn["CN"] then
+            set_header(config.upstream_cert_cn_header, cert_dn["CN"])
+        else
+            -- No CN on the certificate: clear rather than skip, so a
+            -- client-supplied value on this header name can't survive.
+            clear_header(config.upstream_cert_cn_header)
+        end
     end
 
     if not is_empty(config.upstream_cert_org_header) then
-        set_header(config.upstream_cert_org_header, cert_dn["O"])
+        if cert_dn["O"] then
+            set_header(config.upstream_cert_org_header, cert_dn["O"])
+        else
+            clear_header(config.upstream_cert_org_header)
+        end
     end
 
     set_header("X-Tls-Server-Name", ngx.var.ssl_server_name)
