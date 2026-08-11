@@ -421,14 +421,16 @@ test.describe("token-exchange — spec behavior", () => {
   });
 
   // [Verifies: token-exchange.token-endpoint-failure-mapping.non-200-non-json-e2]
-  test("maps a non-200 non-JSON token response to E2 without detail", async ({ request }) => {
-    const id = captureId("non-200-text");
-    const { routePath } = await provisionPluginRoute(request, {
-      prefix: PREFIX,
-      config: config(mockTokenEndpoint(id, { mode: "non-200-text" })),
-    });
-    const body = await expectHandledError(await exchange(request, routePath), "E2");
-    expect(body.error).not.toHaveProperty("detail");
+  test("maps non-200 absent and non-JSON bodies to E2 without detail", async ({ request }) => {
+    for (const mode of ["non-200-empty", "non-200-text"]) {
+      const id = captureId(mode);
+      const { routePath } = await provisionPluginRoute(request, {
+        prefix: PREFIX,
+        config: config(mockTokenEndpoint(id, { mode })),
+      });
+      const body = await expectHandledError(await exchange(request, routePath), "E2");
+      expect(body.error).not.toHaveProperty("detail");
+    }
   });
 
   // [Verifies: token-exchange.token-endpoint-failure-mapping.invalid-200-json-e3]

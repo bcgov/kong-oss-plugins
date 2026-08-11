@@ -59,6 +59,10 @@ const server = http.createServer((request, response) => {
       response.writeHead(503, { "content-type": "text/plain" });
       return response.end("temporarily unavailable");
     }
+    if (mode === "non-200-empty") {
+      response.writeHead(502);
+      return response.end();
+    }
     if (mode === "missing") {
       return json(response, 200, { token_type: "Bearer" });
     }
