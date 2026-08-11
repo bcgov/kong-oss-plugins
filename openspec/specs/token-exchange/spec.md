@@ -180,9 +180,9 @@ and a form body whose parameter order is unspecified. The form SHALL contain
 `urn:ietf:params:oauth:grant-type:token-exchange`, `subject_token_type` and
 `requested_token_type` each equal to
 `urn:ietf:params:oauth:token-type:access_token`, plus `subject_token` when
-extraction succeeds. The HTTP timeout SHALL be 10,000 milliseconds for every
-schema-valid plugin configuration. Unit tests MAY call `do_token_exchange`
-(`require "token_exchange"`).
+extraction succeeds. The HTTP timeout SHALL equal `config.timeout`, which
+defaults to 10,000 milliseconds when omitted. Unit tests MAY call
+`do_token_exchange` (`require "token_exchange"`).
 
 #### Scenario: Standard exchange request
 
