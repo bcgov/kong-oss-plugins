@@ -286,6 +286,17 @@ test.describe("trust-verify-signature — key discovery", () => {
       writeDynamicJwks(stem, {
         keys: readFixtureJwksKeys("rsa-2048.jwks.json"),
       });
+      // Wait until the live endpoint serves the kid before asserting no-refresh;
+      // otherwise a buggy refetch against a still-empty nginx body would also
+      // return "Signature public key not found" and pass this test.
+      await expect
+        .poll(async () => {
+          const jwksRes = await request.get(jwksUrl);
+          if (!jwksRes.ok()) return false;
+          const doc = await jwksRes.json();
+          return (doc.keys ?? []).some((k: { kid?: string }) => k.kid === "rsa-2048");
+        })
+        .toBeTruthy();
 
       await primeAllReplicas(async () => {
         const res = await proxyGet(request, routePath, {

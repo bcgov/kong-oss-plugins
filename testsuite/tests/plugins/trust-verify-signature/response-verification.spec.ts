@@ -98,6 +98,10 @@ test.describe("trust-verify-signature — response verification", () => {
     });
     expect(res.status()).toBe(401);
     const body = await res.json();
-    expect(body.message).toBe("Missing Signature in X-Edge-Token");
+    // Spec: upstream body is not delivered — only the Kong error payload.
+    // /response-headers returns a headers/origin echo shape; reject any leak.
+    expect(body).toEqual({
+      message: "Missing Signature in X-Edge-Token",
+    });
   });
 });
