@@ -1,13 +1,10 @@
 import { APIRequestContext } from "playwright";
 import {
   KONG_ADMIN_URL,
-  KONG_PROXY_URL,
   provisionKong,
   waitForRouteReady,
 } from "./kong";
 import { upstreamServiceDefaults } from "./upstream";
-
-export { KONG_PROXY_URL };
 
 export type TokenExchangeConfig = {
   private_key_location: string;
@@ -70,8 +67,8 @@ export async function provisionPluginRoute(
   });
 
   await waitForRouteReady(request, routePath, {
-    consecutive: 12,
-    timeoutMs: 20_000,
+    timeoutMs: 30_000,
+    consecutive: 9,
   });
   return {
     routePath,

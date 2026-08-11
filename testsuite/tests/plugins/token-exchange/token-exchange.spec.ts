@@ -3,17 +3,19 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  proxyGet,
+  uniquePrefix,
+} from "../../../helpers/kong";
+import {
   CapturedExchange,
-  KONG_PROXY_URL,
   TokenExchangeConfig,
   cleanupByPrefix,
-  clearMockCaptures,
   getMockCapture,
   mockTokenEndpoint,
   provisionPluginRoute,
 } from "../../../helpers/token-exchange";
 
-const PREFIX = `token-exchange-${Date.now()}`;
+const PREFIX = uniquePrefix("token-exchange");
 const KEY_ROOT = "/tmp/kong/fixtures/keys";
 const LOCAL_KEY_ROOT = path.resolve(__dirname, "../../../local/kong/fixtures/keys");
 let captureCounter = 0;
@@ -40,7 +42,7 @@ async function exchange(
   routePath: string,
   authorization = "Bearer inbound-token"
 ) {
-  return request.get(`${KONG_PROXY_URL}${routePath}/headers`, {
+  return proxyGet(request, routePath, {
     headers: { Authorization: authorization },
   });
 }
@@ -105,8 +107,7 @@ async function expectHandledError(response: APIResponse, code: string) {
 
 test.describe("token-exchange — spec behavior", () => {
   test.beforeAll(async ({ request }) => {
-    await cleanupByPrefix(request, "token-exchange-");
-    await clearMockCaptures(request);
+    await cleanupByPrefix(request, PREFIX);
   });
 
   test.afterAll(async ({ request }) => {
@@ -288,7 +289,7 @@ test.describe("token-exchange — spec behavior", () => {
       prefix: PREFIX,
       config: config(mockTokenEndpoint(id)),
     });
-    const response = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
+    const response = await proxyGet(request, routePath);
     expect(response.status()).toBeGreaterThanOrEqual(500);
     expect(response.status()).toBeLessThan(600);
     expect(await response.text()).not.toContain("Token exchange failed");
