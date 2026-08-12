@@ -10,7 +10,6 @@ import {
   tokenEndpoint,
 } from "../../../helpers/token-exchange";
 
-const STALE_PREFIX = "token-exchange-request-";
 const PREFIX = uniquePrefix("token-exchange-request");
 let clientCounter = 0;
 
@@ -29,7 +28,7 @@ function config(id: string, endpoint: string) {
 
 test.describe("token-exchange — subject extraction and endpoint request", () => {
   test.beforeAll(async ({ request }) => {
-    await cleanupByPrefix(request, STALE_PREFIX);
+    await cleanupByPrefix(request, PREFIX);
   });
 
   test.afterAll(async ({ request }) => {

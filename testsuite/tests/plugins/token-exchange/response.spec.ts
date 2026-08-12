@@ -8,7 +8,6 @@ import {
   tokenEndpoint,
 } from "../../../helpers/token-exchange";
 
-const STALE_PREFIX = "token-exchange-response-";
 const PREFIX = uniquePrefix("token-exchange-response");
 let clientCounter = 0;
 
@@ -35,7 +34,7 @@ async function expectHandledError(response: import("@playwright/test").APIRespon
 
 test.describe("token-exchange — successful and failed exchanges", () => {
   test.beforeAll(async ({ request }) => {
-    await cleanupByPrefix(request, STALE_PREFIX);
+    await cleanupByPrefix(request, PREFIX);
   });
 
   test.afterAll(async ({ request }) => {

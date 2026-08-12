@@ -12,7 +12,6 @@ import {
   verifyClientAssertion,
 } from "../../../helpers/token-exchange";
 
-const STALE_PREFIX = "token-exchange-assertion-";
 const PREFIX = uniquePrefix("token-exchange-assertion");
 let clientCounter = 0;
 
@@ -23,7 +22,7 @@ function clientId(label: string): string {
 
 test.describe("token-exchange — client assertions and private keys", () => {
   test.beforeAll(async ({ request }) => {
-    await cleanupByPrefix(request, STALE_PREFIX);
+    await cleanupByPrefix(request, PREFIX);
   });
 
   test.afterAll(async ({ request }) => {
