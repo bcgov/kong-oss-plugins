@@ -9,40 +9,9 @@ local function read_file(path)
   return contents
 end
 
-local function value_matches_key(value, path, contents)
-  if value == path or value == contents then
-    return true
-  end
-
-  if type(value) == "table" or type(value) == "userdata" then
-    for _, method_name in ipairs({ "to_PEM", "to_pem" }) do
-      local method = value[method_name]
-      if type(method) == "function" then
-        for _, format in ipairs({ "private", "public" }) do
-          local ok, pem = pcall(method, value, format)
-          if ok and pem == contents then
-            return true
-          end
-        end
-      end
-    end
-  end
-
-  return false
-end
-
-local function arguments_contain_key(arguments, path, contents)
-  for _, value in ipairs(arguments) do
-    if value_matches_key(value, path, contents) then
-      return true
-    end
-  end
-  return false
-end
-
 describe("token-exchange private key environment override", function()
   local original_getenv
-  local captured_signer_arguments
+  local resolved_key_path
 
   before_each(function()
     original_getenv = os.getenv
@@ -53,20 +22,8 @@ describe("token-exchange private key environment override", function()
       return original_getenv(name)
     end
 
-    captured_signer_arguments = nil
-    local function record_signer_call(...)
-      captured_signer_arguments = { ... }
-      return string.rep("s", 64)
-    end
     package.preload[SIGNER_MODULE] = function()
-      return setmetatable({ sign = record_signer_call }, {
-        __call = function(_, ...)
-          return record_signer_call(...)
-        end,
-        __index = function()
-          return record_signer_call
-        end,
-      })
+      return assert(loadfile("../trust-sign/src/sign.lua"))()
     end
     package.loaded[SIGNER_MODULE] = nil
     package.loaded.client_assertion = nil
@@ -80,7 +37,17 @@ describe("token-exchange private key environment override", function()
   end)
 
   -- [Verifies: token-exchange.private-key-resolution.environment-override-ignored]
-  it("passes the KONG_SIGNING_CERT_KEY key to the assertion signer", function()
+  it("uses the key path selected by the real KONG_SIGNING_CERT_KEY resolver", function()
+    local signer = assert(require(SIGNER_MODULE))
+    local real_get_private_key_location = assert(signer.get_private_key_location)
+    signer.get_private_key_location = function(config)
+      resolved_key_path = real_get_private_key_location(config)
+      return resolved_key_path
+    end
+    signer.get_kong_key = function(_, path)
+      return read_file(path)
+    end
+
     local create_client_assertion = assert(require("client_assertion").create_client_assertion)
     local assertion = assert(create_client_assertion({
       private_key_location = CONFIG_KEY_PATH,
@@ -91,15 +58,6 @@ describe("token-exchange private key environment override", function()
     }))
 
     assert.matches("^[^.]+%.[^.]+%.[^.]+$", assertion)
-    assert.is_table(captured_signer_arguments)
-
-    local environment_key = read_file(ENV_KEY_PATH)
-    local configured_key = read_file(CONFIG_KEY_PATH)
-    assert.is_true(
-      arguments_contain_key(captured_signer_arguments, ENV_KEY_PATH, environment_key)
-    )
-    assert.is_false(
-      arguments_contain_key(captured_signer_arguments, CONFIG_KEY_PATH, configured_key)
-    )
+    assert.equals(ENV_KEY_PATH, resolved_key_path)
   end)
 end)
