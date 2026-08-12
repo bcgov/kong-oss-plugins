@@ -4,8 +4,22 @@
 clients using mTLS. It is similar (but simpler) than the [mTLS](https://docs.konghq.com/hub/kong-inc/mtls-auth/) plugin provided in Kong Enterprise edition.
       
 Information extracted from the mTLS client certificate can be made available using headers for
-the upstream service, or used by other plugins (such as the [kong-plugin-mtls-acl](https://github.com/callistaenterprise/kong-plugin-mtls-acl) plugins)
-to further limit access. 
+the upstream service. For other plugins running in the same request (such as `mtls-acl`), the
+plugin always publishes the verified certificate's attributes to `kong.ctx.shared.mtls_auth` —
+a per-request shared context that, unlike request headers, cannot be supplied or spoofed by the
+client:
+
+```lua
+kong.ctx.shared.mtls_auth = {
+  cert = "<PEM, URL-encoded>",
+  fingerprint = "<certificate fingerprint>",
+  serial = "<certificate serial number>",
+  issuer_dn = "<issuer DN, RFC 2253>",
+  subject_dn = "<subject DN, RFC 2253>",
+  common_name = "<CN parsed from the subject DN>",   -- absent if the DN has no CN
+  organization = "<O parsed from the subject DN>",   -- absent if the DN has no O
+}
+```
 
 The implementation of this plugin was inspired by the 
 [mtls-validate](https://github.com/emersonqueiroz/kong-plugin-mtls-validate) plugin.
@@ -26,7 +40,10 @@ Configure nginx to use verify client certificate in `kong.conf`:
 
 	nginx_proxy_ssl_client_certificate = /path/to/rootCA.crt
 	nginx_proxy_ssl_verify_client = on
-    
+
+The plugin can only be enabled for the `https` protocol — mTLS requires HTTPS.
+
+
 To enable the plugin only for one service:
 
     curl -X POST http://localhost:8001/services/{ID}/plugins \

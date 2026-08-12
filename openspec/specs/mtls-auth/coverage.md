@@ -13,7 +13,7 @@
 | `config.upstream_cert_cn_header` (optional) | config | Requirement: Common Name and Organization headers derived from the subject DN |
 | `config.upstream_cert_org_header` (optional) | config | Requirement: Common Name and Organization headers derived from the subject DN |
 | `consumer = typedefs.no_consumer` | config | Requirement: Configuration schema |
-| `protocols = typedefs.protocols_http` | config | Requirement: Configuration schema |
+| `protocols` (restricted to `https` only) | config | Requirement: Configuration schema |
 | `entity_checks = {}` (none defined) | config | Requirement: Configuration schema |
 | `ngx.var.ssl_client_verify` (gate value) | input | Requirement: Client certificate verification gate |
 | `ngx.var.ssl_client_verify` (reused as header value) | input | Requirement: Fixed TLS metadata headers |
@@ -34,6 +34,8 @@
 | Upstream header from `upstream_cert_org_header` | output | Requirement: Common Name and Organization headers derived from the subject DN |
 | `X-Tls-Server-Name` upstream header (fixed) | output | Requirement: Fixed TLS metadata headers |
 | `X-Tls-Client-Verify` upstream header (fixed) | output | Requirement: Fixed TLS metadata headers |
+| `kong.ctx.shared.mtls_auth` table (cert, fingerprint, serial, issuer_dn, subject_dn, common_name, organization) | output | Requirement: Shared certificate context for downstream plugins |
+| Missing CN/O → shared-context key absent (nil) | logic | Requirement: Shared certificate context for downstream plugins |
 | Overwrite of a client-supplied same-named header | behavior | Requirement: Certificate detail headers for upstream |
 | DN parsing: split on unescaped commas | logic | Requirement: Common Name and Organization headers derived from the subject DN |
 | DN parsing: escaped comma retains literal backslash | logic | Requirement: Common Name and Organization headers derived from the subject DN (quirk) |

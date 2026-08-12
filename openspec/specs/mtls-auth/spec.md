@@ -7,7 +7,10 @@ the access phase, gating the request on the TLS client-certificate
 verification result already computed by Kong/nginx, then exposes details of
 the verified client certificate to the upstream service via configurable
 request headers, plus two headers that are always set regardless of
-configuration.
+configuration. It also always publishes the verified certificate's attributes
+to `kong.ctx.shared.mtls_auth`, a per-request shared context that downstream
+plugins in the same request (e.g. `mtls-acl`) consume without any exposure to
+client-supplied headers.
 
 ## Requirements
 
@@ -15,7 +18,7 @@ configuration.
 
 **ID**: `mtls-auth.certificate-verification-gate`
 
-The plugin SHALL allow the request to proceed only when the nginx variable `ssl_client_verify` is exactly the string `"SUCCESS"`. Otherwise the plugin SHALL immediately terminate the request with status `config.error_response_code` (default `401`), a JSON body `{"error": "invalid_request", "error_description": "mTLS client not provided or invalid"}`, and header `Content-Type: application/json`; the request SHALL NOT be proxied upstream and none of the headers described in the other requirements SHALL be set.
+The plugin SHALL allow the request to proceed only when the nginx variable `ssl_client_verify` is exactly the string `"SUCCESS"`. Otherwise the plugin SHALL immediately terminate the request with status `config.error_response_code` (default `401`), a JSON body `{"error": "invalid_request", "error_description": "mTLS client not provided or invalid"}`, and header `Content-Type: application/json`; the request SHALL NOT be proxied upstream, none of the headers described in the other requirements SHALL be set, and the shared certificate context (`kong.ctx.shared.mtls_auth`) SHALL NOT be populated.
 
 #### Scenario: Missing client certificate is rejected with the default status
 
@@ -167,11 +170,50 @@ Independent of configuration, whenever the client certificate is successfully ve
 - **WHEN** a request with a verified client certificate is proxied, and the incoming client request already carries an `X-Tls-Client-Verify` header set to an attacker-chosen value
 - **THEN** the upstream request carries only `"SUCCESS"` in `X-Tls-Client-Verify`; the client-supplied value is discarded, not appended
 
+### Requirement: Shared certificate context for downstream plugins
+
+**ID**: `mtls-auth.shared-certificate-context`
+
+On every request that passes the certificate-verification gate, and independent of any configuration, the plugin SHALL populate `kong.ctx.shared.mtls_auth` with a table of the verified client certificate's attributes, using exactly these keys:
+
+- `cert` — the client certificate in PEM format, URL-encoded (same value as the `upstream_cert_header` header)
+- `fingerprint` — the client certificate fingerprint
+- `serial` — the client certificate serial number
+- `issuer_dn` — the client certificate issuer distinguished name, verbatim
+- `subject_dn` — the client certificate subject distinguished name, verbatim
+- `common_name` — the `CN` value parsed from the subject DN, per the parsing rules of the Common Name and Organization headers requirement
+- `organization` — the `O` value parsed from the subject DN, per the same parsing rules
+
+When the subject DN contains no RDN of the target type, the corresponding key (`common_name` or `organization`) SHALL be absent from the table (nil), not present with an empty value. The context entry lives in per-request Kong worker memory: it SHALL be derived only from the verified TLS connection, and no client-supplied request content (headers, query, body) can create, alter, or remove it. Because the table always carries every available attribute, downstream consumers select which attribute to use; this plugin takes no configuration for the shared context.
+
+The observable seam for these scenarios is any plugin that runs later in the same request's access phase and reads `kong.ctx.shared.mtls_auth` (e.g. `mtls-acl`, or a test-only observer plugin that echoes the table).
+
+#### Scenario: Shared context is populated on every verified request
+
+**ID**: `mtls-auth.shared-certificate-context.populated-on-verified-request`
+
+- **WHEN** a request with a verified client certificate is processed, regardless of which (if any) config fields are set
+- **THEN** a plugin running later in the same request's access phase observes `kong.ctx.shared.mtls_auth` as a table whose `cert`, `fingerprint`, `serial`, `issuer_dn`, `subject_dn`, `common_name`, and `organization` keys carry the corresponding values of the verified client certificate
+
+#### Scenario: Missing CN leaves the common_name key absent
+
+**ID**: `mtls-auth.shared-certificate-context.cn-missing-key-absent`
+
+- **WHEN** a request with a verified client certificate whose subject DN contains no `CN` RDN is processed
+- **THEN** a plugin running later in the same request's access phase observes `kong.ctx.shared.mtls_auth` with no `common_name` key, while the other keys are still populated
+
+#### Scenario: Missing Organization leaves the organization key absent
+
+**ID**: `mtls-auth.shared-certificate-context.org-missing-key-absent`
+
+- **WHEN** a request with a verified client certificate whose subject DN contains no `O` RDN is processed
+- **THEN** a plugin running later in the same request's access phase observes `kong.ctx.shared.mtls_auth` with no `organization` key, while the other keys are still populated
+
 ### Requirement: Configuration schema
 
 **ID**: `mtls-auth.configuration-schema`
 
-The plugin SHALL only apply to HTTP(S) traffic and SHALL NOT be configurable at consumer scope. Its config schema has no required fields, no enumerated (`one_of`) fields, and no cross-field validation rules:
+The plugin SHALL only be configurable for the `https` protocol — mTLS requires HTTPS, so schema validation SHALL reject a `protocols` set containing any other protocol (`http`, `grpc`, `grpcs`, …) — and SHALL NOT be configurable at consumer scope. Its config schema has no required fields, no enumerated (`one_of`) fields, and no cross-field validation rules:
 
 - `error_response_code` (number, optional, default `401`)
 - `upstream_cert_header` (string, optional, no default)
@@ -195,3 +237,28 @@ The plugin SHALL only apply to HTTP(S) traffic and SHALL NOT be configurable at 
 
 - **WHEN** an attempt is made to configure the plugin at consumer scope
 - **THEN** the configuration is rejected by schema validation
+
+#### Scenario: Non-https protocol is rejected
+
+**ID**: `mtls-auth.configuration-schema.non-https-protocol-rejected`
+
+- **WHEN** an attempt is made to configure the plugin with a `protocols` set containing a protocol other than `https` (e.g. `["http"]`)
+- **THEN** the configuration is rejected by schema validation
+
+## Interop / shared contract
+
+`kong.ctx.shared.mtls_auth` is the shared contract between mtls-auth (the
+producer) and downstream consumer plugins such as `mtls-acl`. **This spec is
+the source of truth for that contract**: a table with the keys `cert`,
+`fingerprint`, `serial`, `issuer_dn`, `subject_dn`, `common_name`, and
+`organization` (see the Shared certificate context requirement), populated
+only after successful client-certificate verification, with a key absent when
+the certificate lacks the corresponding attribute.
+
+Because `kong.ctx.shared` is per-request memory inside Kong, the contract is
+trustworthy by construction: a client cannot supply, duplicate, or spoof it
+the way it could a request header. Consumers can therefore treat the absence
+of `kong.ctx.shared.mtls_auth` as "no verified client certificate was
+established on this request" and fail closed. The configurable upstream
+headers remain available for upstream services outside Kong; plugins inside
+Kong should consume the shared context instead of headers.

@@ -4,7 +4,8 @@ return {
     name = "mtls-auth",
     fields = {
         { consumer = typedefs.no_consumer },
-        { protocols = typedefs.protocols_http },
+        -- mTLS requires HTTPS, so only the https protocol is supported
+        { protocols = typedefs.protocols { default = { "https" }, elements = { type = "string", one_of = { "https" } } } },
         {
             config = {
                 type = "record",

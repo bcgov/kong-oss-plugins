@@ -57,7 +57,21 @@ function MtlsAuth:access(config)
     end
 
     local cert_dn = parse_dn(ngx.var.ssl_client_s_dn)
-    
+
+    -- Publish the verified certificate's attributes for downstream plugins
+    -- (e.g. mtls-acl). kong.ctx.shared is per-request, in-worker memory, so
+    -- unlike request headers it cannot be supplied or spoofed by the client.
+    -- Keys with no source value (e.g. a subject DN without CN) are absent.
+    kong.ctx.shared.mtls_auth = {
+        cert = ngx.var.ssl_client_escaped_cert,
+        fingerprint = ngx.var.ssl_client_fingerprint,
+        serial = ngx.var.ssl_client_serial,
+        issuer_dn = ngx.var.ssl_client_i_dn,
+        subject_dn = ngx.var.ssl_client_s_dn,
+        common_name = cert_dn["CN"],
+        organization = cert_dn["O"],
+    }
+
     if not is_empty(config.upstream_cert_header) then
         set_header(config.upstream_cert_header, ngx.var.ssl_client_escaped_cert)
     end
