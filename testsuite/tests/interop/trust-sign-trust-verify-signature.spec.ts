@@ -95,8 +95,12 @@ test.describe("interop — trust-sign produces, trust-verify-signature consumes"
 
     // Producer side: no inbound X-Edge-Token, so trust-sign emits a bare
     // manifest carrying only jwks_uri + the standard claims.
-    const signRes = await proxyGet(request, signRoutePath, {
+    // Retry 200s with no signature header — route can be ready while the
+    // plugin is still missing on the replica that served the request.
+    const signRes = await kongProxyRequest(request, signRoutePath, {
       pathSuffix: "/status/200",
+      shouldRetry: async (res) =>
+        res.status() === 200 && !res.headers()["x-edge-token"],
     });
     expect(signRes.status()).toBe(200);
     const token = signRes.headers()["x-edge-token"];
@@ -150,12 +154,22 @@ test.describe("interop — trust-sign produces, trust-verify-signature consumes"
       }
     );
 
-    // Producer: no JWKS flake path here — use shared kong proxy helper.
+    // Producer: retry 200s whose echoed headers lack X-Edge-Token — the
+    // route can be ready while trust-sign is still missing on that replica.
     const signRes = await kongProxyRequest(request, signRoutePath, {
       method: "POST",
       pathSuffix: "/anything",
       data: body,
       headers: { "Content-Type": "text/plain" },
+      shouldRetry: async (res) => {
+        if (res.status() !== 200) return false;
+        try {
+          const headers = (await res.json()).headers ?? {};
+          return !findHeader(headers, "X-Edge-Token");
+        } catch {
+          return false;
+        }
+      },
     });
     expect(signRes.status()).toBe(200);
 
