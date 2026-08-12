@@ -1,88 +1,127 @@
+import fs from "node:fs";
 import http from "node:http";
+import https from "node:https";
 
-const captures = new Map();
+const captures = [];
+let nextCaptureId = 1;
 
-function json(response, status, body) {
+function sendJson(response, status, value) {
   response.writeHead(status, { "content-type": "application/json" });
-  response.end(JSON.stringify(body));
+  response.end(JSON.stringify(value));
 }
 
-const server = http.createServer((request, response) => {
+function collectBody(request) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    request.on("error", reject);
+  });
+}
+
+function captureForRequest(request, url, body) {
+  const form = Object.fromEntries(new URLSearchParams(body));
+  const capture = {
+    id: nextCaptureId++,
+    method: request.method,
+    path: `${url.pathname}${url.search}`,
+    headers: request.headers,
+    form,
+    receivedAt: Date.now(),
+  };
+  captures.push(capture);
+  return capture;
+}
+
+async function handle(request, response) {
   const url = new URL(request.url, "http://token-exchange-mock");
 
   if (request.method === "GET" && url.pathname === "/health") {
-    return json(response, 200, { status: "ok" });
-  }
-
-  if (request.method === "GET" && url.pathname.startsWith("/captures/")) {
-    const id = decodeURIComponent(url.pathname.slice("/captures/".length));
-    if (!captures.has(id)) {
-      return json(response, 404, { message: "capture not found" });
-    }
-    return json(response, 200, captures.get(id));
+    return sendJson(response, 200, { status: "ok" });
   }
 
   if (request.method === "DELETE" && url.pathname === "/captures") {
-    captures.clear();
-    response.writeHead(204);
-    return response.end();
+    captures.length = 0;
+    return sendJson(response, 200, { status: "reset" });
   }
 
-  if (request.method !== "POST" || url.pathname !== "/token") {
-    return json(response, 404, { message: "not found" });
+  if (request.method === "GET" && url.pathname.startsWith("/captures/")) {
+    const clientId = decodeURIComponent(url.pathname.slice("/captures/".length));
+    return sendJson(response, 200, {
+      captures: captures.filter((capture) => capture.form.client_id === clientId),
+    });
   }
 
-  const chunks = [];
-  request.on("data", (chunk) => chunks.push(chunk));
-  request.on("end", () => {
-    const rawBody = Buffer.concat(chunks).toString("utf8");
-    const form = Object.fromEntries(new URLSearchParams(rawBody));
-    const capture = url.searchParams.get("capture");
-    if (capture) {
-      captures.set(capture, {
-        method: request.method,
-        headers: request.headers,
-        rawBody,
-        form,
-      });
+  if (request.method !== "POST" || !url.pathname.startsWith("/token/")) {
+    return sendJson(response, 404, { error: "not found" });
+  }
+
+  const body = await collectBody(request);
+  captureForRequest(request, url, body);
+  const mode = url.pathname.slice("/token/".length);
+  const delayMs = Number(url.searchParams.get("delay_ms") ?? "0");
+  if (delayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  if (response.destroyed) {
+    return;
+  }
+
+  switch (mode) {
+    case "success": {
+      const payload = {
+        access_token: url.searchParams.get("access_token") ?? "exchanged-token",
+      };
+      if (url.searchParams.get("additional") === "true") {
+        payload.token_type = "Bearer";
+        payload.expires_in = 300;
+        payload.scope = "read write";
+      }
+      return sendJson(response, 200, payload);
     }
-
-    const mode = url.searchParams.get("mode") ?? "success";
-    if (mode === "invalid-json") {
+    case "missing":
+      return sendJson(response, 200, { token_type: "Bearer" });
+    case "empty":
+      return sendJson(response, 200, { access_token: "" });
+    case "nonstring":
+      return sendJson(response, 200, { access_token: 42 });
+    case "invalid-json":
       response.writeHead(200, { "content-type": "application/json" });
       return response.end("{not-json");
-    }
-    if (mode === "non-200-json") {
-      return json(response, 401, { error: "invalid_grant", detail: "must not leak" });
-    }
-    if (mode === "non-200-text") {
-      response.writeHead(503, { "content-type": "text/plain" });
-      return response.end("temporarily unavailable");
-    }
-    if (mode === "non-200-empty") {
-      response.writeHead(502);
-      return response.end();
-    }
-    if (mode === "missing") {
-      return json(response, 200, { token_type: "Bearer" });
-    }
-    if (mode === "non-string") {
-      return json(response, 200, { access_token: 12345 });
-    }
-    if (mode === "empty") {
-      return json(response, 200, { access_token: "" });
-    }
-
-    const body = { access_token: url.searchParams.get("access_token") ?? "exchanged-token" };
-    if (mode === "success-extra") {
-      Object.assign(body, {
-        token_type: "Bearer",
-        expires_in: 300,
-        scope: "read write",
+    case "error-json":
+      return sendJson(response, Number(url.searchParams.get("status") ?? "401"), {
+        error: "invalid_subject_token",
+        error_description: "details must not cross the plugin boundary",
       });
-    }
-    return json(response, 200, body);
+    case "error-text":
+      response.writeHead(Number(url.searchParams.get("status") ?? "503"), {
+        "content-type": "text/plain",
+      });
+      return response.end("token endpoint unavailable");
+    default:
+      return sendJson(response, 404, { error: "unknown mode" });
+  }
+}
+
+const httpServer = http.createServer((request, response) => {
+  handle(request, response).catch((error) => {
+    sendJson(response, 500, { error: error.message });
   });
 });
 
-server.listen(8080, "0.0.0.0");
+httpServer.listen(8080, "0.0.0.0");
+
+const httpsServer = https.createServer(
+  {
+    key: fs.readFileSync(new URL("./tls-key.pem", import.meta.url)),
+    cert: fs.readFileSync(new URL("./tls-cert.pem", import.meta.url)),
+  },
+  (request, response) => {
+    handle(request, response).catch((error) => {
+      sendJson(response, 500, { error: error.message });
+    });
+  }
+);
+
+httpsServer.listen(8443, "0.0.0.0");
