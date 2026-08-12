@@ -2,14 +2,14 @@
 
 ## Purpose
 
-The mtls-acl plugin restricts access to a Service or Route based on a
-certificate-derived value carried in a configurable HTTP request header. It
-runs in the access phase and grants or denies the request according to a
-configured allow-list or deny-list of exact values, before proxying upstream.
-The plugin is agnostic to what populates that header: in practice it is
-typically deployed alongside `mtls-auth`, which writes one of the client
-certificate's attributes (fingerprint, serial, subject DN, CN, etc.) into a
-request header that this plugin then reads by name.
+The mtls-acl plugin restricts access to a Service or Route based on an
+attribute of the verified mTLS client certificate. It runs in the access
+phase, reads the attribute value from the shared per-request certificate
+context that `mtls-auth` populates (`kong.ctx.shared.mtls_auth` — see
+Interop / shared contract), and grants or denies the request according to a
+configured allow-list or deny-list of exact values, before proxying
+upstream. The plugin never reads the authorization subject from request
+content: a client cannot supply, duplicate, or spoof the value it evaluates.
 
 ## Requirements
 
@@ -17,33 +17,37 @@ request header that this plugin then reads by name.
 
 **ID**: `mtls-acl.configuration-schema`
 
-The plugin SHALL only apply to HTTP(S) traffic and SHALL NOT be configurable
-at consumer scope. Its config schema is:
+The plugin SHALL only be configurable for the `https` protocol — it
+authorizes mTLS-verified requests, and mTLS requires HTTPS — so schema
+validation SHALL reject a `protocols` set containing any other protocol
+(`http`, `grpc`, `grpcs`, …). It SHALL NOT be configurable at consumer
+scope. Its config schema is:
 
-- `certificate_header_name` (HTTP header name via `typedefs.header_name`,
-  required, no default)
+- `certificate_attribute` (string, required, no default) — which attribute
+  of the shared certificate context to evaluate; one of `cert`,
+  `fingerprint`, `serial`, `issuer_dn`, `subject_dn`, `common_name`,
+  `organization` (the keys of `kong.ctx.shared.mtls_auth`, see Interop /
+  shared contract)
 - `allow` (array of strings, optional, no default)
 - `deny` (array of strings, optional, no default)
-- `hide_certificate_header` (boolean, optional, default `false`)
 
 The plugin SHALL enforce exactly one of `config.allow` / `config.deny` being
 set: both configured at once, neither configured, and either field set to an
-explicitly empty array, SHALL each be rejected by schema validation. An
-invalid HTTP header name for `certificate_header_name` SHALL also be rejected.
+explicitly empty array, SHALL each be rejected by schema validation.
 
 #### Scenario: Required field enforced
 
 **ID**: `mtls-acl.configuration-schema.required-field`
 
-- **WHEN** a plugin config omits `certificate_header_name`
+- **WHEN** a plugin config omits `certificate_attribute`
 - **THEN** the configuration is rejected by schema validation
 
-#### Scenario: Invalid certificate_header_name is rejected
+#### Scenario: Invalid certificate_attribute is rejected
 
-**ID**: `mtls-acl.configuration-schema.invalid-header-name-rejected`
+**ID**: `mtls-acl.configuration-schema.invalid-attribute-rejected`
 
-- **WHEN** a plugin config sets `certificate_header_name` to a string that is
-  not a valid HTTP header name
+- **WHEN** a plugin config sets `certificate_attribute` to a string outside
+  the enumerated attribute list (e.g. `x-client-cert-fp`)
 - **THEN** the configuration is rejected by schema validation
 
 #### Scenario: Configuring both allow and deny is rejected
@@ -80,10 +84,10 @@ invalid HTTP header name for `certificate_header_name` SHALL also be rejected.
 
 **ID**: `mtls-acl.configuration-schema.canonical-config-valid`
 
-- **WHEN** a plugin config sets `certificate_header_name` and exactly one of
-  `allow` or `deny` to a non-empty array of strings
-- **THEN** the configuration is accepted by schema validation, and
-  `hide_certificate_header` defaults to `false`
+- **WHEN** a plugin config sets `certificate_attribute` to one of the
+  enumerated attributes and exactly one of `allow` or `deny` to a non-empty
+  array of strings
+- **THEN** the configuration is accepted by schema validation
 
 #### Scenario: Plugin cannot be scoped to a consumer
 
@@ -92,60 +96,55 @@ invalid HTTP header name for `certificate_header_name` SHALL also be rejected.
 - **WHEN** an attempt is made to configure the plugin at consumer scope
 - **THEN** the configuration is rejected by schema validation
 
-### Requirement: Certificate header extraction
+#### Scenario: Non-https protocol is rejected
 
-**ID**: `mtls-acl.certificate-header-extraction`
+**ID**: `mtls-acl.configuration-schema.non-https-protocol-rejected`
 
-The plugin SHALL read the certificate value from the incoming request header
-named by `config.certificate_header_name`. Header names are matched
-case-insensitively and with `-` and `_` treated as interchangeable (the same
-normalization nginx variables and CGI-style upstream frameworks apply), so
-all request headers whose names are equivalent under that normalization are
-treated as the same header. A request that does not carry this header, or
-carries it with an empty-string value, SHALL be treated identically to a
-request with no allow/deny match: rejected per the Default deny requirement.
-A request that carries this header more than once — whether repeated under
-the exact same name or spread across case or `-`/`_` name variants — SHALL
-be rejected per the Default deny requirement, regardless of whether the
-individual values would otherwise satisfy `config.allow` or `config.deny`.
+- **WHEN** an attempt is made to configure the plugin with a `protocols` set
+  containing a protocol other than `https` (e.g. `["http"]`)
+- **THEN** the configuration is rejected by schema validation
 
-#### Scenario: Header name matched case-insensitively
+### Requirement: Certificate attribute extraction
 
-**ID**: `mtls-acl.certificate-header-extraction.case-insensitive-match`
+**ID**: `mtls-acl.certificate-attribute-extraction`
 
-- **WHEN** `certificate_header_name` is configured as `X-Client-Cert-Fp` and
-  the client's request carries a header named `x-client-cert-fp` (different
-  letter case) whose value matches an entry in `config.allow`
-- **THEN** the plugin extracts the header value and grants access
+The plugin SHALL read the value it authorizes from
+`kong.ctx.shared.mtls_auth[config.certificate_attribute]` — the shared
+per-request certificate context populated by a trusted preceding plugin,
+normally `mtls-auth` (see Interop / shared contract). Request content
+(headers, query string, body) SHALL play no part in the decision. When the
+shared context entry is absent, when it lacks the configured attribute key,
+or when the attribute value is an empty string, the request SHALL be
+rejected per the Default deny requirement, regardless of `config.allow` /
+`config.deny` contents.
 
-#### Scenario: Header name matched across dash/underscore variants
+#### Scenario: The configured attribute is the one evaluated
 
-**ID**: `mtls-acl.certificate-header-extraction.dash-underscore-equivalent-match`
+**ID**: `mtls-acl.certificate-attribute-extraction.configured-attribute-selected`
 
-- **WHEN** `certificate_header_name` is configured as `X-Client-Cert-Fp` and
-  the client's request carries a single header named `X_Client_Cert_Fp`
-  (underscores instead of dashes) whose value matches an entry in
-  `config.allow`
-- **THEN** the plugin extracts the header value and grants access
+- **WHEN** `mtls-auth` has verified a client certificate on the request,
+  `certificate_attribute` is `common_name`, and `config.allow` contains the
+  certificate's CN but none of the certificate's other attribute values
+- **THEN** the request is proxied to the upstream service
 
-#### Scenario: Header sent more than once is rejected
+#### Scenario: Attribute missing from the shared context is rejected
 
-**ID**: `mtls-acl.certificate-header-extraction.duplicate-header-rejected`
+**ID**: `mtls-acl.certificate-attribute-extraction.missing-attribute-rejected`
 
-- **WHEN** the client's request carries the header named by
-  `certificate_header_name` more than once, regardless of whether the
-  individual repeated values would match an entry in `config.allow` or
-  `config.deny`
+- **WHEN** `mtls-auth` has verified a client certificate on the request,
+  `certificate_attribute` is `common_name`, and the certificate's subject DN
+  contains no `CN` attribute (so the shared context has no `common_name`
+  key)
 - **THEN** the client receives status 403 with the Default deny response
   body, and no request reaches the upstream service
 
-#### Scenario: Header sent under two equivalent name variants is rejected
+#### Scenario: Client request content cannot supply the value
 
-**ID**: `mtls-acl.certificate-header-extraction.variant-name-duplicate-rejected`
+**ID**: `mtls-acl.certificate-attribute-extraction.client-request-cannot-supply-value`
 
-- **WHEN** `certificate_header_name` is configured as `X-Client-Cert-Fp` and
-  the client's request carries both an `X-Client-Cert-Fp` header and an
-  `X_Client_Cert_Fp` header, regardless of their values
+- **WHEN** no preceding plugin has populated `kong.ctx.shared.mtls_auth`,
+  and the client's request carries a header whose value exactly matches an
+  entry in `config.allow`
 - **THEN** the client receives status 403 with the Default deny response
   body, and no request reaches the upstream service
 
@@ -153,19 +152,20 @@ individual values would otherwise satisfy `config.allow` or `config.deny`.
 
 **ID**: `mtls-acl.default-deny`
 
-Whenever the plugin does not grant access — because no certificate value was
-extracted, or (per the Allow-list evaluation / Deny-list evaluation
-requirements) the extracted value did not satisfy the configured list — the
-plugin SHALL immediately terminate the request with status `403` and a JSON
-body `{"message": "You cannot consume this service"}`; the request SHALL NOT
-be proxied upstream.
+Whenever the plugin does not grant access — because no certificate attribute
+value was extracted from the shared context, or (per the Allow-list
+evaluation / Deny-list evaluation requirements) the extracted value did not
+satisfy the configured list — the plugin SHALL immediately terminate the
+request with status `403` and a JSON body `{"message": "You cannot consume
+this service"}`; the request SHALL NOT be proxied upstream.
 
-#### Scenario: Missing or empty certificate header is rejected
+#### Scenario: Missing shared certificate context is rejected
 
-**ID**: `mtls-acl.default-deny.missing-or-empty-header-rejected`
+**ID**: `mtls-acl.default-deny.missing-context-rejected`
 
-- **WHEN** a request either does not carry the header named by
-  `certificate_header_name`, or carries it with an empty-string value
+- **WHEN** a request reaches the plugin and no preceding plugin has
+  populated `kong.ctx.shared.mtls_auth` (e.g. `mtls-auth` is not enabled on
+  the Service or Route)
 - **THEN** the client receives status 403 with a JSON body `{"message": "You
   cannot consume this service"}`, and no request reaches the upstream service
 
@@ -174,24 +174,24 @@ be proxied upstream.
 **ID**: `mtls-acl.allow-list-evaluation`
 
 When `config.allow` is set, the plugin SHALL grant access when the extracted
-certificate value is exactly equal (case-sensitive string equality) to one of
-the entries in `config.allow`. Otherwise the request is rejected per the
-Default deny requirement.
+certificate attribute value is exactly equal (case-sensitive string
+equality) to one of the entries in `config.allow`. Otherwise the request is
+rejected per the Default deny requirement.
 
-#### Scenario: Certificate value matches an allow-list entry
+#### Scenario: Attribute value matches an allow-list entry
 
 **ID**: `mtls-acl.allow-list-evaluation.match-grants-access`
 
-- **WHEN** `config.allow` is set and the extracted certificate value exactly
-  equals one of its entries
+- **WHEN** `config.allow` is set and the extracted certificate attribute
+  value exactly equals one of its entries
 - **THEN** the request is proxied to the upstream service
 
-#### Scenario: Certificate value not in the allow list is rejected
+#### Scenario: Attribute value not in the allow list is rejected
 
 **ID**: `mtls-acl.allow-list-evaluation.no-match-rejected`
 
-- **WHEN** `config.allow` is set and the extracted certificate value does not
-  equal any of its entries
+- **WHEN** `config.allow` is set and the extracted certificate attribute
+  value does not equal any of its entries
 - **THEN** the client receives status 403 with the Default deny response body,
   and no request reaches the upstream service
 
@@ -200,7 +200,7 @@ Default deny requirement.
 **ID**: `mtls-acl.allow-list-evaluation.case-only-mismatch-rejected`
 
 - **WHEN** `config.allow` is set to an entry such as `Abc`, and the extracted
-  certificate value differs only in letter case (e.g. `abc`)
+  certificate attribute value differs only in letter case (e.g. `abc`)
 - **THEN** the client receives status 403 with the Default deny response body,
   and no request reaches the upstream service
 
@@ -209,16 +209,16 @@ Default deny requirement.
 **ID**: `mtls-acl.deny-list-evaluation`
 
 When `config.deny` is set, the plugin SHALL grant access when the extracted
-certificate value is NOT exactly equal (case-sensitive string equality) to
-any of the entries in `config.deny`. Otherwise the request is rejected per
-the Default deny requirement.
+certificate attribute value is NOT exactly equal (case-sensitive string
+equality) to any of the entries in `config.deny`. Otherwise the request is
+rejected per the Default deny requirement.
 
-#### Scenario: Certificate value not in the deny list is granted access
+#### Scenario: Attribute value not in the deny list is granted access
 
 **ID**: `mtls-acl.deny-list-evaluation.no-match-grants-access`
 
-- **WHEN** `config.deny` is set and the extracted certificate value does not
-  equal any of its entries
+- **WHEN** `config.deny` is set and the extracted certificate attribute
+  value does not equal any of its entries
 - **THEN** the request is proxied to the upstream service
 
 #### Scenario: Case-only mismatch against the deny list is granted access
@@ -226,100 +226,45 @@ the Default deny requirement.
 **ID**: `mtls-acl.deny-list-evaluation.case-only-mismatch-grants-access`
 
 - **WHEN** `config.deny` is set to an entry such as `Abc`, and the extracted
-  certificate value differs only in letter case (e.g. `abc`)
+  certificate attribute value differs only in letter case (e.g. `abc`)
 - **THEN** the request is proxied to the upstream service
 
-#### Scenario: Certificate value in the deny list is rejected
+#### Scenario: Attribute value in the deny list is rejected
 
 **ID**: `mtls-acl.deny-list-evaluation.match-rejected`
 
-- **WHEN** `config.deny` is set and the extracted certificate value exactly
-  equals one of its entries
+- **WHEN** `config.deny` is set and the extracted certificate attribute
+  value exactly equals one of its entries
 - **THEN** the client receives status 403 with the Default deny response body,
   and no request reaches the upstream service
 
-### Requirement: Certificate header hiding on success
-
-**ID**: `mtls-acl.certificate-header-hiding`
-
-When `config.hide_certificate_header` is `true`, the plugin SHALL remove the
-matched certificate header from the request before it is proxied to the
-upstream service, whenever access is granted (whether by the Allow-list
-evaluation or Deny-list evaluation requirement). Removal applies to the
-header as the client actually sent it, whatever letter case or `-`/`_` name
-form was used (per the Certificate header extraction requirement, at most
-one equivalent header can be present on a granted request). When
-`hide_certificate_header` is `false` (the default), or when the request is
-rejected, the plugin SHALL NOT remove the header.
-
-#### Scenario: Header removed after an allow-list match
-
-**ID**: `mtls-acl.certificate-header-hiding.removed-after-allow-match`
-
-- **WHEN** `hide_certificate_header` is `true`, `config.allow` is set, and the
-  extracted certificate value matches an allow-list entry
-- **THEN** the upstream request does not carry the
-  `certificate_header_name` header
-
-#### Scenario: Header removed after a deny-list non-match
-
-**ID**: `mtls-acl.certificate-header-hiding.removed-after-deny-non-match`
-
-- **WHEN** `hide_certificate_header` is `true`, `config.deny` is set, and the
-  extracted certificate value does not match any deny-list entry
-- **THEN** the upstream request does not carry the
-  `certificate_header_name` header
-
-#### Scenario: Header left intact when hide_certificate_header is unset
-
-**ID**: `mtls-acl.certificate-header-hiding.default-leaves-header-intact`
-
-- **WHEN** `hide_certificate_header` is left unset (default `false`) and
-  access is granted
-- **THEN** the upstream request still carries the
-  `certificate_header_name` header with the client-supplied value
-
-#### Scenario: Header removed regardless of the name form the client used
-
-**ID**: `mtls-acl.certificate-header-hiding.variant-name-form-removed`
-
-- **WHEN** `hide_certificate_header` is `true`, `certificate_header_name` is
-  configured as `X-Client-Cert-Fp`, access is granted, and the client sent
-  the matching header as `X_Client_Cert_Fp` (underscores instead of dashes)
-- **THEN** the upstream request carries no header whose name is equivalent to
-  `X-Client-Cert-Fp` under case and `-`/`_` normalization
-
 ## Interop / shared contract
 
-mtls-acl places no requirements on the structure or origin of the header
-value it reads — it treats `config.certificate_header_name` as an opaque
-string and compares it verbatim against `config.allow`/`config.deny`, without
-verifying who set it. This means mtls-acl provides no security guarantee on
-its own: if a request can reach mtls-acl with an untrusted, client-supplied
-value in the configured header, that value is evaluated exactly like a
-value derived from a verified certificate. mtls-acl's access control is
-only meaningful when a trusted preceding component in the plugin chain
-(typically `mtls-auth`, running at a higher priority) authoritatively sets
-or clears the configured header on every request that reaches mtls-acl —
-overwriting any client-supplied value when it has one to assert, and
-removing the header entirely when it does not. A preceding component that
-merely skips setting the header when it has no value to assert (leaving
-whatever the client sent intact) does not satisfy this precondition, and
-reintroduces client control over the ACL decision.
+mtls-acl consumes `kong.ctx.shared.mtls_auth`, the shared per-request
+certificate context produced by `mtls-auth`. **The `mtls-auth` spec is the
+source of truth for this contract**; mtls-acl depends on the following
+subset:
 
-In deployments that also enable `mtls-auth`, operators typically point
-`certificate_header_name` at one of the headers `mtls-auth` populates (e.g.
-its fingerprint, serial, subject-DN, CN, or Organization header — see the
-`mtls-auth` spec's Certificate detail headers / Common Name and Organization
-headers requirements), and populate `allow`/`deny` with the corresponding
-certificate values. `mtls-auth`'s Common Name and Organization headers are
-a notable case to verify against this precondition: when the subject DN
-lacks the target attribute, `mtls-auth` must clear the configured header
-rather than leave it untouched, or a client-supplied value for that same
-header name would survive to mtls-acl unmodified.
+- The entry is a table with keys `cert`, `fingerprint`, `serial`,
+  `issuer_dn`, `subject_dn`, `common_name`, and `organization` — the values
+  `config.certificate_attribute` selects among.
+- It is populated only after successful client-certificate verification; a
+  key is absent when the certificate lacks the corresponding attribute.
+- It lives in per-request Kong worker memory: no client-supplied request
+  content can create, alter, or remove it.
+
+For the context to be present, `mtls-auth` must be enabled on the same
+Service or Route and run earlier in the access phase (it does: `mtls-auth`
+has a higher plugin priority than mtls-acl). When it is not, mtls-acl fails
+closed: every request is rejected per the Default deny requirement. Because
+the authorization subject travels through `kong.ctx.shared` rather than
+request headers, no header-trust precondition is placed on the deployment —
+client-supplied headers are simply never consulted.
 
 ## Out of scope
 
 - Internal cross-plugin telemetry (`kong.ctx.shared.plugin_results`, written
   via a shared logging helper on every allow/deny decision): not observable
-  on the wire and carries no externally visible effect.
+  on the wire and carries no externally visible effect. Distinct from the
+  `kong.ctx.shared.mtls_auth` contract, which is normative input to this
+  plugin.

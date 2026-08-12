@@ -4,21 +4,17 @@
 
 | Surface | Kind | Disposition |
 |---|---|---|
-| `config.certificate_header_name` (`typedefs.header_name`, required) | config | Requirement: Configuration schema; Requirement: Certificate header extraction |
+| `config.certificate_attribute` (string, required, one_of: cert, fingerprint, serial, issuer_dn, subject_dn, common_name, organization) | config | Requirement: Configuration schema; Requirement: Certificate attribute extraction |
 | `config.allow` (array of strings, optional) | config | Requirement: Configuration schema; Requirement: Allow-list evaluation |
 | `config.deny` (array of strings, optional) | config | Requirement: Configuration schema; Requirement: Deny-list evaluation |
-| `config.hide_certificate_header` (boolean, optional, default false) | config | Requirement: Certificate header hiding on success |
 | `consumer = typedefs.no_consumer` | config | Requirement: Configuration schema |
-| `protocols = typedefs.protocols_http` | config | Requirement: Configuration schema |
+| `protocols` (restricted to `https` only) | config | Requirement: Configuration schema |
 | `entity_checks: only_one_of(config.allow, config.deny)` | config | Requirement: Configuration schema |
 | `entity_checks: at_least_one_of(config.allow, config.deny)` | config | Requirement: Configuration schema |
-| Request header named by `certificate_header_name` (value) | input | Requirement: Certificate header extraction |
-| Request header named by `certificate_header_name` (case of header name) | input | Requirement: Certificate header extraction |
-| Request header named by `certificate_header_name` (`-`/`_` name variants) | input | Requirement: Certificate header extraction; Requirement: Certificate header hiding on success |
-| Request header named by `certificate_header_name` (repeated / multi-valued, incl. across name variants) | input | Requirement: Certificate header extraction |
-| Missing / empty-string certificate header | input | Requirement: Default deny |
+| `kong.ctx.shared.mtls_auth` (presence, table shape) | input | Requirement: Certificate attribute extraction; Interop / shared contract |
+| `kong.ctx.shared.mtls_auth[certificate_attribute]` (value; missing key; empty string) | input | Requirement: Certificate attribute extraction |
+| Client request content (headers/query/body) | input | Requirement: Certificate attribute extraction (never consulted) |
 | `contains()` match semantics (exact, case-sensitive string equality) | logic | Requirement: Allow-list evaluation; Requirement: Deny-list evaluation |
 | 403 rejection status/body | output | Requirement: Default deny |
 | Upstream proxying (allowed vs denied) | output | Requirement: Allow-list evaluation; Requirement: Deny-list evaluation |
-| Removal of `certificate_header_name` header from upstream request | output | Requirement: Certificate header hiding on success |
 | `kong.ctx.shared.plugin_results` / `log.exit_with_reason` / `log.continue_with_reason` (internal cross-plugin telemetry) | internal | Out of scope |

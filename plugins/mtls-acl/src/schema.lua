@@ -4,15 +4,30 @@ return {
     name = "mtls-acl",
     fields = {
         { consumer = typedefs.no_consumer },
-        { protocols = typedefs.protocols_http },
+        -- mTLS requires HTTPS, so only the https protocol is supported
+        { protocols = typedefs.protocols { default = { "https" }, elements = { type = "string", one_of = { "https" } } } },
         {
             config = {
                 type = "record",
                 fields = {
                     { allow = { type = "array", required = false, elements = { type = "string" } } },
                     { deny = { type = "array", required = false, elements = { type = "string" } } },
-                    { certificate_header_name = typedefs.header_name { required = true } },
-                    { hide_certificate_header = { type = "boolean", required = false, default = false } }
+                    {
+                        -- key of kong.ctx.shared.mtls_auth to match against allow/deny
+                        certificate_attribute = {
+                            type = "string",
+                            required = true,
+                            one_of = {
+                                "cert",
+                                "fingerprint",
+                                "serial",
+                                "issuer_dn",
+                                "subject_dn",
+                                "common_name",
+                                "organization",
+                            },
+                        },
+                    },
                 },
             },
         },
