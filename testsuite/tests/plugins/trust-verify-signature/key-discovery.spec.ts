@@ -12,6 +12,8 @@ import {
   signManifestToken,
   primeAllReplicas,
   proxyGet,
+  captureJwksUrl,
+  countCaptureHits,
 } from "../../../helpers/trust-verify-signature";
 
 const PREFIX = uniquePrefix("trust-verify-signature");
@@ -67,15 +69,24 @@ test.describe("trust-verify-signature — key discovery", () => {
   });
 
   test.describe("disallowed jwks_uri is rejected before fetch", () => {
-    // [Verifies: trust-verify-signature.key-discovery.jwks-uri-not-allowed-401]
-    test("wholly unrelated URI", async ({ request }) => {
-      const { routePath } = await verifyRoute(request, [RSA_JWKS_URL]);
+    async function assertRejectedWithoutFetch(
+      request: any,
+      routePath: string,
+      forbiddenUri: string,
+      uriSubstring: string
+    ) {
+      // Prove the capture endpoint is reachable and that hits are logged;
+      // otherwise a silent log-path failure would make "no fetch" a false pass.
+      const probe = await request.get(forbiddenUri);
+      expect(probe.ok()).toBeTruthy();
+      const hitsAfterProbe = countCaptureHits(uriSubstring);
+      expect(hitsAfterProbe).toBeGreaterThanOrEqual(1);
 
       const token = signManifestToken({
         alg: "RS256",
         kid: "rsa-2048",
         privateKeyPem: RSA_PRIVATE_KEY,
-        payload: { jwks_uri: "https://evil.example.com/keys.json" },
+        payload: { jwks_uri: forbiddenUri },
       });
 
       const res = await proxyGet(request, routePath, {
@@ -84,28 +95,31 @@ test.describe("trust-verify-signature — key discovery", () => {
       expect(res.status()).toBe(401);
       const body = await res.json();
       expect(body.message).toBe("JWKS URI not allowed");
+      expect(countCaptureHits(uriSubstring)).toBe(hitsAfterProbe);
+    }
+
+    // [Verifies: trust-verify-signature.key-discovery.jwks-uri-not-allowed-401]
+    test("wholly unrelated URI", async ({ request }) => {
+      const stem = `${PREFIX}-unrelated`;
+      const forbiddenUri = captureJwksUrl(stem);
+      const { routePath } = await verifyRoute(request, [RSA_JWKS_URL]);
+      await assertRejectedWithoutFetch(request, routePath, forbiddenUri, stem);
     });
 
     // [Verifies: trust-verify-signature.key-discovery.jwks-uri-not-allowed-401]
     test("shared prefix without a / boundary", async ({ request }) => {
       // Naive string-prefix matching would accept this; the allow check must
       // require an exact match or a "/"-bounded continuation.
-      const allowedPrefix = `${KONG_PROXY_URL}/__fixtures__`;
+      const stem = `${PREFIX}-boundary`;
+      const allowedPrefix = captureJwksUrl(stem);
+      const forbiddenUri = `${allowedPrefix}.evil/keys.json`;
       const { routePath } = await verifyRoute(request, [allowedPrefix]);
-
-      const token = signManifestToken({
-        alg: "RS256",
-        kid: "rsa-2048",
-        privateKeyPem: RSA_PRIVATE_KEY,
-        payload: { jwks_uri: `${allowedPrefix}.evil/keys.json` },
-      });
-
-      const res = await proxyGet(request, routePath, {
-        headers: { "X-Edge-Token": token },
-      });
-      expect(res.status()).toBe(401);
-      const body = await res.json();
-      expect(body.message).toBe("JWKS URI not allowed");
+      await assertRejectedWithoutFetch(
+        request,
+        routePath,
+        forbiddenUri,
+        `${stem}.evil`
+      );
     });
   });
 

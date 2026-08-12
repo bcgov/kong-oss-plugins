@@ -134,6 +134,31 @@ export function fixtureKeysUrl(fileName: string): string {
   return `${KONG_PROXY_URL}/__fixtures__/keys/${fileName}`;
 }
 
+const CAPTURE_LOG = path.resolve(
+  __dirname,
+  "../local/kong/fixtures/capture/hits.log"
+);
+
+/**
+ * Reachable JWKS URL under nginx `/__capture__/`. Each GET is appended
+ * (unbuffered) to {@link CAPTURE_LOG}; the body is rsa-2048.jwks.json.
+ * Use a unique suffix per test — workers share the log.
+ */
+export function captureJwksUrl(pathSuffix: string): string {
+  return `${KONG_PROXY_URL}/__capture__/${pathSuffix}`;
+}
+
+/** Count `/__capture__/` access-log lines containing `uriSubstring`. */
+export function countCaptureHits(uriSubstring: string): number {
+  if (!fs.existsSync(CAPTURE_LOG)) {
+    return 0;
+  }
+  return fs
+    .readFileSync(CAPTURE_LOG, "utf8")
+    .split(/\r?\n/)
+    .filter((line) => line.includes(uriSubstring)).length;
+}
+
 /** In-container path (for plugin config values) for a file under the shared fixtures keys directory. */
 export function fixtureKeysContainerPath(fileName: string): string {
   return `${CONTAINER_KEYS_DIR}/${fileName}`;

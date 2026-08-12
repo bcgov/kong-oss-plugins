@@ -75,6 +75,8 @@ services:
       - ./local/nginx:/etc/nginx/conf.d
       # Reachable JWKS / key fixtures at http://kong:8000/__fixtures__/…
       - ./local/kong/fixtures:/var/fixtures:ro
+      # Writable overlay: nginx access-log for /__capture__/ (parent is :ro).
+      - ./local/kong/fixtures/capture:/var/capture
     depends_on:
       kong-dp:
         condition: service_healthy
