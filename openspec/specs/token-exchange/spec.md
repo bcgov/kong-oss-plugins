@@ -120,15 +120,15 @@ The plugin SHALL resolve the PEM signing key path from
 
 **ID**: `token-exchange.private-key-resolution.malformed-key-aborts-request`
 
-- **WHEN** a previously unused `private_key_location` is readable but does not contain a parseable private key
-- **THEN** no token-endpoint request is made, no upstream `Authorization` header is set, and the client receives status 500 with an error explaining that the private key could not be parsed
+- **WHEN** `private_key_location` is readable but does not contain a parseable private key
+- **THEN** every request using that configuration is terminated before a token-endpoint request is made, no upstream `Authorization` header is set, and the client receives status 500 with an error explaining that the private key could not be parsed
 
 #### Scenario: Unreadable key path aborts the request
 
-**ID**: `token-exchange.private-key-resolution.unreadable-key-generates-ephemeral-key`
+**ID**: `token-exchange.private-key-resolution.unreadable-key-aborts-request`
 
-- **WHEN** a previously unused `private_key_location` names a file that cannot be read
-- **THEN** no token-endpoint request is made, no upstream `Authorization` header is set, and the client receives status 500 with an error explaining that the private key could not be read
+- **WHEN** `private_key_location` names a file that cannot be read
+- **THEN** every request using that configuration is terminated before a token-endpoint request is made, no upstream `Authorization` header is set, and the client receives status 500 with an error explaining that the private key could not be read
 
 ### Requirement: Subject token extraction
 
