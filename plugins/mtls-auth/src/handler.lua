@@ -1,42 +1,54 @@
 local kong_meta = require "kong.meta"
 local log = require("kong.plugins.plugin-log.log")
+local x509 = require "resty.openssl.x509"
 local set_header = kong.service.request.set_header
 local clear_header = kong.service.request.clear_header
 
 local PLUGIN_NAME = "mtls-auth"
 
--- utils
 local function is_empty(s)
     return s == nil or s == ''
 end
 
--- extract 'relative distinguished name' (which is a KEY=VALUE pair) from a 
--- distinguished name string, as given by start and end position
-local function extract_and_add_rdn (t, dn, startPos, endPos)
-	local delimiterPos, _ = string.find(dn, "=", startPos)
-	if (delimiterPos)
-	then
-		local k = string.sub(dn, startPos, delimiterPos-1)
-		local v = string.sub(dn, delimiterPos+1, endPos)
-		t[k] = v
-	end
+-- Last matching subject attribute (CN/O). name:find starts at the beginning
+-- unless last_pos is given, so iterate to keep the last occurrence.
+local function last_attribute(name, nid)
+    if not name then
+        return nil
+    end
+    local value, pos
+    while true do
+        local obj, next_pos = name:find(nid, pos)
+        if not obj then
+            return value
+        end
+        value = obj.blob
+        pos = next_pos
+    end
 end
 
--- parse a distinguished name string in rfc2253 format into map of 'relative distinguished names'
--- (i.e. KEY=VALUE pairs), allowing VALUEs to contain '\'-escaped comma characters
-local function parse_dn (dn)
-    local t={}
-	local nextRdn = 1
-	while(nextRdn <= #dn)
-	do
-		local endOfRdnPos, _ = string.find(dn, "[^\\],", nextRdn)
-		if (endOfRdnPos == nil) then
-			endOfRdnPos = #dn
-		end
-		extract_and_add_rdn (t, dn, nextRdn, endOfRdnPos)
-		nextRdn = endOfRdnPos+2
-	end
-	return t
+-- CN/O from the verified cert's subject name (ASN.1), not the RFC 2253 DN
+-- string, so RFC 4514 escapes (\, \XX) are not part of the stored value.
+local function subject_cn_o()
+    local pem = ngx.var.ssl_client_raw_cert
+    if is_empty(pem) then
+        local escaped = ngx.var.ssl_client_escaped_cert
+        if not is_empty(escaped) then
+            pem = ngx.unescape_uri(escaped)
+        end
+    end
+    if is_empty(pem) then
+        return nil, nil
+    end
+
+    local cert, err = x509.new(pem, "PEM")
+    if not cert then
+        kong.log.err(PLUGIN_NAME, ": failed to parse client certificate: ", err)
+        return nil, nil
+    end
+
+    local subject = cert:get_subject_name()
+    return last_attribute(subject, "CN"), last_attribute(subject, "O")
 end
 
 local MtlsAuth = {
@@ -56,20 +68,20 @@ function MtlsAuth:access(config)
         )
     end
 
-    local cert_dn = parse_dn(ngx.var.ssl_client_s_dn)
+    local common_name, organization = subject_cn_o()
 
     -- Publish the verified certificate's attributes for downstream plugins
     -- (e.g. mtls-acl). kong.ctx.shared is per-request, in-worker memory, so
     -- unlike request headers it cannot be supplied or spoofed by the client.
-    -- Keys with no source value (e.g. a subject DN without CN) are absent.
+    -- Keys with no source value (e.g. a subject without CN) are absent.
     kong.ctx.shared.mtls_auth = {
         cert = ngx.var.ssl_client_escaped_cert,
         fingerprint = ngx.var.ssl_client_fingerprint,
         serial = ngx.var.ssl_client_serial,
         issuer_dn = ngx.var.ssl_client_i_dn,
         subject_dn = ngx.var.ssl_client_s_dn,
-        common_name = cert_dn["CN"],
-        organization = cert_dn["O"],
+        common_name = common_name,
+        organization = organization,
     }
 
     if not is_empty(config.upstream_cert_header) then
@@ -93,8 +105,8 @@ function MtlsAuth:access(config)
     end
 
     if not is_empty(config.upstream_cert_cn_header) then
-        if cert_dn["CN"] then
-            set_header(config.upstream_cert_cn_header, cert_dn["CN"])
+        if common_name then
+            set_header(config.upstream_cert_cn_header, common_name)
         else
             -- No CN on the certificate: clear rather than skip, so a
             -- client-supplied value on this header name can't survive.
@@ -103,8 +115,8 @@ function MtlsAuth:access(config)
     end
 
     if not is_empty(config.upstream_cert_org_header) then
-        if cert_dn["O"] then
-            set_header(config.upstream_cert_org_header, cert_dn["O"])
+        if organization then
+            set_header(config.upstream_cert_org_header, organization)
         else
             clear_header(config.upstream_cert_org_header)
         end

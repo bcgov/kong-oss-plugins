@@ -96,11 +96,13 @@ Colliding header names are accepted. When two config fields, or a config field a
 
 **ID**: `mtls-auth.subject-dn-derived-headers`
 
-The plugin SHALL parse the verified client certificate's subject distinguished name (an RFC 2253-style string of `TYPE=VALUE` relative distinguished names (RDNs) separated by commas) into a map keyed by RDN type. Splitting occurs on any comma that is not immediately preceded by a backslash (so a `\,` sequence inside a value does not split the RDN there); within each RDN, the type is the substring before the first `=` and the value is the remainder up to (but not including) the splitting comma. The value is stored exactly as it appears in the DN string, including any literal backslash-escape characters — the plugin does not unescape them. If the subject DN contains more than one RDN of the same type, the **last** occurrence's value is the one stored.
+The plugin SHALL take the Common Name (`CN`) and Organization (`O`) from the verified client certificate's subject name. The values SHALL be the decoded attribute values: RFC 4514 string encoding (`\,`, `\+`, hex `\XX`, and other escape pairs) is not part of the value. If the subject contains more than one RDN of the same type, the **last** occurrence's value is the one used.
 
-When `config.upstream_cert_cn_header` is set to a non-empty string, the plugin SHALL set that header on the upstream request to the parsed `CN` value. When `config.upstream_cert_org_header` is set to a non-empty string, the plugin SHALL set that header to the parsed `O` value. Each of these headers, like the others in this plugin, overwrites any header of the same name the client already sent.
+When `config.upstream_cert_cn_header` is set to a non-empty string, the plugin SHALL set that header on the upstream request to the decoded `CN` value. When `config.upstream_cert_org_header` is set to a non-empty string, the plugin SHALL set that header to the decoded `O` value. Each of these headers, like the others in this plugin, overwrites any header of the same name the client already sent.
 
-When the subject DN contains no RDN of the target type (`CN` or `O`), the plugin SHALL instead remove the configured header from the request — including any value the client supplied with that same header name — and SHALL continue processing the request normally, still setting every other configured header. The plugin SHALL NOT leave a client-supplied value on that header name intact: omitting the derived value means clearing the header, not skipping the header entirely.
+When the subject contains no RDN of the target type (`CN` or `O`), the plugin SHALL instead remove the configured header from the request — including any value the client supplied with that same header name — and SHALL continue processing the request normally, still setting every other configured header. The plugin SHALL NOT leave a client-supplied value on that header name intact: omitting the derived value means clearing the header, not skipping the header entirely.
+
+The verbatim subject DN on `upstream_cert_s_dn_header` (and in shared context `subject_dn`) remains the nginx RFC 2253 string and is not decoded.
 
 #### Scenario: CN and Organization extracted from a simple subject DN
 
@@ -109,13 +111,19 @@ When the subject DN contains no RDN of the target type (`CN` or `O`), the plugin
 - **WHEN** `upstream_cert_cn_header` and `upstream_cert_org_header` are configured, and the verified client certificate's subject DN is `CN=Alice Example,O=Example Org,C=US`
 - **THEN** the upstream request's CN header carries `Alice Example` and its Organization header carries `Example Org`
 
-#### Scenario: Escaped comma within an RDN value is preserved literally
+#### Scenario: Escaped comma in an RDN value is decoded
 
-**ID**: `mtls-auth.subject-dn-derived-headers.escaped-comma-preserved`
+**ID**: `mtls-auth.subject-dn-derived-headers.escaped-comma-decoded`
 
-- **TAG**: quirk — the escape backslash is used only to locate the correct RDN boundary and is never stripped from the stored value, so the header value differs from the human-readable (unescaped) form of the DN
-- **WHEN** `upstream_cert_cn_header` is configured and the subject DN contains an RDN whose value has an escaped comma, e.g. `CN=Smith\, Jr.,O=Example Org`
-- **THEN** the CN header carries `Smith\, Jr.` including the literal backslash character, not the unescaped `Smith, Jr.`
+- **WHEN** `upstream_cert_cn_header` is configured and the verified client certificate's Common Name contains a comma (e.g. `Smith, Jr.`, which nginx's RFC 2253 subject DN encodes as `Smith\, Jr.`)
+- **THEN** the CN header carries `Smith, Jr.` without the escape backslash
+
+#### Scenario: Hex-escaped octet in an RDN value is decoded
+
+**ID**: `mtls-auth.subject-dn-derived-headers.hex-escape-decoded`
+
+- **WHEN** `upstream_cert_cn_header` is configured and the verified client certificate's Common Name contains a non-ASCII character that nginx's RFC 2253 subject DN encodes as hex (e.g. CN `Café` appearing in the DN string as `Caf\C3\A9`)
+- **THEN** the CN header carries the decoded value `Café`, not the hex-escaped DN form
 
 #### Scenario: Duplicate attribute type keeps the last occurrence
 
@@ -190,8 +198,8 @@ On every request that passes the certificate-verification gate, and independent 
 - `serial` — the client certificate serial number
 - `issuer_dn` — the client certificate issuer distinguished name, verbatim
 - `subject_dn` — the client certificate subject distinguished name, verbatim
-- `common_name` — the `CN` value parsed from the subject DN, per the parsing rules of the Common Name and Organization headers requirement
-- `organization` — the `O` value parsed from the subject DN, per the same parsing rules
+- `common_name` — the decoded `CN` value from the certificate subject, per the Common Name and Organization headers requirement
+- `organization` — the decoded `O` value from the certificate subject, per the same requirement
 
 When the subject DN contains no RDN of the target type, the corresponding key (`common_name` or `organization`) SHALL be absent from the table (nil), not present with an empty value. The context entry lives in per-request Kong worker memory: it SHALL be derived only from the verified TLS connection, and no client-supplied request content (headers, query, body) can create, alter, or remove it. Because the table always carries every available attribute, downstream consumers select which attribute to use; this plugin takes no configuration for the shared context.
 

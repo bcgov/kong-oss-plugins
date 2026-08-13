@@ -18,7 +18,7 @@
 | `ngx.var.ssl_client_verify` (gate value) | input | Requirement: Client certificate verification gate |
 | `ngx.var.ssl_client_verify` (reused as header value) | input | Requirement: Fixed TLS metadata headers |
 | `ngx.var.ssl_client_s_dn` (verbatim) | input | Requirement: Certificate detail headers for upstream |
-| `ngx.var.ssl_client_s_dn` (parsed for CN/O) | input | Requirement: Common Name and Organization headers derived from the subject DN |
+| `ngx.var.ssl_client_raw_cert` (parsed for CN/O via resty.openssl.x509 subject name) | input | Requirement: Common Name and Organization headers derived from the subject DN |
 | `ngx.var.ssl_client_escaped_cert` | input | Requirement: Certificate detail headers for upstream |
 | `ngx.var.ssl_client_fingerprint` | input | Requirement: Certificate detail headers for upstream |
 | `ngx.var.ssl_client_serial` | input | Requirement: Certificate detail headers for upstream |
@@ -38,8 +38,7 @@
 | Missing CN/O → shared-context key absent (nil) | logic | Requirement: Shared certificate context for downstream plugins |
 | Overwrite of a client-supplied same-named header | behavior | Requirement: Certificate detail headers for upstream |
 | Colliding configured (or config vs `X-Tls-*`) header names last-wins | behavior | Requirement: Certificate detail headers for upstream |
-| DN parsing: split on unescaped commas | logic | Requirement: Common Name and Organization headers derived from the subject DN |
-| DN parsing: escaped comma retains literal backslash | logic | Requirement: Common Name and Organization headers derived from the subject DN (quirk) |
-| DN parsing: duplicate attribute type, last wins | logic | Requirement: Common Name and Organization headers derived from the subject DN |
-| DN parsing: missing target attribute → configured header cleared, client-supplied value discarded | logic | Requirement: Common Name and Organization headers derived from the subject DN |
+| CN/O from cert subject name (decoded RFC 4514 values, not the escaped DN string) | logic | Requirement: Common Name and Organization headers derived from the subject DN |
+| Duplicate CN/O attribute type, last wins | logic | Requirement: Common Name and Organization headers derived from the subject DN |
+| Missing target attribute → configured header cleared, client-supplied value discarded | logic | Requirement: Common Name and Organization headers derived from the subject DN |
 | `X-Tls-Client-Verify` truthiness check (`if ngx.var.ssl_client_verify then`) | logic | Requirement: Fixed TLS metadata headers (always true once past the verification gate; no separate scenario needed) |

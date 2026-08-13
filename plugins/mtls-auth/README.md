@@ -16,8 +16,8 @@ kong.ctx.shared.mtls_auth = {
   serial = "<certificate serial number>",
   issuer_dn = "<issuer DN, RFC 2253>",
   subject_dn = "<subject DN, RFC 2253>",
-  common_name = "<CN parsed from the subject DN>",   -- absent if the DN has no CN
-  organization = "<O parsed from the subject DN>",   -- absent if the DN has no O
+  common_name = "<decoded CN from the cert subject>",   -- absent if the subject has no CN
+  organization = "<decoded O from the cert subject>",   -- absent if the subject has no O
 }
 ```
 
