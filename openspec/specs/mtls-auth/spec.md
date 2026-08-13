@@ -109,7 +109,7 @@ Colliding header names are accepted. When two config fields target the same head
 
 **ID**: `mtls-auth.subject-dn-derived-headers`
 
-The plugin SHALL take the Common Name (`CN`) and Organization (`O`) from the verified client certificate's subject name. The values SHALL be the decoded attribute values: RFC 4514 string encoding (`\,`, `\+`, hex `\XX`, and other escape pairs) is not part of the value. If the subject contains more than one RDN of the same type, the **last** occurrence's value is the one used.
+The plugin SHALL take the Common Name (`CN`) and Organization (`O`) from the verified client certificate's subject name (the ASN.1 `Name` on the certificate), not by parsing nginx's RFC 2253 `$ssl_client_s_dn` string. The values SHALL be the decoded attribute values: RFC 4514 string encoding (`\,`, `\+`, hex `\XX`, and other escape pairs) is not part of the value. If the subject contains more than one attribute of the same type, the **last** occurrence in ASN.1 subject-attribute order is the one used. That is not last-in-the-nginx-DN-string: RFC 2253 prints RDNs in reverse, so a certificate built with ASN.1 order `CN=First`, then `OU=Sales`, then `CN=Second` appears as `$ssl_client_s_dn` `CN=Second,OU=Sales,CN=First`.
 
 When `config.upstream_cert_cn_header` is set to a non-empty string, the plugin SHALL set that header on the upstream request to the decoded `CN` value. When `config.upstream_cert_org_header` is set to a non-empty string, the plugin SHALL set that header to the decoded `O` value. Each of these headers, like the others in this plugin, overwrites any header of the same name the client already sent.
 
@@ -138,12 +138,12 @@ The verbatim subject DN on `upstream_cert_s_dn_header` (and in shared context `s
 - **WHEN** `upstream_cert_cn_header` is configured and the verified client certificate's Common Name contains a non-ASCII character that nginx's RFC 2253 subject DN encodes as hex (e.g. CN `Café` appearing in the DN string as `Caf\C3\A9`)
 - **THEN** the CN header carries the decoded value `Café`, not the hex-escaped DN form
 
-#### Scenario: Duplicate attribute type keeps the last occurrence
+#### Scenario: Duplicate attribute type keeps the last ASN.1 occurrence
 
 **ID**: `mtls-auth.subject-dn-derived-headers.duplicate-attribute-last-wins`
 
-- **WHEN** `upstream_cert_cn_header` is configured and the subject DN contains two RDNs of type `CN`, e.g. `CN=First,OU=Sales,CN=Second`
-- **THEN** the CN header carries `Second`
+- **WHEN** `upstream_cert_cn_header` is configured and the verified client certificate's subject is built with two `CN` attributes in ASN.1 order `CN=First`, then `OU=Sales`, then `CN=Second` (so nginx `$ssl_client_s_dn` is `CN=Second,OU=Sales,CN=First`)
+- **THEN** the CN header carries `Second` (the last ASN.1 `CN`), not `First` (the last `CN=` token in the nginx DN string)
 
 #### Scenario: Missing CN clears the configured header and the request continues
 

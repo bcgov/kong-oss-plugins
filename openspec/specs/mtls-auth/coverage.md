@@ -38,6 +38,6 @@
 | Overwrite of a client-supplied same-named header | behavior | Requirement: Certificate detail headers for upstream |
 | Colliding configured header names last-wins | behavior | Requirement: Certificate detail headers for upstream |
 | CN/O from cert subject name (decoded RFC 4514 values, not the escaped DN string) | logic | Requirement: Common Name and Organization headers derived from the subject DN |
-| Duplicate CN/O attribute type, last wins | logic | Requirement: Common Name and Organization headers derived from the subject DN |
+| Duplicate CN/O attribute type, last in ASN.1 subject order (not last in reversed RFC 2253 `$ssl_client_s_dn`) | logic | Requirement: Common Name and Organization headers derived from the subject DN |
 | Missing target attribute → configured header cleared, client-supplied value discarded | logic | Requirement: Common Name and Organization headers derived from the subject DN |
 | Missing SNI → configured server-name header cleared, client-supplied value discarded | logic | Requirement: Server Name header derived from SNI |
