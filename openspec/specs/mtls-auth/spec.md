@@ -6,8 +6,7 @@ The mtls-auth plugin authenticates clients using mutual TLS (mTLS). It runs in
 the access phase, gating the request on the TLS client-certificate
 verification result already computed by Kong/nginx, then exposes details of
 the verified client certificate to the upstream service via configurable
-request headers, plus two headers that are always set regardless of
-configuration. It also always publishes the verified certificate's attributes
+request headers. It also always publishes the verified certificate's attributes
 to `kong.ctx.shared.mtls_auth`, a per-request shared context that downstream
 plugins in the same request (e.g. `mtls-acl`) consume without any exposure to
 client-supplied headers.
@@ -62,7 +61,7 @@ When the client certificate is successfully verified, the plugin SHALL, for each
 
 When one of these fields is left unset (or set to an empty string), the corresponding header SHALL NOT be added.
 
-Colliding header names are accepted. When two config fields, or a config field and a fixed `X-Tls-*` name, target the same header, the later setter wins. Order: the five fields above, then CN, then Organization, then `X-Tls-Server-Name`, then `X-Tls-Client-Verify`.
+Colliding header names are accepted. When two config fields target the same header, the later setter wins. Order: the five fields above, then CN, then Organization, then server name.
 
 #### Scenario: All configured headers carry certificate details
 
@@ -160,32 +159,43 @@ The verbatim subject DN on `upstream_cert_s_dn_header` (and in shared context `s
 - **WHEN** `upstream_cert_org_header` is configured to a header name, the verified client certificate's subject DN contains an `O` RDN, and the incoming client request already carries a header with that same name set to an attacker-chosen value
 - **THEN** the upstream request carries only the plugin-computed `O` value for that header; the client-supplied value is discarded, not appended
 
-### Requirement: Fixed TLS metadata headers
+### Requirement: Server Name header derived from SNI
 
-**ID**: `mtls-auth.fixed-tls-metadata-headers`
+**ID**: `mtls-auth.server-name-header`
 
-Independent of configuration, whenever the client certificate is successfully verified the plugin SHALL always set two request headers on the upstream request: `X-Tls-Server-Name` to the TLS server name (SNI) the client requested, and `X-Tls-Client-Verify` to the certificate verification result (which, having passed the certificate-verification-gate requirement, is always `"SUCCESS"`). These header names are fixed and not configurable, and like the other headers this plugin sets, they overwrite any header of the same name the client already sent.
+When `config.upstream_server_name_header` is set to a non-empty string, the plugin SHALL set that header on the upstream request to the TLS server name (SNI) the client requested (`ssl_server_name`). Like the other headers this plugin sets, it overwrites any header of the same name the client already sent.
 
-#### Scenario: Fixed headers are always set on a verified request
+When SNI is absent (the client did not send a server_name in the TLS handshake), the plugin SHALL instead remove the configured header from the request — including any value the client supplied with that same header name — and SHALL continue processing the request normally, still setting every other configured header. The plugin SHALL NOT leave a client-supplied value on that header name intact: omitting the SNI value means clearing the header, not skipping the header entirely.
 
-**ID**: `mtls-auth.fixed-tls-metadata-headers.always-set`
+When `config.upstream_server_name_header` is left unset (or set to an empty string), the plugin SHALL NOT add or remove any SNI header.
 
-- **WHEN** a request with a verified client certificate is proxied, regardless of which (if any) of the other config fields are set
-- **THEN** the upstream request carries `X-Tls-Server-Name` equal to the SNI hostname used for the TLS connection, and `X-Tls-Client-Verify` equal to `"SUCCESS"`
+#### Scenario: Configured header carries the SNI hostname
 
-#### Scenario: X-Tls-Server-Name overwrites a client-supplied header of the same name
+**ID**: `mtls-auth.server-name-header.sni-present`
 
-**ID**: `mtls-auth.fixed-tls-metadata-headers.overwrites-client-server-name`
+- **WHEN** `upstream_server_name_header` is configured and a request with a verified client certificate presents SNI (e.g. `api.example.gov.bc.ca`)
+- **THEN** the upstream request carries that configured header equal to the SNI hostname
 
-- **WHEN** a request with a verified client certificate is proxied, and the incoming client request already carries an `X-Tls-Server-Name` header set to an attacker-chosen value
-- **THEN** the upstream request carries only the TLS SNI hostname in `X-Tls-Server-Name`; the client-supplied value is discarded, not appended
+#### Scenario: Missing SNI clears the configured header and the request continues
 
-#### Scenario: X-Tls-Client-Verify overwrites a client-supplied header of the same name
+**ID**: `mtls-auth.server-name-header.sni-absent-header-cleared`
 
-**ID**: `mtls-auth.fixed-tls-metadata-headers.overwrites-client-client-verify`
+- **WHEN** `upstream_server_name_header` is configured, and a request with a verified client certificate does not present SNI
+- **THEN** the request is proxied to the upstream service without the `upstream_server_name_header` header present — even if the client's original request carried a header with that name — and every other configured header is still set
 
-- **WHEN** a request with a verified client certificate is proxied, and the incoming client request already carries an `X-Tls-Client-Verify` header set to an attacker-chosen value
-- **THEN** the upstream request carries only `"SUCCESS"` in `X-Tls-Client-Verify`; the client-supplied value is discarded, not appended
+#### Scenario: Unset server-name option is omitted
+
+**ID**: `mtls-auth.server-name-header.unset-omitted`
+
+- **WHEN** `upstream_server_name_header` is not configured and a request with a verified client certificate is proxied
+- **THEN** the plugin does not add an SNI header to the upstream request
+
+#### Scenario: Plugin-computed SNI overwrites a client-supplied header of the same name
+
+**ID**: `mtls-auth.server-name-header.overwrites-client-header`
+
+- **WHEN** `upstream_server_name_header` is configured to a header name, the verified request presents SNI, and the incoming client request already carries a header with that same name set to an attacker-chosen value
+- **THEN** the upstream request carries only the TLS SNI hostname for that header; the client-supplied value is discarded, not appended
 
 ### Requirement: Shared certificate context for downstream plugins
 
@@ -240,13 +250,14 @@ The plugin SHALL only be configurable for the `https` protocol — mTLS requires
 - `upstream_cert_s_dn_header` (string, optional, no default)
 - `upstream_cert_cn_header` (string, optional, no default)
 - `upstream_cert_org_header` (string, optional, no default)
+- `upstream_server_name_header` (string, optional, no default)
 
 #### Scenario: Minimal (empty) config is valid
 
 **ID**: `mtls-auth.configuration-schema.minimal-config-valid`
 
 - **WHEN** a plugin config with no fields set is applied
-- **THEN** the configuration is accepted by schema validation, `error_response_code` defaults to `401`, and (per the other requirements) no certificate-detail or CN/Organization headers are added — only the two fixed TLS metadata headers are set on a verified request
+- **THEN** the configuration is accepted by schema validation, `error_response_code` defaults to `401`, and (per the other requirements) no certificate-detail, CN/Organization, or server-name headers are added on a verified request
 
 #### Scenario: Plugin cannot be scoped to a consumer
 

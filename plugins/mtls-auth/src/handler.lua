@@ -122,10 +122,14 @@ function MtlsAuth:access(config)
         end
     end
 
-    set_header("X-Tls-Server-Name", ngx.var.ssl_server_name)
-
-    if ngx.var.ssl_client_verify then
-        set_header("X-Tls-Client-Verify", ngx.var.ssl_client_verify)
+    if not is_empty(config.upstream_server_name_header) then
+        if not is_empty(ngx.var.ssl_server_name) then
+            set_header(config.upstream_server_name_header, ngx.var.ssl_server_name)
+        else
+            -- No SNI on the connection: clear rather than skip, so a
+            -- client-supplied value on this header name can't survive.
+            clear_header(config.upstream_server_name_header)
+        end
     end
 
     log.continue_with_reason({plugin = PLUGIN_NAME, reason = "client certificate verified"})

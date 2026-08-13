@@ -70,6 +70,7 @@ To enable the plugin using declarative config in `kong.yml`:
 | `upstream_cert_s_dn_header`        |         | false    | HTTP header name in which the client certificate subject DN will be made available to the upstream service                 |
 | `upstream_cert_cn_header`          |         | false    | HTTP header name in which the client certificate Common Name will be made available to the upstream service                |
 | `upstream_cert_org_header`         |         | false    | HTTP header name in which the client certificate Organization will be made available to the upstream service               |
+| `upstream_server_name_header`      |         | false    | HTTP header name in which the TLS SNI hostname will be made available to the upstream service. Absent when the client does not send SNI; a client-supplied value on that name is cleared rather than left intact. |
 
 
 ## License

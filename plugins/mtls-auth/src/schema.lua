@@ -60,6 +60,12 @@ return {
                             required = false,
                         },
                     },
+                    {
+                        upstream_server_name_header = {
+                            type = "string",
+                            required = false,
+                        },
+                    },
                 },
             },
         },
