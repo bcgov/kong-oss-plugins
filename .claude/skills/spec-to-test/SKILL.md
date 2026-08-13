@@ -147,6 +147,7 @@ The compose stack (`testsuite/docker-compose.yml`, project `e2e`) runs Kong in C
 
 - **Admin API**: default `http://kong.localtest.me:8001` on the host (published CP port). In-compose clients (Playwright, deck) use `http://kong-cp:8001` — `kong.localtest.me` is also aliased to the nginx proxy, which only listens on `:8000`. Import `KONG_ADMIN_URL` from `testsuite/helpers/kong.ts`.
 - **Proxy**: default `http://kong.localtest.me:8000` — nginx load balancer round-robining **3 Kong data-plane replicas**. Import `KONG_PROXY_URL` from the same module. Routes must set `hosts: ["kong.localtest.me"]`.
+- **mTLS proxy**: default `https://kong.localtest.me:8443` — the same nginx LB, TCP stream passthrough to the DPs' `:8443 ssl` listener. TLS terminates at Kong, which requests (never requires) a client certificate and verifies it against the fixture client CA (`ssl_verify_client optional_no_ca`), so every `$ssl_client_verify` state is reachable: no cert → `NONE`; a `keys/mtls` leaf signed by `client-ca` → `SUCCESS`; the `untrusted` fixture cert → `FAILED:…`. Import `KONG_PROXY_TLS_URL` from `helpers/kong.ts` and call `mtlsProxyRequest` / `mtlsProxyGet(request, routePath, { clientCert: "<fixture name>", sni?: boolean, … })` — they present the named fixture cert, ignore Kong's self-signed server cert, and carry the same residual-404 retry semantics as `proxyRequest`. `sni: false` connects via the resolved IP literal so the handshake carries **no SNI** (an explicit Host header keeps route matching working). `mtlsClientCert("<name>")` returns the fixture's cert/key paths, PEM, and a parsed `X509Certificate` — derive expected fingerprints/serials/DNs from it instead of hardcoding. Call `disposeMtlsContexts()` in `afterAll` of any file that used these.
 - **Upstream echo**: [httpbun](https://github.com/sharat87/httpbun) at `upstream.localtest.me:80` inside the network. Point services at it via `upstreamServiceDefaults` from `testsuite/helpers/upstream.ts`. Useful endpoints: `/headers` (echoes request headers as JSON), `/anything` (echoes method/headers/body), `/status/{code}`, `/response-headers?Header=value` (pre-set response headers), `/bytes/{n}` (arbitrary body; `/bytes/0` or `/status/204` for empty), `/mix/…/b64=…`. Do not introduce a per-plugin upstream unless echo cannot express the behavior.
 - **CP→DP propagation**: entities created via the Admin API are not instantly routable, and each of the 3 DP replicas syncs independently. Never sleep blindly; call `waitForRouteReady` from `helpers/kong.ts` after provisioning.
 - **Static fixtures URL**: the nginx LB already serves `testsuite/local/kong/fixtures/` at `http://kong:8000/__fixtures__/…` (host/Playwright: `${KONG_PROXY_URL}/__fixtures__/…`). Do not add Kong routes or edit compose/nginx for fixtures.
@@ -174,7 +175,7 @@ Lifecycle (required):
 
 ### Plugin helper contract — `testsuite/helpers/<plugin>.ts`
 
-Import `KONG_ADMIN_URL`, `KONG_PROXY_URL`, `provisionKong`, `waitForRouteReady`, `uniquePrefix`, and `proxyGet` / `proxyRequest` from `testsuite/helpers/kong.ts` (do not redefine or hardcode those URLs; do not reimplement the readiness probe or proxy retry). Re-export `uniquePrefix` if specs import it from the plugin helper.
+Import `KONG_ADMIN_URL`, `KONG_PROXY_URL`, `provisionKong`, `waitForRouteReady`, `uniquePrefix`, and `proxyGet` / `proxyRequest` from `testsuite/helpers/kong.ts` (plus `KONG_PROXY_TLS_URL`, `mtlsProxyGet` / `mtlsProxyRequest`, `mtlsClientCert`, and `disposeMtlsContexts` when the plugin's scenarios need the mTLS entry point). Do not redefine or hardcode those URLs; do not reimplement the readiness probe, proxy retry, or TLS/client-cert context handling. Re-export `uniquePrefix` if specs import it from the plugin helper.
 
 Export:
 
@@ -315,6 +316,20 @@ openssl pkey -in ec-p256.pem -pubout -out ec-p256.pub.pem
 
 Add a matching `<name>.jwks.json` per public key (`kid` = file stem) when a scenario needs JWKS, and a `keys/README.md` recording exactly how every file was generated. Generate ephemeral keys inside a test only when a scenario truly requires a key that must differ from the shared ones.
 
+**mTLS client certificates** live in `testsuite/local/kong/fixtures/keys/mtls/` (in-container `/tmp/kong/fixtures/keys/mtls/`) and back the mTLS proxy entry point above. Access them via `mtlsClientCert("<name>")`; never regenerate them. Subject DNs below are the nginx `$ssl_client_s_dn` (RFC 2253) renderings:
+
+| Fixture | Subject DN (as nginx renders it) | Notes |
+|---|---|---|
+| `client-ca` | `CN=Kong e2e Client CA,O=Kong e2e Test,C=US` | CA the DPs trust |
+| `untrusted-ca` | `CN=Kong e2e Untrusted CA,O=Kong e2e Test,C=US` | CA the DPs do not trust |
+| `alice` | `CN=Alice Example,O=Example Org,C=US` | verified; has CN and O |
+| `comma-cn` | `CN=Smith\, Jr.,O=Example Org,C=US` | escaped comma in CN (decoded: `Smith, Jr.`) |
+| `utf8-cn` | `CN=Caf\C3\A9,O=Example Org,C=US` | hex-escaped UTF-8 in CN (decoded: `Café`) |
+| `dup-cn` | `CN=First,OU=Sales,CN=Second` | duplicate CN RDNs; no O attribute |
+| `no-cn` | `O=Example Org,C=US` | no CN attribute |
+| `no-org` | `CN=NoOrg Example,C=US` | no O attribute |
+| `untrusted` | `CN=Mallory Example,O=Mallory Org,C=US` | signed by `untrusted-ca` → `FAILED:…` |
+
 **JWKS URLs**: claim-content assertions may use a dummy `jwks_uri` value. When a scenario requires a *reachable* JWKS URL, reference the harness static path — already wired; do **not** edit `docker-compose.yml` or nginx for this:
 
 - From Kong / compose network: `http://kong:8000/__fixtures__/keys/<name>.jwks.json`
@@ -381,7 +396,7 @@ Reject these in your own output — they look like coverage but catch nothing:
 - Sleep without a condition instead of calling `waitForRouteReady`
 - Reimplement the readiness probe or proxy 404-retry in a plugin helper (use `waitForRouteReady` / `proxyGet` / `proxyRequest` from `helpers/kong.ts`)
 - Wipe a shared Admin prefix like `"<plugin>-"` in `beforeAll` (races with parallel workers — clean only this file's `uniquePrefix`)
-- Bare `request.get/post` to `KONG_PROXY_URL` in new specs (use `proxyGet` / `proxyRequest`)
+- Bare `request.get/post` to `KONG_PROXY_URL` / `KONG_PROXY_TLS_URL` in new specs (use `proxyGet` / `proxyRequest`, or `mtlsProxyGet` / `mtlsProxyRequest` for the TLS entry point)
 - Hardcode Admin/Proxy host:port in plugin helpers (import `KONG_ADMIN_URL` / `KONG_PROXY_URL` from `helpers/kong.ts`)
 - Modify plugin source, the spec, or the behavior of existing shared helpers
 - Edit `docker-compose.yml` or nginx to serve fixtures / JWKS (harness already exposes `/__fixtures__/`)
