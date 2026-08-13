@@ -12,6 +12,7 @@
 | `entity_checks: only_one_of(config.allow, config.deny)` | config | Requirement: Configuration schema |
 | `entity_checks: at_least_one_of(config.allow, config.deny)` | config | Requirement: Configuration schema |
 | `kong.ctx.shared.mtls_auth` (presence, table shape) | input | Requirement: Certificate attribute extraction; Interop / shared contract |
+| Plugin placement relative to `mtls-auth` (global / Service / Route) | input | Interop / shared contract; Requirement: Certificate attribute extraction |
 | `kong.ctx.shared.mtls_auth[certificate_attribute]` (value; missing key; empty string) | input | Requirement: Certificate attribute extraction |
 | Client request content (headers/query/body) | input | Requirement: Certificate attribute extraction (never consulted) |
 | `contains()` match semantics (exact, case-sensitive string equality) | logic | Requirement: Allow-list evaluation; Requirement: Deny-list evaluation |

@@ -127,6 +127,26 @@ rejected per the Default deny requirement, regardless of `config.allow` /
   certificate's CN but none of the certificate's other attribute values
 - **THEN** the request is proxied to the upstream service
 
+#### Scenario: Service-scoped mtls-auth supplies context to Route-scoped mtls-acl
+
+**ID**: `mtls-acl.certificate-attribute-extraction.service-auth-route-acl`
+
+- **WHEN** `mtls-auth` is enabled on the Service and mtls-acl is enabled on
+  a Route of that Service, `mtls-auth` has verified a client certificate on
+  the request, `certificate_attribute` is `common_name`, and `config.allow`
+  contains the certificate's CN
+- **THEN** the request is proxied to the upstream service
+
+#### Scenario: Global mtls-auth supplies context to a scoped mtls-acl
+
+**ID**: `mtls-acl.certificate-attribute-extraction.global-auth-scoped-acl`
+
+- **WHEN** `mtls-auth` is enabled globally and mtls-acl is enabled on the
+  Route, `mtls-auth` has verified a client certificate on the request,
+  `certificate_attribute` is `common_name`, and `config.allow` contains the
+  certificate's CN
+- **THEN** the request is proxied to the upstream service
+
 #### Scenario: Attribute missing from the shared context is rejected
 
 **ID**: `mtls-acl.certificate-attribute-extraction.missing-attribute-rejected`
@@ -164,8 +184,8 @@ this service"}`; the request SHALL NOT be proxied upstream.
 **ID**: `mtls-acl.default-deny.missing-context-rejected`
 
 - **WHEN** a request reaches the plugin and no preceding plugin has
-  populated `kong.ctx.shared.mtls_auth` (e.g. `mtls-auth` is not enabled on
-  the Service or Route)
+  populated `kong.ctx.shared.mtls_auth` (e.g. `mtls-auth` is not applicable
+  to the request)
 - **THEN** the client receives status 403 with a JSON body `{"message": "You
   cannot consume this service"}`, and no request reaches the upstream service
 
@@ -253,9 +273,13 @@ subset:
 - It lives in per-request Kong worker memory: no client-supplied request
   content can create, alter, or remove it.
 
-For the context to be present, `mtls-auth` must be enabled on the same
-Service or Route and run earlier in the access phase (it does: `mtls-auth`
-has a higher plugin priority than mtls-acl). When it is not, mtls-acl fails
+For the context to be present, `mtls-auth` must be applicable to the same
+request and run earlier in the access phase (it does: `mtls-auth` has a
+higher plugin priority than mtls-acl). Applicability follows Kong's plugin
+execution rules, not a same-entity constraint: a global `mtls-auth`, or a
+Service-scoped `mtls-auth` with a Route-scoped mtls-acl, populates the
+context for that request just as a pair enabled on the same Service or
+Route would. When `mtls-auth` does not apply to the request, mtls-acl fails
 closed: every request is rejected per the Default deny requirement. Because
 the authorization subject travels through `kong.ctx.shared` rather than
 request headers, no header-trust precondition is placed on the deployment —
