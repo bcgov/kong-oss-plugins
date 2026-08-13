@@ -25,7 +25,7 @@ note they are in reverse order of the openssl `-subj` used to generate them.
 | `alice` | client-ca | `CN=Alice Example,O=Example Org,C=US` | happy path; has CN and O |
 | `comma-cn` | client-ca | `CN=Smith\, Jr.,O=Example Org,C=US` | RFC 2253 escaped comma in CN |
 | `utf8-cn` | client-ca | `CN=Caf\C3\A9,O=Example Org,C=US` | hex-escaped UTF-8 in CN (decoded: `Café`) |
-| `dup-cn` | client-ca | `CN=First,OU=Sales,CN=Second` | duplicate CN RDNs (string-last is `Second`); no O |
+| `dup-cn` | client-ca | `CN=Second,OU=Sales,CN=First` | duplicate CN RDNs (ASN.1-last is `Second`); no O |
 | `no-cn` | client-ca | `O=Example Org,C=US` | subject without CN |
 | `no-org` | client-ca | `CN=NoOrg Example,C=US` | subject without O |
 | `untrusted` | untrusted-ca | `CN=Mallory Example,O=Mallory Org,C=US` | fails verification (`FAILED:…`) |
@@ -43,7 +43,7 @@ openssl req -new -x509 -key client-ca.key \
 
 # Leaves: same recipe per cert, varying -subj and the signing CA.
 # Remember RFC 2253 reversal: nginx renders the -subj components in reverse
-# order (e.g. dup-cn uses -subj "/CN=Second/OU=Sales/CN=First").
+# order (e.g. dup-cn uses -subj "/CN=First/OU=Sales/CN=Second").
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out alice.key
 openssl req -new -utf8 -key alice.key -subj "/C=US/O=Example Org/CN=Alice Example" -out alice.csr
 openssl x509 -req -in alice.csr -CA client-ca.crt -CAkey client-ca.key \

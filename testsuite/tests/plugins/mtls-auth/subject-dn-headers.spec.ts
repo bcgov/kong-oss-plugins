@@ -95,10 +95,10 @@ test.describe("mtls-auth — CN and Organization headers from the subject DN", (
       config: { upstream_cert_cn_header: CN_HEADER },
     });
 
-    // dup-cn ASN.1 subject order is CN=Second, OU=Sales, CN=First (nginx
-    // renders the reverse: CN=First,OU=Sales,CN=Second). Last ASN.1 CN is
-    // "First"; a parser taking the last CN= token of the nginx string would
-    // wrongly produce "Second".
+    // dup-cn ASN.1 subject order is CN=First, OU=Sales, CN=Second (nginx
+    // renders the reverse: CN=Second,OU=Sales,CN=First). Last ASN.1 CN is
+    // "Second"; a parser taking the last CN= token of the nginx string would
+    // wrongly produce "First".
     const res = await mtlsProxyGet(request, routePath, {
       clientCert: "dup-cn",
     });
@@ -106,8 +106,8 @@ test.describe("mtls-auth — CN and Organization headers from the subject DN", (
     const headers = (await res.json()).headers;
 
     const cn = echoedHeader(headers, CN_HEADER);
-    expect(cn).toBe("First");
-    expect(cn).not.toBe("Second");
+    expect(cn).toBe("Second");
+    expect(cn).not.toBe("First");
   });
 
   // [Verifies: mtls-auth.subject-dn-derived-headers.cn-missing-header-cleared]

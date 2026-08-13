@@ -325,7 +325,7 @@ Add a matching `<name>.jwks.json` per public key (`kid` = file stem) when a scen
 | `alice` | `CN=Alice Example,O=Example Org,C=US` | verified; has CN and O |
 | `comma-cn` | `CN=Smith\, Jr.,O=Example Org,C=US` | escaped comma in CN (decoded: `Smith, Jr.`) |
 | `utf8-cn` | `CN=Caf\C3\A9,O=Example Org,C=US` | hex-escaped UTF-8 in CN (decoded: `Café`) |
-| `dup-cn` | `CN=First,OU=Sales,CN=Second` | duplicate CN RDNs; no O attribute |
+| `dup-cn` | `CN=Second,OU=Sales,CN=First` | duplicate CN RDNs; no O attribute |
 | `no-cn` | `O=Example Org,C=US` | no CN attribute |
 | `no-org` | `CN=NoOrg Example,C=US` | no O attribute |
 | `untrusted` | `CN=Mallory Example,O=Mallory Org,C=US` | signed by `untrusted-ca` → `FAILED:…` |

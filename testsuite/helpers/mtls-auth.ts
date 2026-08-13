@@ -29,7 +29,7 @@ export const MTLS_SUBJECT_DN: Record<string, string> = {
   alice: "CN=Alice Example,O=Example Org,C=US",
   "comma-cn": "CN=Smith\\, Jr.,O=Example Org,C=US",
   "utf8-cn": "CN=Caf\\C3\\A9,O=Example Org,C=US",
-  "dup-cn": "CN=First,OU=Sales,CN=Second",
+  "dup-cn": "CN=Second,OU=Sales,CN=First",
   "no-cn": "O=Example Org,C=US",
   "no-org": "CN=NoOrg Example,C=US",
   untrusted: "CN=Mallory Example,O=Mallory Org,C=US",
