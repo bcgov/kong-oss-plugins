@@ -236,14 +236,16 @@ export function signManifestToken(opts: {
 }
 
 /**
- * Fires the same request repeatedly so that, given the LB round-robins the 3
- * DP replicas deterministically, every replica ends up having observed it
- * (used to prime/establish per-replica JWKS cache state before a follow-up
- * request that depends on that state, regardless of which replica serves it).
+ * Fires the same request repeatedly so the nginx LB's round-robin across the
+ * 3 DP replicas × 2 workers each has a high chance of having observed it
+ * (used to prime per-worker JWKS cache state before a follow-up that depends
+ * on that state, regardless of which replica/worker serves it).
+ *
+ * Default 36 ≈ 6 cache silos × 6; (5/6)^36 miss-one-worker ≈ 0.15%.
  */
 export async function primeAllReplicas(
   fn: () => Promise<void>,
-  times = 8
+  times = 36
 ): Promise<void> {
   for (let i = 0; i < times; i++) {
     await fn();

@@ -29,7 +29,7 @@ testsuite/tests/interop/               # shared producer↔consumer E2E
 
 `docker-compose.yml` (project `e2e`) runs Kong in CP/DP mode with the plugins baked into the `kong:e2e` image at build time:
 
-- `kong-cp` — Admin API at http://localhost:8001 (in-compose: `http://kong-cp:8001`; do not use `kong.localtest.me:8001` in-network — that alias is shared with nginx, which only listens on `:8000`)
+- `kong-cp` — Admin API at http://localhost:8001 (in-compose: `http://kong-cp:8001`). `kong.localtest.me` is an nginx-only network alias (ports `:8000` / `:8443`); do not point Admin traffic at it in-network.
 - `kong-dp` — 3 data-plane replicas, fronted by an nginx load balancer (`kong` service) at http://localhost:8000 (`kong.localtest.me:8000` in-network)
 - `httpbun` — local echo upstream (`upstream.localtest.me:80` in-network) for observing proxied requests/responses
 - Static fixtures — nginx serves `local/kong/fixtures/` at `http://kong:8000/__fixtures__/…` (reachable JWKS without a Kong route)

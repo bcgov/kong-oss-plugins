@@ -487,17 +487,40 @@ export async function mtlsProxyRequest(
     fn = () =>
       ctx.fetch(url, { method, headers: init?.headers, data: init?.data });
   } else {
-    const { address } = await dns.promises.lookup(tls.hostname, { family: 4 });
-    const url = `https://${address}:${tls.port || "443"}${routePath}${pathSuffix}`;
-    fn = () =>
-      noSniRequest({
-        url,
-        hostHeader: tls.host,
-        method,
-        headers: init?.headers,
-        data: init?.data,
-        clientCert: init?.clientCert,
-      });
+    // Resolve every A record and try each: a hostname with multiple docker
+    // aliases (historically kong-cp AND the nginx LB) can yield an IP that
+    // refuses :8443. Prefer KONG_PROXY_TLS_CONNECT_HOST (compose sets `kong`,
+    // the LB service name). lookup() (not resolve4) honours /etc/hosts so
+    // host runs of kong.localtest.me → 127.0.0.1 still work.
+    const connectHost =
+      process.env.KONG_PROXY_TLS_CONNECT_HOST ?? tls.hostname;
+    const lookedUp = await dns.promises.lookup(connectHost, {
+      family: 4,
+      all: true,
+    });
+    const addresses = [...new Set(lookedUp.map((r) => r.address))];
+    if (addresses.length === 0) {
+      throw new Error(`no IPv4 addresses for ${connectHost}`);
+    }
+    const port = tls.port || "443";
+    fn = async () => {
+      let lastErr: unknown;
+      for (const address of addresses) {
+        try {
+          return await noSniRequest({
+            url: `https://${address}:${port}${routePath}${pathSuffix}`,
+            hostHeader: tls.host,
+            method,
+            headers: init?.headers,
+            data: init?.data,
+            clientCert: init?.clientCert,
+          });
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      throw lastErr;
+    };
   }
 
   let res = await fn();

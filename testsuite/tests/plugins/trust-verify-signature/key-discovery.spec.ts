@@ -236,7 +236,7 @@ test.describe("trust-verify-signature — key discovery", () => {
           headers: { "X-Edge-Token": token },
         });
         expect(primeRes.status()).toBe(401);
-      }, 15);
+      });
 
       // Publish the key; with a 0s grace period the next lookup must refetch.
       writeDynamicJwks(stem, {
@@ -259,7 +259,7 @@ test.describe("trust-verify-signature — key discovery", () => {
           headers: { "X-Edge-Token": token },
         });
         expect(res.status()).toBe(200);
-      }, 15);
+      });
       const echoedHeaders = (await res!.json()).headers;
       expect(echoedHeaders["X-Trust-Verify-Signature-Req"]).toBe("OK");
     } finally {
@@ -292,7 +292,7 @@ test.describe("trust-verify-signature — key discovery", () => {
           headers: { "X-Edge-Token": token },
         });
         expect(primeRes.status()).toBe(401);
-      }, 15);
+      });
 
       // The live endpoint now serves the key, but the cache is far younger
       // than the 1h grace period, so the plugin must not refetch, on any
@@ -319,7 +319,7 @@ test.describe("trust-verify-signature — key discovery", () => {
         expect(res.status()).toBe(401);
         const body = await res.json();
         expect(body.message).toBe("Signature public key not found");
-      }, 15);
+      });
     } finally {
       removeDynamicJwks(stem);
     }
