@@ -215,7 +215,7 @@ The observable seam for these scenarios is any plugin that runs later in the sam
 
 The plugin SHALL only be configurable for the `https` protocol — mTLS requires HTTPS, so schema validation SHALL reject a `protocols` set containing any other protocol (`http`, `grpc`, `grpcs`, …) — and SHALL NOT be configurable at consumer scope. Its config schema has no required fields, no enumerated (`one_of`) fields, and no cross-field validation rules:
 
-- `error_response_code` (number, optional, default `401`)
+- `error_response_code` (integer, optional, default `401`; schema validation SHALL reject a non-integer and any value outside the inclusive range 400–599)
 - `upstream_cert_header` (string, optional, no default)
 - `upstream_cert_fingerprint_header` (string, optional, no default)
 - `upstream_cert_serial_header` (string, optional, no default)
@@ -243,6 +243,27 @@ The plugin SHALL only be configurable for the `https` protocol — mTLS requires
 **ID**: `mtls-auth.configuration-schema.non-https-protocol-rejected`
 
 - **WHEN** an attempt is made to configure the plugin with a `protocols` set containing a protocol other than `https` (e.g. `["http"]`)
+- **THEN** the configuration is rejected by schema validation
+
+#### Scenario: error_response_code below 400 is rejected
+
+**ID**: `mtls-auth.configuration-schema.error-response-code-below-400`
+
+- **WHEN** a plugin config sets `error_response_code` to `399`
+- **THEN** the configuration is rejected by schema validation
+
+#### Scenario: error_response_code above 599 is rejected
+
+**ID**: `mtls-auth.configuration-schema.error-response-code-above-599`
+
+- **WHEN** a plugin config sets `error_response_code` to `600`
+- **THEN** the configuration is rejected by schema validation
+
+#### Scenario: non-integer error_response_code is rejected
+
+**ID**: `mtls-auth.configuration-schema.error-response-code-must-be-integer`
+
+- **WHEN** a plugin config sets `error_response_code` to a non-integer number (e.g. `401.5`)
 - **THEN** the configuration is rejected by schema validation
 
 ## Interop / shared contract

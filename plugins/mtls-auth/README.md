@@ -62,7 +62,7 @@ To enable the plugin using declarative config in `kong.yml`:
 
 | Parameter                          | Default | Required | Description                                                                                                                |
 |------------------------------------|---------|----------|----------------------------------------------------------------------------------------------------------------------------|
-| `error_response_code`              | 401     | false    | Response code to return if client certificate validation fails                                                             |
+| `error_response_code`              | 401     | false    | HTTP status returned if client certificate validation fails (integer, 400–599 inclusive)                                   |
 | `upstream_cert_header`             |         | false    | HTTP header name in which the client certificate in PEM format (urlencoded) will be made available to the upstream service |
 | `upstream_cert_fingerprint_header` |         | false    | HTTP header name in which the client certificate fingerprint will be made available to the upstream service                |
 | `upstream_cert_serial_header`      |         | false    | HTTP header name in which the client certificate serial number will be made available to the upstream service              |

@@ -12,9 +12,10 @@ return {
                 fields = {
                     {
                         error_response_code = {
-                            type = "number",
+                            type = "integer",
                             required = false,
                             default = 401,
+                            between = {400, 599},
                         },
                     },
                     {

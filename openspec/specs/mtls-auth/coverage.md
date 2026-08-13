@@ -4,7 +4,7 @@
 
 | Surface | Kind | Disposition |
 |---|---|---|
-| `config.error_response_code` (number, optional, default 401) | config | Requirement: Client certificate verification gate |
+| `config.error_response_code` (integer, optional, default 401, between 400–599) | config | Requirement: Client certificate verification gate; Requirement: Configuration schema |
 | `config.upstream_cert_header` (optional) | config | Requirement: Certificate detail headers for upstream |
 | `config.upstream_cert_fingerprint_header` (optional) | config | Requirement: Certificate detail headers for upstream |
 | `config.upstream_cert_serial_header` (optional) | config | Requirement: Certificate detail headers for upstream |
