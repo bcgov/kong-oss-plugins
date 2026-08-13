@@ -32,6 +32,7 @@ services:
     volumes:
       - ./playwright-report:/e2e-playwright/playwright-report
       - ./playwright-results:/e2e-playwright/playwright-results
+      - ./local/kong/fixtures:/e2e-playwright/local/kong/fixtures
     networks:
       - net
     profiles: ["tests"]
@@ -99,6 +100,8 @@ services:
       - ./local/nginx:/etc/nginx/conf.d
       # Reachable JWKS / key fixtures at http://kong:8000/__fixtures__/…
       - ./local/kong/fixtures:/var/fixtures:ro
+      # Writable overlay: nginx access-log for /__capture__/ (parent is :ro).
+      - ./local/kong/fixtures/capture:/var/capture
     depends_on:
       kong-dp:
         condition: service_healthy

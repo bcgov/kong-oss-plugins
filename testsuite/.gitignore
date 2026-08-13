@@ -3,3 +3,4 @@ test-results
 playwright-report
 playwright-results
 _tmp
+local/kong/fixtures/capture/hits.log

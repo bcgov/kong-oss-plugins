@@ -1,16 +1,15 @@
 import { test, expect } from "@playwright/test";
-import { KONG_PROXY_URL } from "../../../helpers/kong";
+import { uniquePrefix, proxyGet } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
   cleanupByPrefix,
   cleanupStale,
   decodeJwt,
   signJwt,
-  findHeader,
   CONTAINER_KEYS_DIR,
 } from "../../../helpers/trust-sign";
 
-const PREFIX = `trust-sign-${Date.now()}-${process.pid}`;
+const PREFIX = uniquePrefix("trust-sign");
 
 const JWKS_URI = "https://jwks.example.test/keys.json";
 
@@ -59,7 +58,7 @@ test.describe("trust-sign — response manifest signing", () => {
       keyFile: "rsa-2048.pem",
     });
 
-    const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`, {
+    const res = await proxyGet(request, routePath, {
       headers: { "X-Edge-Token": inboundToken },
     });
     expect(res.status()).toBe(200);
@@ -85,7 +84,7 @@ test.describe("trust-sign — response manifest signing", () => {
       config: { ...responseConfig },
     });
 
-    const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`, {
+    const res = await proxyGet(request, routePath, {
       headers: { "X-Edge-Token": "this-is-not-a-jwt" },
     });
 
@@ -106,7 +105,7 @@ test.describe("trust-sign — response manifest signing", () => {
       config: { ...responseConfig },
     });
 
-    const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
+    const res = await proxyGet(request, routePath);
     expect(res.status()).toBe(200);
 
     const responseToken = res.headers()["x-edge-token"];
@@ -137,7 +136,7 @@ test.describe("trust-sign — response manifest signing", () => {
       ],
     });
 
-    const res = await request.get(`${KONG_PROXY_URL}${routePath}/headers`);
+    const res = await proxyGet(request, routePath);
     expect(res.status()).toBe(503); // upstream never reached
 
     // signature header set per the other response-direction scenarios
