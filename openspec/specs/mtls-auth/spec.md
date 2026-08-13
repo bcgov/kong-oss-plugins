@@ -62,12 +62,21 @@ When the client certificate is successfully verified, the plugin SHALL, for each
 
 When one of these fields is left unset (or set to an empty string), the corresponding header SHALL NOT be added.
 
+Colliding header names are accepted. When two config fields, or a config field and a fixed `X-Tls-*` name, target the same header, the later setter wins. Order: the five fields above, then CN, then Organization, then `X-Tls-Server-Name`, then `X-Tls-Client-Verify`.
+
 #### Scenario: All configured headers carry certificate details
 
 **ID**: `mtls-auth.certificate-detail-headers.all-configured`
 
 - **WHEN** all five fields above are configured with distinct header names and a request with a verified client certificate is proxied
 - **THEN** each configured upstream request header carries the corresponding certificate value (PEM/URL-encoded certificate, fingerprint, serial number, issuer DN, subject DN) verbatim
+
+#### Scenario: Colliding configured header names last-wins
+
+**ID**: `mtls-auth.certificate-detail-headers.colliding-names-last-wins`
+
+- **WHEN** `upstream_cert_serial_header` and `upstream_cert_s_dn_header` are both set to the same name (e.g. `X-Client-Cert`) and a request with a verified client certificate is proxied
+- **THEN** the upstream request carries that header with the subject DN, not the serial number
 
 #### Scenario: Unset header options are omitted
 

@@ -37,6 +37,7 @@
 | `kong.ctx.shared.mtls_auth` table (cert, fingerprint, serial, issuer_dn, subject_dn, common_name, organization) | output | Requirement: Shared certificate context for downstream plugins |
 | Missing CN/O → shared-context key absent (nil) | logic | Requirement: Shared certificate context for downstream plugins |
 | Overwrite of a client-supplied same-named header | behavior | Requirement: Certificate detail headers for upstream |
+| Colliding configured (or config vs `X-Tls-*`) header names last-wins | behavior | Requirement: Certificate detail headers for upstream |
 | DN parsing: split on unescaped commas | logic | Requirement: Common Name and Organization headers derived from the subject DN |
 | DN parsing: escaped comma retains literal backslash | logic | Requirement: Common Name and Organization headers derived from the subject DN (quirk) |
 | DN parsing: duplicate attribute type, last wins | logic | Requirement: Common Name and Organization headers derived from the subject DN |
