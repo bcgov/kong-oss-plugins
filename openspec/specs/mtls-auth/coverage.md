@@ -20,8 +20,8 @@
 | `ngx.var.ssl_client_s_dn` (verbatim) | input | Requirement: Certificate detail headers for upstream |
 | `ngx.var.ssl_client_raw_cert` (parsed for CN/O via resty.openssl.x509 subject name) | input | Requirement: Common Name and Organization headers derived from the subject DN |
 | `ngx.var.ssl_client_escaped_cert` | input | Requirement: Certificate detail headers for upstream |
-| `ngx.var.ssl_client_fingerprint` | input | Requirement: Certificate detail headers for upstream |
-| `ngx.var.ssl_client_serial` | input | Requirement: Certificate detail headers for upstream |
+| `ngx.var.ssl_client_fingerprint` (SHA-1 hex of DER, lowercase, no colons) | input | Requirement: Certificate detail headers for upstream |
+| `ngx.var.ssl_client_serial` (hex serial, not decimal) | input | Requirement: Certificate detail headers for upstream |
 | `ngx.var.ssl_client_i_dn` | input | Requirement: Certificate detail headers for upstream |
 | `ngx.var.ssl_server_name` | input | Requirement: Server Name header derived from SNI |
 | Early-exit response (status/body/`Content-Type`) | output | Requirement: Client certificate verification gate |

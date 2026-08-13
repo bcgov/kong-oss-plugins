@@ -54,8 +54,8 @@ The plugin SHALL allow the request to proceed only when the nginx variable `ssl_
 When the client certificate is successfully verified, the plugin SHALL, for each of the following config fields set to a non-empty string, set a request header of that name on the request to the upstream service, overwriting any header of the same name the client may already have sent:
 
 - `upstream_cert_header` → the client certificate in PEM format, URL-encoded
-- `upstream_cert_fingerprint_header` → the client certificate fingerprint
-- `upstream_cert_serial_header` → the client certificate serial number
+- `upstream_cert_fingerprint_header` → SHA-1 digest of the DER-encoded client certificate, lowercase hexadecimal with no colons or spaces (nginx `$ssl_client_fingerprint`; 40 hex characters). This is not SHA-256 and not colon-separated OpenSSL fingerprint notation.
+- `upstream_cert_serial_header` → the client certificate serial number in hexadecimal with no colons or spaces (nginx `$ssl_client_serial`; the same string `openssl x509 -noout -serial` prints after `serial=`). This is not the decimal integer.
 - `upstream_cert_i_dn_header` → the client certificate issuer distinguished name, verbatim
 - `upstream_cert_s_dn_header` → the client certificate subject distinguished name, verbatim
 
@@ -68,7 +68,7 @@ Colliding header names are accepted. When two config fields target the same head
 **ID**: `mtls-auth.certificate-detail-headers.all-configured`
 
 - **WHEN** all five fields above are configured with distinct header names and a request with a verified client certificate is proxied
-- **THEN** each configured upstream request header carries the corresponding certificate value (PEM/URL-encoded certificate, fingerprint, serial number, issuer DN, subject DN) verbatim
+- **THEN** each configured upstream request header carries the corresponding certificate value (PEM/URL-encoded certificate, SHA-1 hex fingerprint, hex serial, issuer DN, subject DN) verbatim
 
 #### Scenario: Colliding configured header names last-wins
 
@@ -76,6 +76,20 @@ Colliding header names are accepted. When two config fields target the same head
 
 - **WHEN** `upstream_cert_serial_header` and `upstream_cert_s_dn_header` are both set to the same name (e.g. `X-Client-Cert`) and a request with a verified client certificate is proxied
 - **THEN** the upstream request carries that header with the subject DN, not the serial number
+
+#### Scenario: Fingerprint is SHA-1 hex of the DER certificate
+
+**ID**: `mtls-auth.certificate-detail-headers.fingerprint-sha1-hex`
+
+- **WHEN** `upstream_cert_fingerprint_header` is configured and a request with a verified client certificate is proxied
+- **THEN** that header equals the SHA-1 digest of the certificate's DER encoding as lowercase hexadecimal with no colons or spaces (40 characters) — not SHA-256, and not colon-separated
+
+#### Scenario: Serial is hexadecimal not decimal
+
+**ID**: `mtls-auth.certificate-detail-headers.serial-hex`
+
+- **WHEN** `upstream_cert_serial_header` is configured and the verified client certificate has a serial whose decimal and hexadecimal forms differ (e.g. serial 10)
+- **THEN** that header equals the hexadecimal serial with no colons or spaces (e.g. `0A`), not the decimal form (`10`)
 
 #### Scenario: Unset header options are omitted
 
@@ -204,8 +218,8 @@ When `config.upstream_server_name_header` is left unset (or set to an empty stri
 On every request that passes the certificate-verification gate, and independent of any configuration, the plugin SHALL populate `kong.ctx.shared.mtls_auth` with a table of the verified client certificate's attributes, using exactly these keys:
 
 - `cert` — the client certificate in PEM format, URL-encoded (same value as the `upstream_cert_header` header)
-- `fingerprint` — the client certificate fingerprint
-- `serial` — the client certificate serial number
+- `fingerprint` — SHA-1 hex of the DER-encoded certificate, same encoding as the `upstream_cert_fingerprint_header` header (nginx `$ssl_client_fingerprint`)
+- `serial` — hexadecimal serial, same encoding as the `upstream_cert_serial_header` header (nginx `$ssl_client_serial`)
 - `issuer_dn` — the client certificate issuer distinguished name, verbatim
 - `subject_dn` — the client certificate subject distinguished name, verbatim
 - `common_name` — the decoded `CN` value from the certificate subject, per the Common Name and Organization headers requirement
@@ -220,7 +234,7 @@ The observable seam for these scenarios is any plugin that runs later in the sam
 **ID**: `mtls-auth.shared-certificate-context.populated-on-verified-request`
 
 - **WHEN** a request with a verified client certificate is processed, regardless of which (if any) config fields are set
-- **THEN** a plugin running later in the same request's access phase observes `kong.ctx.shared.mtls_auth` as a table whose `cert`, `fingerprint`, `serial`, `issuer_dn`, `subject_dn`, `common_name`, and `organization` keys carry the corresponding values of the verified client certificate
+- **THEN** a plugin running later in the same request's access phase observes `kong.ctx.shared.mtls_auth` as a table whose `cert`, `fingerprint`, `serial`, `issuer_dn`, `subject_dn`, `common_name`, and `organization` keys carry the corresponding values of the verified client certificate, with `fingerprint` and `serial` using the SHA-1 hex and hex-serial encodings from the Certificate detail headers requirement
 
 #### Scenario: Missing CN leaves the common_name key absent
 
@@ -302,7 +316,9 @@ the source of truth for that contract**: a table with the keys `cert`,
 `fingerprint`, `serial`, `issuer_dn`, `subject_dn`, `common_name`, and
 `organization` (see the Shared certificate context requirement), populated
 only after successful client-certificate verification, with a key absent when
-the certificate lacks the corresponding attribute.
+the certificate lacks the corresponding attribute. `fingerprint` is SHA-1 hex
+of the DER certificate (no colons); `serial` is hexadecimal (not decimal);
+both match the corresponding upstream header encodings.
 
 Because `kong.ctx.shared` is per-request memory inside Kong, the contract is
 trustworthy by construction: a client cannot supply, duplicate, or spoof it
