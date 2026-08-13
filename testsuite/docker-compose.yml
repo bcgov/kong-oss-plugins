@@ -15,6 +15,8 @@ services:
         condition: service_healthy
       kong:
         condition: service_healthy
+      token-exchange-mock:
+        condition: service_healthy
       deck:
         condition: service_completed_successfully
       httpbun:
@@ -22,6 +24,8 @@ services:
     environment:
       - KONG_ADMIN_URL=http://kong-cp:8001
       - KONG_PROXY_URL=http://kong.localtest.me:8000
+      - TOKEN_EXCHANGE_MOCK_CAPTURE_URL=http://token-exchange-mock:8080
+      - TOKEN_EXCHANGE_MOCK_TOKEN_URL=http://token-exchange-mock:8080/token
       # Playwright baseURL — Admin API (suite also needs KONG_PROXY_URL separately)
       - BASE_URL=http://kong-cp:8001
       - KONG_VERSION=${KONG_VERSION:-3.9.1}
@@ -38,6 +42,27 @@ services:
       net:
         aliases:
           - upstream.localtest.me
+
+  token-exchange-mock:
+    image: node:20-alpine
+    working_dir: /app
+    command: ["node", "mock-server.mjs"]
+    volumes:
+      - ./local/token-exchange:/app:ro
+    ports:
+      - "18080:8080"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8080/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 2s
+      timeout: 1s
+      retries: 15
+      start_period: 1s
+    networks:
+      - net
 
   kong-cp:
     image: kong:e2e

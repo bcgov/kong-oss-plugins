@@ -120,15 +120,15 @@ The plugin SHALL resolve the PEM signing key path from
 
 **ID**: `token-exchange.private-key-resolution.malformed-key-aborts-request`
 
-- **WHEN** a previously unused `private_key_location` is readable but does not contain a parseable private key
-- **THEN** no token-endpoint request is made, no upstream `Authorization` header is set, and the client receives status 500 with an error explaining that the private key could not be parsed
+- **WHEN** `private_key_location` is readable but does not contain a parseable private key
+- **THEN** every request using that configuration is terminated before a token-endpoint request is made, no upstream `Authorization` header is set, and the client receives status 500 with an error explaining that the private key could not be parsed
 
 #### Scenario: Unreadable key path aborts the request
 
-**ID**: `token-exchange.private-key-resolution.unreadable-key-generates-ephemeral-key`
+**ID**: `token-exchange.private-key-resolution.unreadable-key-aborts-request`
 
-- **WHEN** a previously unused `private_key_location` names a file that cannot be read
-- **THEN** no token-endpoint request is made, no upstream `Authorization` header is set, and the client receives status 500 with an error explaining that the private key could not be read
+- **WHEN** `private_key_location` names a file that cannot be read
+- **THEN** every request using that configuration is terminated before a token-endpoint request is made, no upstream `Authorization` header is set, and the client receives status 500 with an error explaining that the private key could not be read
 
 ### Requirement: Subject token extraction
 
@@ -180,9 +180,9 @@ and a form body whose parameter order is unspecified. The form SHALL contain
 `urn:ietf:params:oauth:grant-type:token-exchange`, `subject_token_type` and
 `requested_token_type` each equal to
 `urn:ietf:params:oauth:token-type:access_token`, plus `subject_token` when
-extraction succeeds. The HTTP timeout SHALL be 10,000 milliseconds for every
-schema-valid plugin configuration. Unit tests MAY call `do_token_exchange`
-(`require "token_exchange"`).
+extraction succeeds. The HTTP timeout SHALL equal `config.timeout`, which
+defaults to 10,000 milliseconds when omitted. Unit tests MAY call
+`do_token_exchange` (`require "token_exchange"`).
 
 #### Scenario: Standard exchange request
 
