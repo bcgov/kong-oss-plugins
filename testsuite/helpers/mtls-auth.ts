@@ -210,20 +210,14 @@ export async function cleanupByPrefix(
 }
 
 /**
- * Route-scoped observer for the spec's shared-certificate-context seam: a
- * bundled `post-function` plugin (runs after mtls-auth in the access phase)
- * that publishes `kong.ctx.shared.mtls_auth` onto upstream request headers,
- * which the httpbun upstream then echoes back:
- *
- * - `X-Shared-Keys`: sorted comma-joined key set of the table, or
- *   `__absent__` when the context entry is missing.
- * - `X-Shared-<key>` (underscores → hyphens): base64 of each present value.
+ * Lua body for {@link sharedContextObserver}. `setHeader` is a Kong setter
+ * expression (`kong.service.request.set_header` or `kong.response.set_header`).
  */
-export function sharedContextObserver(): ExtraPlugin {
-  const accessFn = `
+function sharedContextObserverLua(setHeader: string): string {
+  return `
     local shared = kong.ctx.shared.mtls_auth
     if shared == nil then
-      kong.service.request.set_header("X-Shared-Keys", "__absent__")
+      ${setHeader}("X-Shared-Keys", "__absent__")
       return
     end
     local names = {}
@@ -231,15 +225,38 @@ export function sharedContextObserver(): ExtraPlugin {
       names[#names + 1] = key
     end
     table.sort(names)
-    kong.service.request.set_header("X-Shared-Keys", table.concat(names, ","))
+    ${setHeader}("X-Shared-Keys", table.concat(names, ","))
     for _, key in ipairs(names) do
-      kong.service.request.set_header(
+      ${setHeader}(
         "X-Shared-" .. string.gsub(key, "_", "-"),
         ngx.encode_base64(tostring(shared[key]))
       )
     end
   `;
-  return { name: "post-function", config: { access: [accessFn] } };
+}
+
+/**
+ * Route-scoped observer for the spec's shared-certificate-context seam: a
+ * bundled `post-function` plugin (runs after mtls-auth) that publishes
+ * `kong.ctx.shared.mtls_auth`:
+ *
+ * - access: upstream request headers, echoed by httpbun on a proxied request
+ * - header_filter: the same headers on the client response, so a request
+ *   that `kong.response.exit`s in access (verification-gate reject) is still
+ *   observable
+ *
+ * - `X-Shared-Keys`: sorted comma-joined key set of the table, or
+ *   `__absent__` when the context entry is missing.
+ * - `X-Shared-<key>` (underscores → hyphens): base64 of each present value.
+ */
+export function sharedContextObserver(): ExtraPlugin {
+  return {
+    name: "post-function",
+    config: {
+      access: [sharedContextObserverLua("kong.service.request.set_header")],
+      header_filter: [sharedContextObserverLua("kong.response.set_header")],
+    },
+  };
 }
 
 /** Decode an `X-Shared-<key>` header value produced by the observer. */

@@ -5,6 +5,7 @@ import {
   disposeMtlsContexts,
   provisionPluginRoute,
   cleanupByPrefix,
+  sharedContextObserver,
 } from "../../../helpers/mtls-auth";
 
 const PREFIX = uniquePrefix("mtls-auth");
@@ -51,6 +52,7 @@ test.describe("mtls-auth — client certificate verification gate", () => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
       config: {},
+      extraPlugins: [sharedContextObserver()],
     });
 
     // untrusted is signed by a CA the DPs do not trust -> $ssl_client_verify FAILED:…
@@ -63,6 +65,11 @@ test.describe("mtls-auth — client certificate verification gate", () => {
     expect(body.error).toBe(ERROR_BODY.error);
     expect(body.error_description).toBe(ERROR_BODY.error_description);
     expect(body.headers).toBeUndefined();
+    // The spec's "shared context SHALL NOT be populated" clause, observed via
+    // the header_filter observer (a rejected request never reaches later
+    // access-phase plugins). This is the one reject path where a certificate
+    // actually exists on the connection and could leak into the context.
+    expect(res.headers()["x-shared-keys"]).toBe("__absent__");
   });
 
   // [Verifies: mtls-auth.certificate-verification-gate.custom-status]
