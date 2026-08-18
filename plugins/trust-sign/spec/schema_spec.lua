@@ -62,17 +62,21 @@ describe("trust-sign configuration schema", function()
   end)
 
   it("accepts keyset_name without an explicit keyid", function()
-    local config = valid_config({ keyid = nil, keyset_name = "sdx.edge.myrg.dev" })
+    local config = valid_config({ keyset_name = "sdx.edge.myrg.dev" })
+    config.keyid = nil
     local processed = config_schema:process_auto_fields(config, "insert")
     local ok, err = config_schema:validate(processed)
     assert.is_truthy(ok, "keyset_name-only config rejected: " .. tostring(require("cjson").encode(err or {})))
   end)
 
   it("rejects configs that omit both keyid and keyset_name", function()
-    local config = valid_config({ keyid = nil, keyset_name = nil })
+    local config = valid_config()
+    config.keyid = nil
+    config.keyset_name = nil
     local processed = config_schema:process_auto_fields(config, "insert")
-    local ok = config_schema:validate(processed)
+    local ok, err = config_schema:validate(processed)
     assert.is_falsy(ok, "config missing both keyid and keyset_name was accepted")
+    assert.is_truthy(err and err["@entity"], "expected @entity at_least_one_of error")
   end)
 
   -- [Verifies: trust-sign.configuration-schema.enumerated-fields]
