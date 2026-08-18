@@ -60,4 +60,28 @@ describe("token-exchange private key environment override", function()
     assert.matches("^[^.]+%.[^.]+%.[^.]+$", assertion)
     assert.equals(ENV_KEY_PATH, resolved_key_path)
   end)
+
+  it("resolves kid from keyset_name without mutating plugin config", function()
+    local signer = assert(require(SIGNER_MODULE))
+    signer.get_kong_key = function()
+      return read_file(ENV_KEY_PATH)
+    end
+    signer.resolve_kid = function(conf)
+      assert.equals("sdx.edge.myrg.dev", conf.keyset_name)
+      return "urn:ca:bc:sdx:edge:myrg:dev:abc"
+    end
+
+    local create_client_assertion = assert(require("client_assertion").create_client_assertion)
+    local plugin_config = {
+      private_key_location = CONFIG_KEY_PATH,
+      client_id = "environment-override-client",
+      token_endpoint = "https://tokens.example.test/exchange",
+      algorithm = "RS256",
+      expiration = 60,
+      keyset_name = "sdx.edge.myrg.dev",
+    }
+    local assertion = assert(create_client_assertion(plugin_config))
+    assert.matches("^[^.]+%.[^.]+%.[^.]+$", assertion)
+    assert.is_nil(plugin_config.key_id)
+  end)
 end)

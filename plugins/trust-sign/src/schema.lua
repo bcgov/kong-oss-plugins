@@ -25,7 +25,13 @@ return {
           {
             keyid = {
               type = "string",
-              required = true
+              required = false
+            }
+          },
+          {
+            keyset_name = {
+              type = "string",
+              required = false
             }
           },
           -- {
@@ -74,7 +80,23 @@ return {
               }
             }
           }
+        },
+        entity_checks = {
+          {
+            at_least_one_of = {
+              "keyid",
+              "keyset_name"
+            }
+          }
         }
+      }
+    }
+  },
+  entity_checks = {
+    {
+      at_least_one_of = {
+        "config.keyid",
+        "config.keyset_name"
       }
     }
   }

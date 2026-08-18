@@ -60,6 +60,12 @@ return {
             }
           },
           {
+            keyset_name = {
+              type = "string",
+              required = false
+            }
+          },
+          {
             scopes = {
               type = "array",
               elements = {
