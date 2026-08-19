@@ -5,6 +5,7 @@ import {
   cleanupByPrefix,
   certCommonName,
   mtlsGetExpecting,
+  mtlsGetAfterAclReady,
   DENY_BODY,
 } from "../../../helpers/mtls-acl";
 
@@ -33,8 +34,9 @@ test.describe("mtls-acl — deny-list evaluation", () => {
       },
     });
 
-    const res = await mtlsGetExpecting(request, routePath, 200, {
-      clientCert: "alice",
+    const res = await mtlsGetAfterAclReady(request, routePath, {
+      denied: { clientCert: "no-cn" },
+      allowed: { clientCert: "alice" },
     });
     expect(res.status()).toBe(200);
     expect((await res.json()).headers).toBeTruthy(); // upstream echo reached
@@ -55,8 +57,9 @@ test.describe("mtls-acl — deny-list evaluation", () => {
       },
     });
 
-    const res = await mtlsGetExpecting(request, routePath, 200, {
-      clientCert: "alice",
+    const res = await mtlsGetAfterAclReady(request, routePath, {
+      denied: { clientCert: "no-cn" },
+      allowed: { clientCert: "alice" },
     });
     expect(res.status()).toBe(200);
     expect((await res.json()).headers).toBeTruthy();

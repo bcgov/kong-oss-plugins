@@ -152,6 +152,49 @@ export async function mtlsGetExpecting(
   });
 }
 
+type MtlsGetInit = Omit<
+  MtlsProxyRequestInit,
+  "method" | "shouldRetry"
+>;
+
+/**
+ * Prove mtls-acl has propagated before exercising a successful request.
+ *
+ * A route can become ready before its plugins. In that window an unprotected
+ * route also returns 200, so a grant-path test cannot use its own successful
+ * response as the readiness signal. The denied probe must present a trusted
+ * certificate/value that the configured ACL rejects; the plugin's exact 403
+ * response proves the ACL is active before the allowed request is sent.
+ */
+export async function mtlsGetAfterAclReady(
+  request: APIRequestContext,
+  routePath: string,
+  options: {
+    denied: MtlsGetInit;
+    allowed: MtlsGetInit;
+  }
+): Promise<MtlsProxyResponse> {
+  const denied = await mtlsGetExpecting(
+    request,
+    routePath,
+    403,
+    options.denied
+  );
+  if (denied.status() !== 403) {
+    throw new Error(
+      `mtls-acl readiness probe returned ${denied.status()}, expected 403`
+    );
+  }
+  const body = await denied.json();
+  if (body?.message !== DENY_BODY.message) {
+    throw new Error(
+      `mtls-acl readiness probe returned an unexpected body: ${JSON.stringify(body)}`
+    );
+  }
+
+  return mtlsGetExpecting(request, routePath, 200, options.allowed);
+}
+
 /** Subject CN of an mTLS fixture certificate (e.g. "Alice Example"). */
 export function certCommonName(fixtureName: string): string {
   const subject = mtlsClientCert(fixtureName).x509.subject;

@@ -20,7 +20,7 @@ import {
 import {
   provisionPluginRoute,
   cleanupByPrefix,
-  mtlsGetExpecting,
+  mtlsGetAfterAclReady,
 } from "../../helpers/mtls-acl";
 
 const PREFIX = uniquePrefix("mtls-interop");
@@ -55,8 +55,9 @@ test.describe("interop — mtls-auth feeds kong.ctx.shared.mtls_auth to mtls-acl
       },
     });
 
-    const res = await mtlsGetExpecting(request, routePath, 200, {
-      clientCert: "alice",
+    const res = await mtlsGetAfterAclReady(request, routePath, {
+      denied: { clientCert: "no-cn" },
+      allowed: { clientCert: "alice" },
     });
     expect(res.status()).toBe(200);
     expect((await res.json()).headers).toBeTruthy(); // upstream echo reached
@@ -78,8 +79,9 @@ test.describe("interop — mtls-auth feeds kong.ctx.shared.mtls_auth to mtls-acl
       },
     });
 
-    const res = await mtlsGetExpecting(request, routePath, 200, {
-      clientCert: "alice",
+    const res = await mtlsGetAfterAclReady(request, routePath, {
+      denied: { clientCert: "no-cn" },
+      allowed: { clientCert: "alice" },
     });
     expect(res.status()).toBe(200);
     expect((await res.json()).headers).toBeTruthy();

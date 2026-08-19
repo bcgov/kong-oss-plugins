@@ -7,6 +7,7 @@ import {
   deletePlugin,
   certCommonName,
   mtlsGetExpecting,
+  mtlsGetAfterAclReady,
   DENY_BODY,
 } from "../../../helpers/mtls-acl";
 
@@ -36,8 +37,9 @@ test.describe("mtls-acl — certificate attribute extraction", () => {
       },
     });
 
-    const res = await mtlsGetExpecting(request, routePath, 200, {
-      clientCert: "alice",
+    const res = await mtlsGetAfterAclReady(request, routePath, {
+      denied: { clientCert: "no-cn" },
+      allowed: { clientCert: "alice" },
     });
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -57,8 +59,9 @@ test.describe("mtls-acl — certificate attribute extraction", () => {
       },
     });
 
-    const res = await mtlsGetExpecting(request, routePath, 200, {
-      clientCert: "alice",
+    const res = await mtlsGetAfterAclReady(request, routePath, {
+      denied: { clientCert: "no-cn" },
+      allowed: { clientCert: "alice" },
     });
     expect(res.status()).toBe(200);
     expect((await res.json()).headers).toBeTruthy();
@@ -84,8 +87,9 @@ test.describe("mtls-acl — certificate attribute extraction", () => {
     const globalAuthId = await createGlobalMtlsAuth(request);
     try {
       // Retries also absorb the propagation lag of the just-created global plugin.
-      const res = await mtlsGetExpecting(request, routePath, 200, {
-        clientCert: "alice",
+      const res = await mtlsGetAfterAclReady(request, routePath, {
+        denied: { clientCert: "no-cn" },
+        allowed: { clientCert: "alice" },
       });
       expect(res.status()).toBe(200);
       expect((await res.json()).headers).toBeTruthy();
