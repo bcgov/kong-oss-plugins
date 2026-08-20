@@ -16,6 +16,13 @@ export { uniquePrefix };
 /** Default-deny response body mtls-acl must return on every rejection. */
 export const DENY_BODY = { message: "You cannot consume this service" };
 
+/** Stable tag used to recover a global mtls-auth leaked by a prior worker. */
+const GLOBAL_MTLS_AUTH_TEST_TAG = "e2e-mtls-acl-global-auth";
+
+const MTLS_STABLE_PROBES = 9;
+const MTLS_PROPAGATION_TIMEOUT_MS = 30_000;
+const MTLS_PROBE_INTERVAL_MS = 250;
+
 let counter = 0;
 
 export type ProvisionOptions = {
@@ -108,17 +115,23 @@ export async function provisionPluginRoute(
 
 /**
  * Create a *global* mtls-auth plugin (no route/service scope). Callers must
- * delete it themselves (try/finally with {@link deletePlugin}) — it applies
- * to every request through the gateway while it exists, and cascade cleanup
- * cannot remove it.
+ * remove it in a try/finally with {@link deleteGlobalMtlsAuthAndWait}; suite
+ * hooks should also call {@link cleanupGlobalMtlsAuth} to recover a plugin
+ * leaked by a crashed worker. Cascade route cleanup cannot remove it.
  */
 export async function createGlobalMtlsAuth(
   request: APIRequestContext,
-  authConfig: Record<string, unknown> = {}
+  options: {
+    authConfig?: Record<string, unknown>;
+    tags?: string[];
+  } = {}
 ): Promise<string> {
   const res = await provisionKong(request, `${KONG_ADMIN_URL}/plugins`, {
     name: "mtls-auth",
-    config: authConfig,
+    config: options.authConfig ?? {},
+    tags: Array.from(
+      new Set([GLOBAL_MTLS_AUTH_TEST_TAG, ...(options.tags ?? [])])
+    ),
   });
   return res.body.id as string;
 }
@@ -127,7 +140,12 @@ export async function deletePlugin(
   request: APIRequestContext,
   pluginId: string
 ): Promise<void> {
-  await request.delete(`${KONG_ADMIN_URL}/plugins/${pluginId}`);
+  const res = await request.delete(`${KONG_ADMIN_URL}/plugins/${pluginId}`);
+  if (res.status() !== 204 && res.status() !== 404) {
+    throw new Error(
+      `failed to delete plugin ${pluginId}: ${res.status()} ${await res.text()}`
+    );
+  }
 }
 
 /**
@@ -157,6 +175,75 @@ type MtlsGetInit = Omit<
   "method" | "shouldRetry"
 >;
 
+function isExactDenyBody(body: unknown): boolean {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    !Array.isArray(body) &&
+    Object.keys(body).length === 1 &&
+    (body as { message?: unknown }).message === DENY_BODY.message
+  );
+}
+
+/**
+ * Require a stable streak of exact mtls-acl denials across fresh TLS
+ * connections. `Connection: close` matters because nginx chooses a DP once
+ * per stream connection; without it, repeated requests can stay pinned to a
+ * single replica and cannot prove that the plugin has propagated to all DPs.
+ */
+export async function waitForMtlsAclDeny(
+  request: APIRequestContext,
+  routePath: string,
+  init: MtlsGetInit = {}
+): Promise<MtlsProxyResponse> {
+  const deadline = Date.now() + MTLS_PROPAGATION_TIMEOUT_MS;
+  let consecutive = 0;
+  let lastOutcome = "no response";
+
+  while (Date.now() < deadline) {
+    try {
+      const res = await mtlsProxyGet(request, routePath, {
+        ...init,
+        attempts: 1,
+        headers: {
+          ...init.headers,
+          Connection: "close",
+        },
+      });
+      const status = res.status();
+      let body: unknown;
+      if (status === 403) {
+        try {
+          body = await res.json();
+        } catch {
+          body = undefined;
+        }
+      }
+
+      if (status === 403 && isExactDenyBody(body)) {
+        consecutive += 1;
+        if (consecutive >= MTLS_STABLE_PROBES) {
+          return res;
+        }
+      } else {
+        consecutive = 0;
+      }
+      lastOutcome = `${status} ${JSON.stringify(body)}`;
+    } catch (err) {
+      consecutive = 0;
+      lastOutcome = err instanceof Error ? err.message : String(err);
+    }
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, MTLS_PROBE_INTERVAL_MS)
+    );
+  }
+
+  throw new Error(
+    `mtls-acl did not return ${MTLS_STABLE_PROBES} consecutive exact denials within ${MTLS_PROPAGATION_TIMEOUT_MS}ms; last outcome: ${lastOutcome}`
+  );
+}
+
 /**
  * Prove mtls-acl has propagated before exercising a successful request.
  *
@@ -164,7 +251,8 @@ type MtlsGetInit = Omit<
  * route also returns 200, so a grant-path test cannot use its own successful
  * response as the readiness signal. The denied probe must present a trusted
  * certificate/value that the configured ACL rejects; the plugin's exact 403
- * response proves the ACL is active before the allowed request is sent.
+ * responses over fresh connections prove the ACL is active across the DP
+ * pool before the allowed request is sent.
  */
 export async function mtlsGetAfterAclReady(
   request: APIRequestContext,
@@ -174,25 +262,19 @@ export async function mtlsGetAfterAclReady(
     allowed: MtlsGetInit;
   }
 ): Promise<MtlsProxyResponse> {
-  const denied = await mtlsGetExpecting(
-    request,
-    routePath,
-    403,
-    options.denied
-  );
-  if (denied.status() !== 403) {
-    throw new Error(
-      `mtls-acl readiness probe returned ${denied.status()}, expected 403`
-    );
-  }
-  const body = await denied.json();
-  if (body?.message !== DENY_BODY.message) {
-    throw new Error(
-      `mtls-acl readiness probe returned an unexpected body: ${JSON.stringify(body)}`
-    );
-  }
+  await waitForMtlsAclDeny(request, routePath, options.denied);
 
   return mtlsGetExpecting(request, routePath, 200, options.allowed);
+}
+
+/** Delete a global mtls-auth plugin and wait for its removal on every DP. */
+export async function deleteGlobalMtlsAuthAndWait(
+  request: APIRequestContext,
+  pluginId: string,
+  aclRoutePath: string
+): Promise<void> {
+  await deletePlugin(request, pluginId);
+  await waitForMtlsAclDeny(request, aclRoutePath);
 }
 
 /** Subject CN of an mTLS fixture certificate (e.g. "Alice Example"). */
@@ -209,9 +291,15 @@ export function certCommonName(fixtureName: string): string {
 
 async function listAll(
   request: APIRequestContext,
-  collection: "routes" | "services"
-): Promise<Array<{ id: string; name: string | null }>> {
-  const items: Array<{ id: string; name: string | null }> = [];
+  collection: "routes" | "services" | "plugins"
+): Promise<
+  Array<{ id: string; name: string | null; tags?: string[] | null }>
+> {
+  const items: Array<{
+    id: string;
+    name: string | null;
+    tags?: string[] | null;
+  }> = [];
   let url: string | null = `${KONG_ADMIN_URL}/${collection}?size=1000`;
   while (url) {
     const res = await request.get(url);
@@ -220,6 +308,21 @@ async function listAll(
     url = body.next ? `${KONG_ADMIN_URL}${body.next}` : null;
   }
   return items;
+}
+
+/** Delete global mtls-auth plugins left by this test suite or a prior retry. */
+export async function cleanupGlobalMtlsAuth(
+  request: APIRequestContext
+): Promise<void> {
+  const plugins = await listAll(request, "plugins");
+  for (const plugin of plugins) {
+    if (
+      plugin.name === "mtls-auth" &&
+      plugin.tags?.includes(GLOBAL_MTLS_AUTH_TEST_TAG)
+    ) {
+      await deletePlugin(request, plugin.id);
+    }
+  }
 }
 
 /**

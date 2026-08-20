@@ -3,7 +3,8 @@ import { uniquePrefix, disposeMtlsContexts } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
   cleanupByPrefix,
-  mtlsGetExpecting,
+  cleanupGlobalMtlsAuth,
+  waitForMtlsAclDeny,
   DENY_BODY,
 } from "../../../helpers/mtls-acl";
 
@@ -11,10 +12,12 @@ const PREFIX = uniquePrefix("mtls-acl-deny-default");
 
 test.describe("mtls-acl — default deny", () => {
   test.beforeAll(async ({ request }) => {
+    await cleanupGlobalMtlsAuth(request);
     await cleanupByPrefix(request, PREFIX);
   });
 
   test.afterAll(async ({ request }) => {
+    await cleanupGlobalMtlsAuth(request);
     await cleanupByPrefix(request, PREFIX);
     await disposeMtlsContexts();
   });
@@ -35,7 +38,7 @@ test.describe("mtls-acl — default deny", () => {
       },
     });
 
-    const res = await mtlsGetExpecting(request, routePath, 403);
+    const res = await waitForMtlsAclDeny(request, routePath);
     expect(res.status()).toBe(403);
     expect(await res.json()).toEqual(DENY_BODY);
   });

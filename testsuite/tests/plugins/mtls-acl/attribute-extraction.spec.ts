@@ -3,11 +3,13 @@ import { uniquePrefix, disposeMtlsContexts } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
   cleanupByPrefix,
+  cleanupGlobalMtlsAuth,
   createGlobalMtlsAuth,
-  deletePlugin,
+  deleteGlobalMtlsAuthAndWait,
   certCommonName,
   mtlsGetExpecting,
   mtlsGetAfterAclReady,
+  waitForMtlsAclDeny,
   DENY_BODY,
 } from "../../../helpers/mtls-acl";
 
@@ -16,11 +18,13 @@ const ALICE_CN = certCommonName("alice");
 
 test.describe("mtls-acl — certificate attribute extraction", () => {
   test.beforeAll(async ({ request }) => {
+    await cleanupGlobalMtlsAuth(request);
     // Only this file's PREFIX — wiping a shared base races with parallel workers.
     await cleanupByPrefix(request, PREFIX);
   });
 
   test.afterAll(async ({ request }) => {
+    await cleanupGlobalMtlsAuth(request);
     await cleanupByPrefix(request, PREFIX);
     await disposeMtlsContexts();
   });
@@ -84,7 +88,9 @@ test.describe("mtls-acl — certificate attribute extraction", () => {
       },
     });
 
-    const globalAuthId = await createGlobalMtlsAuth(request);
+    const globalAuthId = await createGlobalMtlsAuth(request, {
+      tags: [PREFIX],
+    });
     try {
       // Retries also absorb the propagation lag of the just-created global plugin.
       const res = await mtlsGetAfterAclReady(request, routePath, {
@@ -94,7 +100,7 @@ test.describe("mtls-acl — certificate attribute extraction", () => {
       expect(res.status()).toBe(200);
       expect((await res.json()).headers).toBeTruthy();
     } finally {
-      await deletePlugin(request, globalAuthId);
+      await deleteGlobalMtlsAuthAndWait(request, globalAuthId, routePath);
     }
   });
 
@@ -134,7 +140,7 @@ test.describe("mtls-acl — certificate attribute extraction", () => {
       },
     });
 
-    const res = await mtlsGetExpecting(request, routePath, 403, {
+    const res = await waitForMtlsAclDeny(request, routePath, {
       headers: {
         "X-Client-Cert-Common-Name": ALICE_CN,
         "X-Common-Name": ALICE_CN,
