@@ -24,6 +24,10 @@ services:
     environment:
       - KONG_ADMIN_URL=http://kong-cp:8001
       - KONG_PROXY_URL=http://kong.localtest.me:8000
+      - KONG_PROXY_TLS_URL=https://kong.localtest.me:8443
+      # Unique nginx LB hostname for no-SNI IP connect. kong.localtest.me must
+      # not be used: it used to also alias kong-cp, which does not listen :8443.
+      - KONG_PROXY_TLS_CONNECT_HOST=kong
       - TOKEN_EXCHANGE_MOCK_CAPTURE_URL=http://token-exchange-mock:8080
       - TOKEN_EXCHANGE_MOCK_TOKEN_URL=http://token-exchange-mock:8080/token
       # Playwright baseURL — Admin API (suite also needs KONG_PROXY_URL separately)
@@ -83,9 +87,7 @@ services:
       - 8001:8001
       - 8005:8005
     networks:
-      net:
-        aliases:
-          - kong.localtest.me
+      - net
     healthcheck:
       test: ["CMD", "/tmp/kong/health"]
       interval: 10s
@@ -96,8 +98,12 @@ services:
     image: nginx:latest
     ports:
       - "8000:8000"
+      # TLS passthrough to the Kong DPs (mTLS entry point)
+      - "8443:8443"
     volumes:
       - ./local/nginx:/etc/nginx/conf.d
+      # Main config adds a stream{} passthrough :8443 -> kong-dp:8443
+      - ./local/nginx/main/nginx.conf:/etc/nginx/nginx.conf:ro
       # Reachable JWKS / key fixtures at http://kong:8000/__fixtures__/…
       - ./local/kong/fixtures:/var/fixtures:ro
       # Writable overlay: nginx access-log for /__capture__/ (parent is :ro).

@@ -13,3 +13,6 @@ Generated once for shared Playwright / Kong plugin tests.
 | `malformed.jwks.json` | Hand-written: a `keys` entry with `kid: "malformed"` whose `n` contains characters outside the base64url alphabet (fails key construction rather than just failing to verify), for testing malformed-JWK rejection |
 
 Do not regenerate casually — plugins and tests may pin `kid` / paths. Add new keys alongside; do not replace existing ones without updating callers.
+
+mTLS client-certificate fixtures (client CA + leaf certs with various subject
+DNs) live in [`mtls/`](mtls/README.md).

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { callAPI, setRequestBody } from "../helpers/api";
+import { KONG_ADMIN_URL } from "../helpers/kong";
 
 test.describe("kong ready", () => {
   test("admin api reachable", async ({ request }) => {
@@ -10,7 +11,7 @@ test.describe("kong ready", () => {
         status,
         body: { tagline },
       },
-    } = await callAPI(request, `http:///kong.localtest.me:8001`, "GET");
+    } = await callAPI(request, KONG_ADMIN_URL, "GET");
     expect(status).toBe(200);
     expect(tagline).toBe("Welcome to kong");
   });
