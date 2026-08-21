@@ -70,8 +70,11 @@ end
 -- @param location the location of the key file
 -- @return the key contents
 local function get_kong_key(key, location)
-  -- This will add a non expiring TTL on this cached value
-  -- https://github.com/thibaultcha/lua-resty-mlcache/blob/master/README.md
+  -- Cache PEM bytes by path with a non-expiring TTL. A new key at the same
+  -- mounted path is therefore visible only after this cache entry is gone
+  -- (typically a worker/Kong restart). Signing and kid matching both use
+  -- these cached bytes, so in-place rotation without a restart is not
+  -- supported. https://github.com/thibaultcha/lua-resty-mlcache
   local pkey,
     err = kong.cache:get(key, {ttl = 0}, read_from_file, location)
 
@@ -90,12 +93,22 @@ local function normalize_pem(pem)
   return pem:gsub("%-%-%-%-%-[^-]+%-%-%-%-%-", ""):gsub("%s", "")
 end
 
-local function public_pem_from_material(material)
-  local pkey, err = openssl_pkey.new(material)
+-- resty.openssl.pkey.new(table) treats a table as key-generation options,
+-- not JWK material. Kong 3.9.1's OpenSSL backend needs a JSON string plus
+-- { format = "JWK" }.
+local function public_pem_from_material(material, opts)
+  local pkey, err = openssl_pkey.new(material, opts)
   if not pkey then
     return nil, err
   end
   return pkey:to_PEM("public")
+end
+
+local function public_pem_from_jwk(jwk)
+  if type(jwk) ~= "string" then
+    jwk = json.encode(jwk)
+  end
+  return public_pem_from_material(jwk, { format = "JWK" })
 end
 
 --- Return true when `key` is the public half of `private_pem`.
@@ -111,11 +124,7 @@ local function public_key_matches(private_pem, key)
   end
 
   if key.jwk and key.jwk ~= ngx.null then
-    local jwk = key.jwk
-    if type(jwk) == "string" then
-      jwk = json.decode(jwk)
-    end
-    local got, jwk_err = public_pem_from_material(jwk)
+    local got, jwk_err = public_pem_from_jwk(key.jwk)
     if not got then
       return false, jwk_err
     end
@@ -161,7 +170,8 @@ local function load_keyset_keys(keyset_name)
     local size = 100
     local offset
     repeat
-      local page, page_err, next_offset = kong.db.keys:page_for_set(keyset, size, offset)
+      -- Kong 3.9.1 DAO: entities, err, err_t, next_offset
+      local page, page_err, _, next_offset = kong.db.keys:page_for_set({ id = keyset.id }, size, offset)
       if page_err then
         return nil, page_err
       end
@@ -202,6 +212,9 @@ local function resolve_kid(conf)
     return nil, "unable to load private key"
   end
 
+  -- Fingerprint the cached PEM (see get_kong_key). After a restart the
+  -- pkey cache is empty, so a new file at the same path produces a new
+  -- cache key and the previous kid entry is not reused.
   local cache_key = "trust_sign_kid:" .. conf.keyset_name .. ":" .. ngx.md5(private_pem)
   local loader = function()
     local keys, load_err = load_keyset_keys(conf.keyset_name)
