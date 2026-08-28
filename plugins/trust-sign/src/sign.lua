@@ -196,14 +196,11 @@ local function load_keyset_keys(keyset_name)
   return found
 end
 
---- Resolve the JWT kid: explicit config.keyid wins; otherwise match the
--- mounted private key against Kong keyset `config.keyset_name`.
+--- Resolve the JWT kid by matching the mounted private key against Kong
+-- keyset `config.keyset_name`.
 local function resolve_kid(conf)
-  if conf.keyid and conf.keyid ~= "" then
-    return conf.keyid
-  end
   if not conf.keyset_name or conf.keyset_name == "" then
-    return nil, "keyid or keyset_name is required"
+    return nil, "keyset_name is required"
   end
 
   local location = get_private_key_location(conf)

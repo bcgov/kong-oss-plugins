@@ -68,6 +68,8 @@ describe("token-exchange private key environment override", function()
     end
     signer.resolve_kid = function(conf)
       assert.equals("sdx.edge.myrg.dev", conf.keyset_name)
+      assert.equals(CONFIG_KEY_PATH, conf.private_key_location)
+      assert.is_nil(conf.keyid)
       return "urn:ca:bc:sdx:edge:myrg:dev:abc"
     end
 

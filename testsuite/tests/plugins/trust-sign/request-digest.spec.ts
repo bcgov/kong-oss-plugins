@@ -2,26 +2,24 @@ import { test, expect } from "@playwright/test";
 import { uniquePrefix, proxyRequest } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
+  provisionSigningKeyset,
+  trustSignConfig,
   cleanupByPrefix,
   cleanupStale,
   decodeJwt,
   contentDigestOf,
   findHeader,
-  CONTAINER_KEYS_DIR,
+  type SigningKeyset,
 } from "../../../helpers/trust-sign";
 
 const PREFIX = uniquePrefix("trust-sign");
 
-const requestConfig = {
-  keyid: "rsa-2048",
-  private_key_location: `${CONTAINER_KEYS_DIR}/rsa-2048.pem`,
-  alg: "RS256",
-  direction: "request",
-};
+let keyset: SigningKeyset;
 
 test.describe("trust-sign — request digest generation", () => {
   test.beforeAll(async ({ request }) => {
     await cleanupStale(request, "trust-sign-");
+    keyset = await provisionSigningKeyset(request, { prefix: PREFIX });
   });
 
   test.afterAll(async ({ request }) => {
@@ -34,7 +32,7 @@ test.describe("trust-sign — request digest generation", () => {
   }) => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: { ...requestConfig },
+      config: trustSignConfig(keyset.keysetName, { direction: "request" }),
     });
 
     const body = "trust-sign digest body";
@@ -61,7 +59,7 @@ test.describe("trust-sign — request digest generation", () => {
   }) => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: { ...requestConfig },
+      config: trustSignConfig(keyset.keysetName, { direction: "request" }),
     });
 
     const expectedDigest = contentDigestOf(""); // sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:
@@ -87,7 +85,7 @@ test.describe("trust-sign — request digest generation", () => {
   }) => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: { ...requestConfig },
+      config: trustSignConfig(keyset.keysetName, { direction: "request" }),
     });
 
     // A body larger than nginx's in-memory client body buffer is spooled to
@@ -117,7 +115,7 @@ test.describe("trust-sign — request digest generation", () => {
   }) => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: { ...requestConfig },
+      config: trustSignConfig(keyset.keysetName, { direction: "request" }),
     });
 
     const body = "actual body";

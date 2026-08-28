@@ -2,25 +2,24 @@ import { test, expect } from "@playwright/test";
 import { uniquePrefix, proxyGet, proxyRequest } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
+  provisionSigningKeyset,
+  trustSignConfig,
   cleanupByPrefix,
   cleanupStale,
   decodeJwt,
   contentDigestOf,
   findHeader,
-  CONTAINER_KEYS_DIR,
+  type SigningKeyset,
 } from "../../../helpers/trust-sign";
 
 const PREFIX = uniquePrefix("trust-sign");
 
-const baseConfig = {
-  keyid: "rsa-2048",
-  private_key_location: `${CONTAINER_KEYS_DIR}/rsa-2048.pem`,
-  alg: "RS256",
-};
+let keyset: SigningKeyset;
 
 test.describe("trust-sign — direction gating", () => {
   test.beforeAll(async ({ request }) => {
     await cleanupStale(request, "trust-sign-"); // stale entities from prior runs
+    keyset = await provisionSigningKeyset(request, { prefix: PREFIX });
   });
 
   test.afterAll(async ({ request }) => {
@@ -31,7 +30,7 @@ test.describe("trust-sign — direction gating", () => {
   test("direction unset is a no-op", async ({ request }) => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: { ...baseConfig }, // direction deliberately unset
+      config: trustSignConfig(keyset.keysetName), // direction deliberately unset
     });
 
     const res = await proxyGet(request, routePath);
@@ -49,7 +48,7 @@ test.describe("trust-sign — direction gating", () => {
   }) => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: { ...baseConfig, direction: "request" },
+      config: trustSignConfig(keyset.keysetName, { direction: "request" }),
     });
 
     const body = "direction-gating request body";
@@ -81,7 +80,7 @@ test.describe("trust-sign — direction gating", () => {
   }) => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: { ...baseConfig, direction: "response" },
+      config: trustSignConfig(keyset.keysetName, { direction: "response" }),
     });
 
     const res = await proxyGet(request, routePath);
