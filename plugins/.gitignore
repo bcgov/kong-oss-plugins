@@ -19,3 +19,4 @@ bin/venv/
 .dccache
 
 *.rock
+_tmp

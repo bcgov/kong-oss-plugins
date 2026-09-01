@@ -1,0 +1,250 @@
+local jwt_decoder = require "kong.plugins.jwt.jwt_parser"
+local digest_mod = require("kong.plugins.trust-sign.digest")
+local filter = require("kong.plugins.trust-sign.signature_base")
+local jwk_sign = require("kong.plugins.trust-sign.sign")
+local request_id_get = require("kong.observability.tracing.request_id").get
+local kong_meta = require "kong.meta"
+local log = require("kong.plugins.plugin-log.log")
+local btoa = ngx.encode_base64
+local kong = kong
+
+local PLUGIN_NAME = "trust-sign"
+
+local TrustSignHandler = {
+  PRIORITY = 630,
+  VERSION = kong_meta.version
+}
+
+local function get_ids_from_service()
+  local svc = kong.router.get_service()
+  -- split svc tags by ":" and find the tags for client and service
+  local svc_tags = svc and svc.tags or {}
+  local client_tag
+  local service_tag
+  for _, tag in ipairs(svc_tags) do
+    local key,
+      value = tag:match("^(.-):(.-)$")
+    if key == "client" then
+      client_tag = value
+    elseif key == "service" then
+      service_tag = value
+    end
+  end
+  return client_tag, service_tag
+end
+
+function TrustSignHandler:access(conf)
+  local request = kong.service.request
+
+  -- Enable request buffering to read the full body
+  -- in the header_filter phase
+  request.enable_buffering()
+
+  if conf.direction ~= "request" then
+    return
+  end
+
+  kong.log.warn("Trust Sign - Access for Request")
+
+  local body_digest = kong.request.get_header("Content-Digest")
+
+  if body_digest == nil then
+    local alg = "sha-256"
+    kong.log.warn("Content-Digest header not present, generating digest")
+    local body = kong.request.get_raw_body()
+    if body == nil then
+      kong.log.warn("Body is nil - no raw body available")
+    elseif body == "" then
+      local dig = digest_mod.digest(body, alg)
+      body_digest = alg .. "=:" .. btoa(dig) .. ":"
+      request.set_header("Content-Digest", body_digest)
+    else
+      local dig = digest_mod.digest(body, alg)
+      body_digest = alg .. "=:" .. btoa(dig) .. ":"
+      request.set_header("Content-Digest", body_digest)
+    end
+  end
+
+  local headers = kong.request.get_headers()
+
+  -- local tag = "trust-sign"
+  -- local keyid = conf.keyid
+  -- local kong_request = kong.request
+  -- local signature_label = conf.signature_label
+  -- local signature_input =
+  --   conf.signature_label ..
+  --   "=" .. conf.signature_input .. ";created=" .. (ngx.now() * 1000) .. ';keyid="' .. keyid .. '";tag="' .. tag .. '"'
+
+  -- request.set_header("Signature-Input", signature_input)
+
+  -- local input_message,
+  --   err = filter.get_signature_base(headers, kong_request, signature_label, signature_input)
+  -- if not input_message then
+  --   request.set_header("X-Trust-Sign-Error", "Signature Base Error - " .. err)
+  --   return
+  -- end
+
+  -- local hash_alg = conf.hash_alg
+  -- local signature = filter.sign(conf, input_message, hash_alg)
+  -- if signature then
+  --   request.set_header("Signature", signature_label .. "=:" .. btoa(signature) .. ":")
+  -- end
+
+  local client_tag,
+    service_tag = get_ids_from_service()
+
+  local request_id = request_id_get() or ""
+
+  local manifest = {
+    request_id = request_id,
+    client_id = client_tag,
+    service_id = service_tag,
+    digest = body_digest,
+    jwks_uri = conf.jwks_uri
+  }
+
+  local jwt, sign_err = jwk_sign.sign_jwt(conf, manifest)
+  if not jwt then
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "request signing failed: " .. tostring(sign_err)},
+      500,
+      {
+        message = "Signing failed",
+        error = sign_err
+      }
+    )
+  end
+  request.set_header(conf.signature_header_key, jwt)
+  log.continue_with_reason({plugin = PLUGIN_NAME, reason = "request manifest signed"})
+end
+
+function TrustSignHandler:header_filter(conf)
+  if conf.direction ~= "response" then
+    return
+  end
+
+  kong.log.warn("Trust Sign - Header Filter for Response")
+
+  local body_digest = kong.response.get_header("Content-Digest")
+
+  if body_digest == nil then
+    local alg = "sha-256"
+    kong.log.warn("Content-Digest header not present, generating digest")
+    -- kong.service.response.get_raw_body() requires buffered upstream
+    -- proxying. Kong-generated responses (request-termination, other
+    -- early exits) never proxy, so buffered_proxying is unset — calling
+    -- get_raw_body then throws and aborts the response. Skip digest in
+    -- that case; the response-digest requirement covers upstream bodies.
+    local body
+    if ngx.ctx.buffered_proxying then
+      body = kong.service.response.get_raw_body()
+    else
+      kong.log.warn("No buffered upstream body (Kong-generated response); skipping Content-Digest")
+    end
+    if body == nil then
+      kong.log.warn("Body is nil - no raw body available")
+    elseif body == "" then
+      local dig = digest_mod.digest(body, alg)
+      body_digest = alg .. "=:" .. btoa(dig) .. ":"
+      kong.response.set_header("Content-Digest", body_digest)
+    else
+      local dig = digest_mod.digest(body, alg)
+      body_digest = alg .. "=:" .. btoa(dig) .. ":"
+      kong.response.set_header("Content-Digest", body_digest)
+    end
+  end
+
+  kong.log.warn("Trust Sign - Header Filter")
+
+  local headers = kong.response.get_headers()
+
+  -- local tag = "trust-sign"
+  -- local keyid = conf.keyid
+  -- local kong_request = kong.request
+  -- local signature_label = conf.signature_label
+  -- local signature_input =
+  --   conf.signature_label ..
+  --   "=" .. conf.signature_input .. ";created=" .. (ngx.now() * 1000) .. ';keyid="' .. keyid .. '";tag="' .. tag .. '"'
+
+  -- kong.response.set_header("Signature-Input", signature_input)
+
+  -- local input_message,
+  --   err = filter.get_signature_base(headers, kong_request, signature_label, signature_input)
+  -- if not input_message then
+  --   kong.response.set_header("X-Trust-Sign-Error", "Signature Base Error - " .. err)
+  --   return
+  -- end
+
+  -- kong.log.warn("Signature Base Message: \n" .. input_message)
+
+  -- kong.response.set_header("Signature-Debug", btoa(input_message))
+
+  -- local algorithm = conf.hash_alg
+  -- local signature = filter.sign(conf, input_message, algorithm)
+  -- if signature then
+  --   kong.response.set_header("Signature", signature_label .. "=:" .. btoa(signature) .. ":")
+  -- end
+
+  local req_token = kong.request.get_header("X-Edge-Token")
+  if not req_token then
+    -- return kong.response.exit(403, {message = "Missing X-Edge-Token header"})
+
+    local manifest = {
+      jwks_uri = conf.jwks_uri
+    }
+
+    local jwt, sign_err = jwk_sign.sign_jwt(conf, manifest)
+    if not jwt then
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "bare response signing failed: " .. tostring(sign_err)},
+        500,
+        {
+          message = "Signing failed",
+          error = sign_err
+        }
+      )
+    end
+    kong.response.set_header(conf.signature_header_key, jwt)
+    log.continue_with_reason({plugin = PLUGIN_NAME, reason = "bare response manifest signed"})
+    return
+  end
+
+  local req_token_jwt,
+    err = jwt_decoder:new(req_token)
+  if err then
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "inbound X-Edge-Token failed to parse: " .. tostring(err)},
+      403,
+      {
+        message = "Bad token",
+        error = err
+      }
+    )
+  end
+
+  local req_claims = req_token_jwt.claims
+
+  local manifest = {
+    request_id = req_claims.request_id,
+    client_id = req_claims.client_id,
+    service_id = req_claims.service_id,
+    digest = req_claims.digest,
+    jwks_uri = conf.jwks_uri
+  }
+
+  local jwt, sign_err = jwk_sign.sign_jwt(conf, manifest)
+  if not jwt then
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "response signing failed: " .. tostring(sign_err)},
+      500,
+      {
+        message = "Signing failed",
+        error = sign_err
+      }
+    )
+  end
+  kong.response.set_header(conf.signature_header_key, jwt)
+  log.continue_with_reason({plugin = PLUGIN_NAME, reason = "response manifest signed"})
+end
+
+return TrustSignHandler
