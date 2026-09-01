@@ -346,11 +346,11 @@ local function validate_organization(cert_info, expected_org, expected_domain)
   -- Validate organization binding
   if expected_org then
     if not cert_info.subject.O then
-      return nil, "Certificate missing Organization field"
+      return "Certificate missing Organization field"
     end
 
     if cert_info.subject.O ~= expected_org then
-      return nil, string.format(
+      return string.format(
         "Organization mismatch: cert has '%s', expected '%s'",
         cert_info.subject.O,
         expected_org
@@ -362,7 +362,7 @@ local function validate_organization(cert_info, expected_org, expected_domain)
   -- Validate domain binding
   if expected_domain then
     if not validate_domain(cert_info, expected_domain) then
-      return nil, string.format(
+      return string.format(
         "Domain mismatch: cert CN='%s', SANs=[%s], expected '%s'",
         cert_info.subject.CN or "none",
         table.concat(cert_info.san, ", "),
@@ -372,7 +372,7 @@ local function validate_organization(cert_info, expected_org, expected_domain)
     kong.log.info("✓ Domain validated: " .. expected_domain)
   end
 
-  return false
+  return nil
 end
 
 local function trim(s)
