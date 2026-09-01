@@ -123,15 +123,35 @@ function create_client_assertion(config)
     iat = now -- Issued at time
   }
 
-  -- Create and sign the JWT
-  local private_key_location = jwk_sign.get_private_key_location(config)
+  -- Create and sign the JWT. Do not mutate the plugin config in place.
+  local signing_conf = {}
+  for key, value in pairs(config) do
+    signing_conf[key] = value
+  end
+
+  if (not signing_conf.key_id or signing_conf.key_id == "") and signing_conf.keyset_name then
+    local resolved_kid, resolve_err =
+      jwk_sign.resolve_kid(
+      {
+        keyid = signing_conf.key_id,
+        keyset_name = signing_conf.keyset_name,
+        private_key_location = signing_conf.private_key_location
+      }
+    )
+    if not resolved_kid then
+      return nil, resolve_err or "unable to resolve signing kid"
+    end
+    signing_conf.key_id = resolved_kid
+  end
+
+  local private_key_location = jwk_sign.get_private_key_location(signing_conf)
   local kong_private_key =
-    jwk_sign.get_kong_key("token_exchange_pkey_" .. config.private_key_location, private_key_location)
+    jwk_sign.get_kong_key("token_exchange_pkey_" .. signing_conf.private_key_location, private_key_location)
   if not kong_private_key then
     return nil, "unable to read private key"
   end
 
-  local jwt_token, err = encode_jwt_token(config, payload, kong_private_key)
+  local jwt_token, err = encode_jwt_token(signing_conf, payload, kong_private_key)
 
   if not jwt_token then
     return nil, err or "unable to prepare client assertion"

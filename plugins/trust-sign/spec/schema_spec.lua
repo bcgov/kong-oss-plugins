@@ -47,10 +47,11 @@ describe("trust-sign configuration schema", function()
   end)
 
   -- [Verifies: trust-sign.configuration-schema.required-fields]
-  -- pending — APS-4798
-  it("rejects configs missing keyid, private_key_location, or alg (xfail APS-4798)", function()
+  -- pending — APS-4798 (private_key_location / alg remain required; keyid is
+  -- optional when keyset_name is set)
+  it("rejects configs missing private_key_location or alg (xfail APS-4798)", function()
     xfail("APS-4798", function()
-      for _, missing in ipairs({ "keyid", "private_key_location", "alg" }) do
+      for _, missing in ipairs({ "private_key_location", "alg" }) do
         local config = valid_config({ [missing] = nil })
         local processed = config_schema:process_auto_fields(config, "insert")
         local ok, err = config_schema:validate(processed)
@@ -58,6 +59,24 @@ describe("trust-sign configuration schema", function()
         assert.is_truthy(err and err[missing], "no validation error reported for missing " .. missing)
       end
     end)
+  end)
+
+  it("accepts keyset_name without an explicit keyid", function()
+    local config = valid_config({ keyset_name = "sdx.edge.myrg.dev" })
+    config.keyid = nil
+    local processed = config_schema:process_auto_fields(config, "insert")
+    local ok, err = config_schema:validate(processed)
+    assert.is_truthy(ok, "keyset_name-only config rejected: " .. tostring(require("cjson").encode(err or {})))
+  end)
+
+  it("rejects configs that omit both keyid and keyset_name", function()
+    local config = valid_config()
+    config.keyid = nil
+    config.keyset_name = nil
+    local processed = config_schema:process_auto_fields(config, "insert")
+    local ok, err = config_schema:validate(processed)
+    assert.is_falsy(ok, "config missing both keyid and keyset_name was accepted")
+    assert.is_truthy(err and err["@entity"], "expected @entity at_least_one_of error")
   end)
 
   -- [Verifies: trust-sign.configuration-schema.enumerated-fields]

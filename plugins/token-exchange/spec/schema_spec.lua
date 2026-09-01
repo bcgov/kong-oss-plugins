@@ -61,6 +61,14 @@ describe("token-exchange configuration schema", function()
     assert.equals(10000, processed.timeout)
   end)
 
+  it("accepts keyset_name without an explicit key_id", function()
+    local ok, err = config_schema:validate(canonical_config({
+      keyset_name = "sdx.edge.myrg.dev",
+    }))
+    assert.is_truthy(ok, "keyset_name-only config rejected")
+    assert.is_nil(err)
+  end)
+
   -- [Verifies: token-exchange.configuration-schema.nonpositive-expiration-accepted]
   it("rejects zero and negative expiration values", function()
     for _, expiration in ipairs({ 0, -1 }) do

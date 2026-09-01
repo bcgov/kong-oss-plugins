@@ -103,7 +103,17 @@ function TrustSignHandler:access(conf)
     jwks_uri = conf.jwks_uri
   }
 
-  local jwt = jwk_sign.sign_jwt(conf, manifest)
+  local jwt, sign_err = jwk_sign.sign_jwt(conf, manifest)
+  if not jwt then
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "request signing failed: " .. tostring(sign_err)},
+      500,
+      {
+        message = "Signing failed",
+        error = sign_err
+      }
+    )
+  end
   request.set_header(conf.signature_header_key, jwt)
   log.continue_with_reason({plugin = PLUGIN_NAME, reason = "request manifest signed"})
 end
@@ -183,7 +193,17 @@ function TrustSignHandler:header_filter(conf)
       jwks_uri = conf.jwks_uri
     }
 
-    local jwt = jwk_sign.sign_jwt(conf, manifest)
+    local jwt, sign_err = jwk_sign.sign_jwt(conf, manifest)
+    if not jwt then
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "bare response signing failed: " .. tostring(sign_err)},
+        500,
+        {
+          message = "Signing failed",
+          error = sign_err
+        }
+      )
+    end
     kong.response.set_header(conf.signature_header_key, jwt)
     log.continue_with_reason({plugin = PLUGIN_NAME, reason = "bare response manifest signed"})
     return
@@ -212,7 +232,17 @@ function TrustSignHandler:header_filter(conf)
     jwks_uri = conf.jwks_uri
   }
 
-  local jwt = jwk_sign.sign_jwt(conf, manifest)
+  local jwt, sign_err = jwk_sign.sign_jwt(conf, manifest)
+  if not jwt then
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "response signing failed: " .. tostring(sign_err)},
+      500,
+      {
+        message = "Signing failed",
+        error = sign_err
+      }
+    )
+  end
   kong.response.set_header(conf.signature_header_key, jwt)
   log.continue_with_reason({plugin = PLUGIN_NAME, reason = "response manifest signed"})
 end

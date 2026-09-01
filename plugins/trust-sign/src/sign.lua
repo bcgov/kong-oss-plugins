@@ -70,8 +70,11 @@ end
 -- @param location the location of the key file
 -- @return the key contents
 local function get_kong_key(key, location)
-  -- This will add a non expiring TTL on this cached value
-  -- https://github.com/thibaultcha/lua-resty-mlcache/blob/master/README.md
+  -- Cache PEM bytes by path with a non-expiring TTL. A new key at the same
+  -- mounted path is therefore visible only after this cache entry is gone
+  -- (typically a worker/Kong restart). Signing and kid matching both use
+  -- these cached bytes, so in-place rotation without a restart is not
+  -- supported. https://github.com/thibaultcha/lua-resty-mlcache
   local pkey,
     err = kong.cache:get(key, {ttl = 0}, read_from_file, location)
 
@@ -81,6 +84,150 @@ local function get_kong_key(key, location)
   end
 
   return pkey
+end
+
+local function normalize_pem(pem)
+  if not pem or pem == ngx.null then
+    return nil
+  end
+  return pem:gsub("%-%-%-%-%-[^-]+%-%-%-%-%-", ""):gsub("%s", "")
+end
+
+-- resty.openssl.pkey.new(table) treats a table as key-generation options,
+-- not JWK material. Kong 3.9.1's OpenSSL backend needs a JSON string plus
+-- { format = "JWK" }.
+local function public_pem_from_material(material, opts)
+  local pkey, err = openssl_pkey.new(material, opts)
+  if not pkey then
+    return nil, err
+  end
+  return pkey:to_PEM("public")
+end
+
+local function public_pem_from_jwk(jwk)
+  if type(jwk) ~= "string" then
+    jwk = json.encode(jwk)
+  end
+  return public_pem_from_material(jwk, { format = "JWK" })
+end
+
+--- Return true when `key` is the public half of `private_pem`.
+local function public_key_matches(private_pem, key)
+  local want, err = public_pem_from_material(private_pem)
+  if not want then
+    return false, err
+  end
+  want = normalize_pem(want)
+
+  if key.pem and key.pem.public_key and key.pem.public_key ~= ngx.null then
+    return normalize_pem(key.pem.public_key) == want
+  end
+
+  if key.jwk and key.jwk ~= ngx.null then
+    local got, jwk_err = public_pem_from_jwk(key.jwk)
+    if not got then
+      return false, jwk_err
+    end
+    return normalize_pem(got) == want
+  end
+
+  return false
+end
+
+--- Pick the unique matching kid from a list of Kong key entities.
+local function match_kid_for_keys(private_pem, keys)
+  local matches = {}
+  for _, key in ipairs(keys or {}) do
+    local ok = public_key_matches(private_pem, key)
+    if ok and key.kid then
+      matches[#matches + 1] = key.kid
+    end
+  end
+  if #matches == 0 then
+    return nil, "no keyset entry matches the mounted private key"
+  end
+  if #matches > 1 then
+    return nil, "multiple keyset entries match the mounted private key"
+  end
+  return matches[1]
+end
+
+local function load_keyset_keys(keyset_name)
+  if not kong or not kong.db or not kong.db.key_sets or not kong.db.keys then
+    return nil, "kong key set dao is unavailable"
+  end
+
+  local keyset, err = kong.db.key_sets:select_by_name(keyset_name)
+  if err then
+    return nil, err
+  end
+  if not keyset then
+    return nil, "key set not found: " .. tostring(keyset_name)
+  end
+
+  local found = {}
+  if kong.db.keys.page_for_set then
+    local size = 100
+    local offset
+    repeat
+      -- Kong 3.9.1 DAO: entities, err, err_t, next_offset
+      local page, page_err, _, next_offset = kong.db.keys:page_for_set({ id = keyset.id }, size, offset)
+      if page_err then
+        return nil, page_err
+      end
+      if page then
+        for i = 1, #page do
+          found[#found + 1] = page[i]
+        end
+      end
+      offset = next_offset
+    until not offset
+  else
+    for key, each_err in kong.db.keys:each() do
+      if each_err then
+        return nil, each_err
+      end
+      local set_id = key.set and (key.set.id or key.set)
+      if set_id == keyset.id then
+        found[#found + 1] = key
+      end
+    end
+  end
+  return found
+end
+
+--- Resolve the JWT kid: explicit config.keyid wins; otherwise match the
+-- mounted private key against Kong keyset `config.keyset_name`.
+local function resolve_kid(conf)
+  if conf.keyid and conf.keyid ~= "" then
+    return conf.keyid
+  end
+  if not conf.keyset_name or conf.keyset_name == "" then
+    return nil, "keyid or keyset_name is required"
+  end
+
+  local location = get_private_key_location(conf)
+  local private_pem = get_kong_key("trust_sign_pkey_" .. tostring(location), location)
+  if not private_pem then
+    return nil, "unable to load private key"
+  end
+
+  -- Fingerprint the cached PEM (see get_kong_key). After a restart the
+  -- pkey cache is empty, so a new file at the same path produces a new
+  -- cache key and the previous kid entry is not reused.
+  local cache_key = "trust_sign_kid:" .. conf.keyset_name .. ":" .. ngx.md5(private_pem)
+  local loader = function()
+    local keys, load_err = load_keyset_keys(conf.keyset_name)
+    if not keys then
+      return nil, load_err
+    end
+    return match_kid_for_keys(private_pem, keys)
+  end
+
+  if kong and kong.cache then
+    return kong.cache:get(cache_key, {ttl = 30}, loader)
+  end
+  return loader()
 end
 
 --- Base64 encode the JWT token
@@ -94,9 +241,12 @@ local function encode_jwt_token(conf, payload, key)
     --   pem_to_x5c(get_kong_key("pubder", get_public_key_location(conf)))
     -- }
   }
-  if conf.keyid then
-    header.kid = conf.keyid
+  local kid, kid_err = resolve_kid(conf)
+  if not kid then
+    ngx.log(ngx.ERR, "trust-sign kid resolution failed: ", kid_err)
+    return nil, kid_err
   end
+  header.kid = kid
   local segments = {
     b64_encode(json.encode(header)),
     b64_encode(json.encode(payload))
@@ -155,12 +305,14 @@ end
 local function sign_jwt(conf, manifest)
   local jwt_payload = build_jwt_payload(conf, manifest)
   local kong_private_key = get_kong_key("trust_sign_pkey_" .. conf.private_key_location, get_private_key_location(conf))
-  local jwt = encode_jwt_token(conf, jwt_payload, kong_private_key)
-  return jwt
+  local jwt, err = encode_jwt_token(conf, jwt_payload, kong_private_key)
+  return jwt, err
 end
 
 return {
   sign_jwt = sign_jwt,
   get_kong_key = get_kong_key,
   get_private_key_location = get_private_key_location,
+  resolve_kid = resolve_kid,
+  match_kid_for_keys = match_kid_for_keys,
 }
