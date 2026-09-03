@@ -1,6 +1,6 @@
--- Unit tests for trust-sign kid resolution: explicit keyid vs matching the
--- mounted private key against a Kong keyset. Matching is by public-key
--- material, never keyset order.
+-- Unit tests for trust-sign kid resolution: matching the mounted private
+-- key against a Kong keyset. Matching is by public-key material, never
+-- keyset order.
 
 package.preload["kong.tools.utils"] = package.preload["kong.tools.utils"] or function()
   return {
@@ -21,7 +21,11 @@ local function stub_openssl()
   package.loaded["resty.openssl.pkey"] = {
     new = function(material, opts)
       local pem
-      if type(material) == "string" and material:find("PRIVATE", 1, true) then
+      if type(material) == "string" and material:find("AAA-PRIV", 1, true) then
+        pem = PUBLIC_A
+      elseif type(material) == "string" and material:find("BBB-PRIV", 1, true) then
+        pem = PUBLIC_B
+      elseif type(material) == "string" and material:find("PRIVATE", 1, true) then
         pem = PUBLIC_A
       elseif type(material) == "string" and material:find("AAA", 1, true) then
         pem = PUBLIC_A
@@ -67,16 +71,16 @@ describe("trust-sign kid resolution", function()
     _G.kong = real_kong
   end)
 
-  it("returns an explicit keyid without consulting the keyset", function()
+  it("fails closed when keyset_name is missing", function()
     local sign = load_sign(nil)
     local kid, err = sign.resolve_kid({
-      keyid = "urn:ca:bc:sdx:edge:myrg:dev:0",
-      keyset_name = "sdx.edge.myrg.dev",
+      private_key_location = "/tmp/key.pem",
     })
-    assert.is_nil(err)
-    assert.equal("urn:ca:bc:sdx:edge:myrg:dev:0", kid)
+    assert.is_nil(kid)
+    assert.matches("keyset_name is required", err)
   end)
 
+  -- [Verifies: trust-sign.jwt-kid-resolution.independent-of-keyset-ordering]
   it("matches the mounted private key regardless of keyset order", function()
     local sign = load_sign(nil)
     local old = key("kid-old", PUBLIC_B)
@@ -85,6 +89,7 @@ describe("trust-sign kid resolution", function()
     assert.equal("kid-active", sign.match_kid_for_keys(PRIVATE_A, { active, old }))
   end)
 
+  -- [Verifies: trust-sign.jwt-kid-resolution.overlap-rotation-selects-matching-kid]
   it("matches during overlap rotation when two keys are present", function()
     local sign = load_sign(nil)
     local kid = sign.match_kid_for_keys(PRIVATE_A, {
@@ -94,6 +99,7 @@ describe("trust-sign kid resolution", function()
     assert.equal("kid-new", kid)
   end)
 
+  -- [Verifies: trust-sign.jwt-kid-resolution.jwk-key-material-matched]
   it("matches a JWK keyset entry to the mounted private key", function()
     local sign = load_sign(nil)
     local kid = sign.match_kid_for_keys(PRIVATE_A, {
@@ -102,6 +108,7 @@ describe("trust-sign kid resolution", function()
     assert.equal("kid-jwk", kid)
   end)
 
+  -- [Verifies: trust-sign.jwt-kid-resolution.jwk-key-material-matched]
   it("re-encodes a decoded JWK table before loading it as JWK", function()
     local sign = load_sign(nil)
     local kid = sign.match_kid_for_keys(PRIVATE_A, {
@@ -110,6 +117,7 @@ describe("trust-sign kid resolution", function()
     assert.equal("kid-jwk-table", kid)
   end)
 
+  -- [Verifies: trust-sign.jwt-kid-resolution.no-matching-key-fails-closed]
   it("fails closed when no keyset entry matches", function()
     local sign = load_sign(nil)
     local kid, err = sign.match_kid_for_keys(PRIVATE_A, {
@@ -119,6 +127,7 @@ describe("trust-sign kid resolution", function()
     assert.matches("no keyset entry", err)
   end)
 
+  -- [Verifies: trust-sign.jwt-kid-resolution.multiple-matching-keys-fail-closed]
   it("fails closed when more than one keyset entry matches", function()
     local sign = load_sign(nil)
     local kid, err = sign.match_kid_for_keys(PRIVATE_A, {
@@ -129,6 +138,7 @@ describe("trust-sign kid resolution", function()
     assert.matches("multiple keyset entries", err)
   end)
 
+  -- [Verifies: trust-sign.jwt-kid-resolution.unique-keyset-match-supplies-kid]
   it("caches the resolved kid for 30s keyed by keyset and private-key fingerprint", function()
     local captured_key
     local captured_ttl
@@ -218,12 +228,13 @@ describe("trust-sign kid resolution", function()
     assert.equal("page-2", calls[2].offset)
   end)
 
-  it("uses a new kid cache key when the cached private-key bytes change", function()
+  -- [Verifies: trust-sign.jwt-kid-resolution.after-promotion-and-restart-resolves-new-kid]
+  it("resolves the new kid when the cached private-key bytes change", function()
     local kid_keys = {}
     local pkey_calls = 0
     local pems = {
-      PRIVATE_A,
       "-----BEGIN PRIVATE KEY-----\nBBB-PRIV\n-----END PRIVATE KEY-----",
+      PRIVATE_A,
     }
     local kong = {
       cache = {
@@ -245,7 +256,10 @@ describe("trust-sign kid resolution", function()
         },
         keys = {
           page_for_set = function()
-            return { key("kid-active", PUBLIC_A) }, nil, nil, nil
+            return {
+              key("kid-old", PUBLIC_B),
+              key("kid-new", PUBLIC_A),
+            }, nil, nil, nil
           end,
         },
       },
@@ -260,8 +274,8 @@ describe("trust-sign kid resolution", function()
     local kid2, err2 = sign.resolve_kid(conf)
     assert.is_nil(err1)
     assert.is_nil(err2)
-    assert.equal("kid-active", kid1)
-    assert.equal("kid-active", kid2)
+    assert.equal("kid-old", kid1)
+    assert.equal("kid-new", kid2)
     assert.equal(2, #kid_keys)
     assert.not_equal(kid_keys[1], kid_keys[2])
     assert.matches(ngx.md5(pems[1]), kid_keys[1])
@@ -309,6 +323,7 @@ describe("trust-sign kid resolution", function()
     assert.equal(kid_keys[1], kid_keys[2])
   end)
 
+  -- [Verifies: trust-sign.jwt-kid-resolution.missing-keyset-fails-closed]
   it("fails closed when the keyset is missing", function()
     local kong = {
       cache = {
@@ -335,6 +350,67 @@ describe("trust-sign kid resolution", function()
     })
     assert.is_nil(kid)
     assert.matches("key set not found", err)
+  end)
+
+  it("does not let a leftover keyid field override keyset matching", function()
+    local kong = {
+      cache = {
+        get = function(_, cache_key, opts, cb)
+          if cache_key:find("trust_sign_pkey", 1, true) then
+            return PRIVATE_A
+          end
+          return cb()
+        end,
+      },
+      db = {
+        key_sets = {
+          select_by_name = function()
+            return { id = "set-1", name = "sdx.edge.myrg.dev" }
+          end,
+        },
+        keys = {
+          page_for_set = function()
+            return { key("kid-active", PUBLIC_A) }, nil, nil, nil
+          end,
+        },
+      },
+    }
+    local sign = load_sign(kong)
+    local kid, err = sign.resolve_kid({
+      keyid = "stale-explicit-kid",
+      keyset_name = "sdx.edge.myrg.dev",
+      private_key_location = "/tmp/key.pem",
+    })
+    assert.is_nil(err)
+    assert.equal("kid-active", kid)
+  end)
+
+  it("fails closed when the private key cannot be loaded", function()
+    local kong = {
+      cache = {
+        get = function(_, cache_key, opts, cb)
+          if cache_key:find("trust_sign_pkey", 1, true) then
+            return nil
+          end
+          return cb()
+        end,
+      },
+      db = {
+        key_sets = {
+          select_by_name = function()
+            return { id = "set-1", name = "sdx.edge.myrg.dev" }
+          end,
+        },
+        keys = {},
+      },
+    }
+    local sign = load_sign(kong)
+    local kid, err = sign.resolve_kid({
+      keyset_name = "sdx.edge.myrg.dev",
+      private_key_location = "/tmp/missing.pem",
+    })
+    assert.is_nil(kid)
+    assert.matches("unable to load private key", err)
   end)
 end)
 
@@ -364,6 +440,7 @@ describe("trust-sign kid resolution with OpenSSL", function()
     _G.kong = real_kong
   end)
 
+  -- [Verifies: trust-sign.jwt-kid-resolution.jwk-key-material-matched]
   it("matches a Kong JWK string to the mounted rsa-2048 private key", function()
     local kid, err = sign.match_kid_for_keys(private_pem, {
       { kid = "rsa-2048", jwk = rsa_jwk_json },
@@ -380,6 +457,7 @@ describe("trust-sign kid resolution with OpenSSL", function()
     assert.equal("rsa-2048", kid)
   end)
 
+  -- [Verifies: trust-sign.jwt-kid-resolution.pem-public-key-material-matched]
   it("matches pem.public_key material from the same fixture", function()
     local kid, err = sign.match_kid_for_keys(private_pem, {
       { kid = "rsa-2048", pem = { public_key = public_pem } },

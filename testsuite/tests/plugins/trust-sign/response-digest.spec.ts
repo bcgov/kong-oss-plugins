@@ -2,24 +2,22 @@ import { test, expect } from "@playwright/test";
 import { uniquePrefix, proxyGet } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
+  provisionSigningKeyset,
+  trustSignConfig,
   cleanupByPrefix,
   cleanupStale,
   contentDigestOf,
-  CONTAINER_KEYS_DIR,
+  type SigningKeyset,
 } from "../../../helpers/trust-sign";
 
 const PREFIX = uniquePrefix("trust-sign");
 
-const responseConfig = {
-  keyid: "rsa-2048",
-  private_key_location: `${CONTAINER_KEYS_DIR}/rsa-2048.pem`,
-  alg: "RS256",
-  direction: "response",
-};
+let keyset: SigningKeyset;
 
 test.describe("trust-sign — response digest generation", () => {
   test.beforeAll(async ({ request }) => {
     await cleanupStale(request, "trust-sign-");
+    keyset = await provisionSigningKeyset(request, { prefix: PREFIX });
   });
 
   test.afterAll(async ({ request }) => {
@@ -32,7 +30,7 @@ test.describe("trust-sign — response digest generation", () => {
   }) => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: { ...responseConfig },
+      config: trustSignConfig(keyset.keysetName, { direction: "response" }),
     });
 
     const res = await proxyGet(request, routePath, { pathSuffix: "/anything" });
@@ -49,7 +47,7 @@ test.describe("trust-sign — response digest generation", () => {
   }) => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: { ...responseConfig },
+      config: trustSignConfig(keyset.keysetName, { direction: "response" }),
     });
 
     const res = await proxyGet(request, routePath, { pathSuffix: "/bytes/0" });
@@ -68,7 +66,7 @@ test.describe("trust-sign — response digest generation", () => {
   }) => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: { ...responseConfig },
+      config: trustSignConfig(keyset.keysetName, { direction: "response" }),
     });
 
     // deliberately not the digest of the actual response body

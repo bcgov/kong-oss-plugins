@@ -10,6 +10,9 @@ import {
   decodeJwt,
   findHeader,
   contentDigestOf,
+  provisionSigningKeyset,
+  cleanupByPrefix as cleanupTrustSignEntities,
+  type SigningKeyset,
 } from "../../helpers/trust-sign";
 import {
   provisionPluginRoute,
@@ -23,6 +26,8 @@ import {
 
 const PREFIX = uniquePrefix("trust-sign-trust-verify-signature-interop");
 const RSA_JWKS_URL = fixtureKeysUrl("rsa-2048.jwks.json");
+
+let keyset: SigningKeyset;
 
 /**
  * Provisions a service + route with the real trust-sign plugin attached
@@ -64,13 +69,22 @@ async function provisionTrustSignRoute(
 }
 
 test.describe("interop — trust-sign produces, trust-verify-signature consumes", () => {
+  test.setTimeout(90_000);
+
   test.beforeAll(async ({ request }) => {
     // Only this file's prefix — a shared wipe races with parallel workers.
     await cleanupByPrefix(request, PREFIX);
+    await cleanupTrustSignEntities(request, PREFIX);
+    // Kid must match the static rsa-2048 JWKS document the verifier fetches.
+    keyset = await provisionSigningKeyset(request, {
+      prefix: PREFIX,
+      keys: [{ kid: "rsa-2048", publicKeyFile: "rsa-2048.pub.pem" }],
+    });
   });
 
   test.afterAll(async ({ request }) => {
     await cleanupByPrefix(request, PREFIX);
+    await cleanupTrustSignEntities(request, PREFIX);
   });
 
   // Signature / JWKS path: response-direction bare manifest (no digest claim).
@@ -83,7 +97,7 @@ test.describe("interop — trust-sign produces, trust-verify-signature consumes"
       {
         prefix: signPrefix,
         config: {
-          keyid: "rsa-2048",
+          keyset_name: keyset.keysetName,
           private_key_location: fixtureKeysContainerPath("rsa-2048.pem"),
           signature_header_key: "X-Edge-Token",
           alg: "RS256",
@@ -106,6 +120,7 @@ test.describe("interop — trust-sign produces, trust-verify-signature consumes"
     const token = signRes.headers()["x-edge-token"];
     expect(typeof token).toBe("string");
     expect(token.split(".")).toHaveLength(3);
+    expect(decodeJwt(token).header.kid).toBe("rsa-2048");
 
     const verifyPrefix = `${PREFIX}-verify`;
     const { routePath: verifyRoutePath } = await provisionPluginRoute(
@@ -144,7 +159,7 @@ test.describe("interop — trust-sign produces, trust-verify-signature consumes"
       {
         prefix: `${PREFIX}-digest-sign`,
         config: {
-          keyid: "rsa-2048",
+          keyset_name: keyset.keysetName,
           private_key_location: fixtureKeysContainerPath("rsa-2048.pem"),
           signature_header_key: "X-Edge-Token",
           alg: "RS256",
@@ -178,6 +193,7 @@ test.describe("interop — trust-sign produces, trust-verify-signature consumes"
     const digestHeader = findHeader(signHeaders, "Content-Digest");
     expect(token).toBeTruthy();
     expect(digestHeader).toBe(expectedDigest);
+    expect(decodeJwt(token!).header.kid).toBe("rsa-2048");
     expect(decodeJwt(token!).payload.digest).toBe(expectedDigest);
 
     const { routePath: verifyRoutePath } = await provisionPluginRoute(

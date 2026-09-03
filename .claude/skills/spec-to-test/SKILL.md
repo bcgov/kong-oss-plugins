@@ -92,7 +92,7 @@ test("direction unset is a no-op", async ({ request }) => { … });
 
 ```lua
 -- [Verifies: trust-sign.configuration-schema.required-fields]
-it("rejects config missing keyid", function() … end)
+it("rejects config missing keyset_name", function() … end)
 ```
 
 Prefer one test per scenario. A test may cite multiple IDs only when it genuinely asserts every cited scenario's THEN outcomes.
@@ -216,7 +216,7 @@ test.describe("trust-sign — direction gating", () => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
       config: {
-        keyid: "rsa-2048",
+        keyset_name: "sdx.edge.myrg.dev",
         private_key_location: "/tmp/kong/fixtures/keys/rsa-2048.pem",
         // direction deliberately unset
       },
@@ -291,10 +291,10 @@ end
 local config_schema = assert(Schema.new(assert(config_def, "schema missing config field")))
 
 -- [Verifies: <plugin>.configuration-schema.required-fields]
-it("rejects config missing keyid", function()
+it("rejects config missing keyset_name", function()
   local ok, err = config_schema:validate({ private_key_location = "/tmp/k.pem" })
   assert.is_falsy(ok)
-  assert.is_truthy(err.keyid)
+  assert.is_truthy(err.keyset_name)
 end)
 ```
 

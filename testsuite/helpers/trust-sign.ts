@@ -22,6 +22,7 @@ export function fixtureKeyPem(name: string): string {
 }
 
 let entitySeq = 0;
+let keysetSeq = 0;
 
 export interface ProvisionOptions {
   prefix: string;
@@ -36,6 +37,122 @@ export interface ProvisionResult {
   serviceId: string;
   routeId: string;
   pluginId: string;
+}
+
+export type SigningKeyInput = {
+  kid: string;
+  /** Filename under fixtures/keys. Defaults to rsa-2048.pub.pem when jwkFile is unset. */
+  publicKeyFile?: string;
+  /** Filename under fixtures/keys (uses keys[0]; kid is overwritten to match `kid`). */
+  jwkFile?: string;
+};
+
+export type SigningKeyset = {
+  keysetName: string;
+  keysetId: string;
+  keys: { id: string; kid: string }[];
+  /** Kid of the key matching the rsa-2048 fixture when present, otherwise keys[0].kid. */
+  expectedKid: string;
+};
+
+/** Canonical trust-sign config using a provisioned keyset and the rsa-2048 fixture. */
+export function trustSignConfig(
+  keysetName: string,
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
+  return {
+    keyset_name: keysetName,
+    private_key_location: `${CONTAINER_KEYS_DIR}/rsa-2048.pem`,
+    alg: "RS256",
+    ...overrides,
+  };
+}
+
+async function postAdmin(
+  request: APIRequestContext,
+  path: string,
+  payload: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const res = await request.post(`${KONG_ADMIN_URL}${path}`, {
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    data: payload,
+  });
+  const body = await res.json().catch(() => null);
+  if (res.status() >= 300) {
+    throw new Error(
+      `POST ${path} failed (${res.status()}): ${JSON.stringify(body ?? (await res.text()))}`
+    );
+  }
+  return body as Record<string, unknown>;
+}
+
+function rsaExpectedKid(keys: SigningKeyInput[]): string {
+  const rsa = keys.find(
+    (k) =>
+      k.jwkFile === "rsa-2048.jwks.json" ||
+      (k.publicKeyFile ?? (k.jwkFile ? undefined : "rsa-2048.pub.pem")) ===
+        "rsa-2048.pub.pem"
+  );
+  return (rsa ?? keys[0]).kid;
+}
+
+/**
+ * Create a Kong key-set plus keys for trust-sign kid resolution.
+ * Keys are inserted in array order. Cleans up with {@link cleanupByPrefix}
+ * when key/key-set names start with `prefix`.
+ */
+export async function provisionSigningKeyset(
+  request: APIRequestContext,
+  options: {
+    prefix: string;
+    keys?: SigningKeyInput[];
+  }
+): Promise<SigningKeyset> {
+  keysetSeq += 1;
+  const keysetName = `${options.prefix}-ks-${keysetSeq}`;
+  const keys = options.keys ?? [
+    { kid: `${options.prefix}-kid`, publicKeyFile: "rsa-2048.pub.pem" },
+  ];
+
+  const keyset = await postAdmin(request, "/key-sets", {
+    name: keysetName,
+    tags: [options.prefix],
+  });
+  const keysetId = keyset.id as string;
+
+  const created: { id: string; kid: string }[] = [];
+  for (let i = 0; i < keys.length; i++) {
+    const input = keys[i];
+    const payload: Record<string, unknown> = {
+      name: `${options.prefix}-key-${keysetSeq}-${i}`,
+      kid: input.kid,
+      set: { id: keysetId },
+      tags: [options.prefix],
+    };
+    if (input.jwkFile) {
+      const doc = JSON.parse(fixtureKeyPem(input.jwkFile)) as {
+        keys: Array<Record<string, unknown>>;
+      };
+      const jwk = { ...doc.keys[0], kid: input.kid };
+      payload.jwk = JSON.stringify(jwk);
+    } else {
+      payload.pem = {
+        public_key: fixtureKeyPem(input.publicKeyFile ?? "rsa-2048.pub.pem"),
+      };
+    }
+    const key = await postAdmin(request, "/keys", payload);
+    created.push({ id: key.id as string, kid: input.kid });
+  }
+
+  return {
+    keysetName,
+    keysetId,
+    keys: created,
+    expectedKid: rsaExpectedKid(keys),
+  };
 }
 
 export async function provisionPluginRoute(
@@ -96,9 +213,11 @@ export async function provisionPluginRoute(
   return { routePath, serviceId, routeId, pluginId };
 }
 
+type NamedCollection = "routes" | "services" | "keys" | "key-sets";
+
 async function listAll(
   request: APIRequestContext,
-  collection: "routes" | "services"
+  collection: NamedCollection
 ): Promise<{ id: string; name: string | null }[]> {
   const items: { id: string; name: string | null }[] = [];
   let url: string | null = `${KONG_ADMIN_URL}/${collection}?size=1000`;
@@ -106,26 +225,37 @@ async function listAll(
     const res = await request.get(url);
     const body = await res.json();
     items.push(...(body.data ?? []));
-    url = body.next ? `${KONG_ADMIN_URL}${body.next}` : null;
+    url = body.next
+      ? body.next.startsWith("http")
+        ? body.next
+        : `${KONG_ADMIN_URL}${body.next}`
+      : null;
   }
   return items;
+}
+
+async function deleteNamed(
+  request: APIRequestContext,
+  collection: NamedCollection,
+  predicate: (name: string | null) => boolean
+): Promise<void> {
+  for (const item of await listAll(request, collection)) {
+    if (predicate(item.name)) {
+      await request.delete(`${KONG_ADMIN_URL}/${collection}/${item.id}`);
+    }
+  }
 }
 
 export async function cleanupByPrefix(
   request: APIRequestContext,
   prefix: string
 ): Promise<void> {
-  // Route-scoped plugins cascade with the route; delete routes first, then services.
-  for (const route of await listAll(request, "routes")) {
-    if (route.name && route.name.startsWith(prefix)) {
-      await request.delete(`${KONG_ADMIN_URL}/routes/${route.id}`);
-    }
-  }
-  for (const service of await listAll(request, "services")) {
-    if (service.name && service.name.startsWith(prefix)) {
-      await request.delete(`${KONG_ADMIN_URL}/services/${service.id}`);
-    }
-  }
+  const matches = (name: string | null) => !!name && name.startsWith(prefix);
+  // Keys before key-sets (membership); routes before services (plugins cascade).
+  await deleteNamed(request, "keys", matches);
+  await deleteNamed(request, "key-sets", matches);
+  await deleteNamed(request, "routes", matches);
+  await deleteNamed(request, "services", matches);
 }
 
 /**
@@ -143,19 +273,16 @@ export async function cleanupStale(
   const isStale = (name: string | null): boolean => {
     if (!name || !name.startsWith(base)) return false;
     const match = name.slice(base.length).match(/^(\d+)/);
-    if (!match) return true; // prefixed but no run timestamp: treat as stale
+    // Require the uniquePrefix timestamp immediately after `base`. A longer
+    // prefix that only shares the string (e.g. interop
+    // `trust-sign-trust-verify-signature-interop-…`) must not be deleted.
+    if (!match) return false;
     return Number(match[1]) < cutoff;
   };
-  for (const route of await listAll(request, "routes")) {
-    if (isStale(route.name)) {
-      await request.delete(`${KONG_ADMIN_URL}/routes/${route.id}`);
-    }
-  }
-  for (const service of await listAll(request, "services")) {
-    if (isStale(service.name)) {
-      await request.delete(`${KONG_ADMIN_URL}/services/${service.id}`);
-    }
-  }
+  await deleteNamed(request, "keys", isStale);
+  await deleteNamed(request, "key-sets", isStale);
+  await deleteNamed(request, "routes", isStale);
+  await deleteNamed(request, "services", isStale);
 }
 
 // ---------------------------------------------------------------------------

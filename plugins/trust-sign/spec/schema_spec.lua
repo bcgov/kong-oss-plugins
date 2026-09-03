@@ -18,7 +18,7 @@ local config_schema = assert(Schema.new(assert(config_def, "schema missing confi
 -- requirement. Key path is the shared fixture mount used by the compose stack.
 local function valid_config(overrides)
   local config = {
-    keyid = "rsa-2048",
+    keyset_name = "sdx.edge.myrg.dev",
     private_key_location = "/tmp/kong/fixtures/keys/rsa-2048.pem",
     signature_header_key = "X-Edge-Token",
     alg = "RS256",
@@ -39,7 +39,8 @@ describe("trust-sign configuration schema", function()
     assert.is_truthy(ok, "canonical valid config rejected: " .. tostring(require("cjson").encode(err or {})))
 
     -- schema half of the scenario: omitting signature_header_key applies the default
-    local config = valid_config({ signature_header_key = nil })
+    local config = valid_config()
+    config.signature_header_key = nil
     local processed = config_schema:process_auto_fields(config, "insert")
     local ok2, err2 = config_schema:validate(processed)
     assert.is_truthy(ok2, "config without signature_header_key rejected: " .. tostring(require("cjson").encode(err2 or {})))
@@ -47,36 +48,38 @@ describe("trust-sign configuration schema", function()
   end)
 
   -- [Verifies: trust-sign.configuration-schema.required-fields]
-  -- pending — APS-4798 (private_key_location / alg remain required; keyid is
-  -- optional when keyset_name is set)
-  it("rejects configs missing private_key_location or alg (xfail APS-4798)", function()
-    xfail("APS-4798", function()
-      for _, missing in ipairs({ "private_key_location", "alg" }) do
-        local config = valid_config({ [missing] = nil })
-        local processed = config_schema:process_auto_fields(config, "insert")
-        local ok, err = config_schema:validate(processed)
-        assert.is_falsy(ok, "config missing " .. missing .. " was accepted")
-        assert.is_truthy(err and err[missing], "no validation error reported for missing " .. missing)
-      end
-    end)
+  it("rejects configs missing keyset_name or private_key_location", function()
+    for _, missing in ipairs({ "keyset_name", "private_key_location" }) do
+      local config = valid_config()
+      config[missing] = nil
+      local processed = config_schema:process_auto_fields(config, "insert")
+      local ok, err = config_schema:validate(processed)
+      assert.is_falsy(ok, "config missing " .. missing .. " was accepted")
+      assert.is_truthy(err and err[missing], "no validation error reported for missing " .. missing)
+    end
   end)
 
-  it("accepts keyset_name without an explicit keyid", function()
-    local config = valid_config({ keyset_name = "sdx.edge.myrg.dev" })
-    config.keyid = nil
-    local processed = config_schema:process_auto_fields(config, "insert")
-    local ok, err = config_schema:validate(processed)
-    assert.is_truthy(ok, "keyset_name-only config rejected: " .. tostring(require("cjson").encode(err or {})))
-  end)
-
-  it("rejects configs that omit both keyid and keyset_name", function()
-    local config = valid_config()
-    config.keyid = nil
+  -- [Verifies: trust-sign.configuration-schema.keyid-not-a-substitute]
+  it("rejects keyid as a substitute for keyset_name", function()
+    local config = valid_config({ keyid = "rsa-2048" })
     config.keyset_name = nil
     local processed = config_schema:process_auto_fields(config, "insert")
     local ok, err = config_schema:validate(processed)
-    assert.is_falsy(ok, "config missing both keyid and keyset_name was accepted")
-    assert.is_truthy(err and err["@entity"], "expected @entity at_least_one_of error")
+    assert.is_falsy(ok, "config with keyid instead of keyset_name was accepted")
+    assert.is_truthy(err, "expected a schema error when keyid substitutes for keyset_name")
+  end)
+
+  -- [Verifies: trust-sign.configuration-schema.alg-is-required]
+  -- pending — APS-4798
+  it("rejects configs missing alg (xfail APS-4798)", function()
+    xfail("APS-4798", function()
+      local config = valid_config()
+      config.alg = nil
+      local processed = config_schema:process_auto_fields(config, "insert")
+      local ok, err = config_schema:validate(processed)
+      assert.is_falsy(ok, "config missing alg was accepted")
+      assert.is_truthy(err and err.alg, "no validation error reported for missing alg")
+    end)
   end)
 
   -- [Verifies: trust-sign.configuration-schema.enumerated-fields]
