@@ -107,6 +107,18 @@ return {
             }
           },
           {
+            ssl_client_cert = {
+              type = "string",
+              required = false
+            }
+          },
+          {
+            ssl_client_priv_key = {
+              type = "string",
+              required = false
+            }
+          },
+          {
             use_nonce = {
               type = "string",
               required = true,

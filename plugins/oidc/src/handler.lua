@@ -2,6 +2,9 @@ local utils = require("kong.plugins.oidc.utils")
 local filter = require("kong.plugins.oidc.filter")
 local session = require("kong.plugins.oidc.session")
 local kong_meta = require "kong.meta"
+local log = require("kong.plugins.plugin-log.log")
+
+local PLUGIN_NAME = "oidc"
 
 local OidcHandler = {
   VERSION = kong_meta.version,
@@ -109,13 +112,19 @@ local function make_oidc(oidcConfig)
 
   if err then
     if err == "unauthorized request" then
-      return kong.response.error(ngx.HTTP_UNAUTHORIZED)
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "resty.openidc authenticate reported 'unauthorized request' for the OIDC session"},
+        ngx.HTTP_UNAUTHORIZED
+      )
     else
       if oidcConfig.recovery_page_path then
         ngx.log(ngx.DEBUG, "Redirecting to recovery page: " .. oidcConfig.recovery_page_path)
         ngx.redirect(oidcConfig.recovery_page_path)
       end
-      return kong.response.error(ngx.HTTP_INTERNAL_SERVER_ERROR)
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "resty.openidc authenticate failed with internal error: " .. tostring(err)},
+        ngx.HTTP_INTERNAL_SERVER_ERROR
+      )
     end
   end
   return res
@@ -135,7 +144,10 @@ local function introspect(oidcConfig)
     if err then
       if oidcConfig.bearer_only == "yes" then
         ngx.header["WWW-Authenticate"] = 'Bearer realm="' .. oidcConfig.realm .. '",error="' .. err .. '"'
-        return kong.response.error(ngx.HTTP_UNAUTHORIZED)
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "bearer-only mode and bearer token introspection/verification failed: " .. tostring(err)},
+          ngx.HTTP_UNAUTHORIZED
+        )
       end
       return nil
     end
@@ -151,10 +163,14 @@ local function introspect(oidcConfig)
       end
       if not validScope then
         kong.log.err("Scope validation failed")
-        return kong.response.error(ngx.HTTP_FORBIDDEN)
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "introspected token did not contain required scope '" .. tostring(oidcConfig.scope) .. "'"},
+          ngx.HTTP_FORBIDDEN
+        )
       end
     end
     ngx.log(ngx.DEBUG, "OidcHandler introspect succeeded, requested path: " .. ngx.var.request_uri)
+    log.continue_with_reason({plugin = PLUGIN_NAME, reason = "bearer token introspected"})
     return res
   end
   return nil

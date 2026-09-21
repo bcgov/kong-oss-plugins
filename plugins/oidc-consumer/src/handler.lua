@@ -1,8 +1,11 @@
 local kong_utils = require "kong.tools.utils"
 local constants = require "kong.constants"
 local kong_meta = require "kong.meta"
+local log = require("kong.plugins.plugin-log.log")
 
 local utils = require("kong.plugins.oidc-consumer.utils")
+
+local PLUGIN_NAME = "oidc-consumer"
 
 local create_consumer = false
 
@@ -100,10 +103,16 @@ local function handleOidcHeader(oidcUserInfo, config, ngx)
       err = match_consumer(usernameForLookup)
 
     if not ok then
-      return kong.response.exit(err.status, err.errors or {message = err.message})
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "no kong consumer matched OIDC username '" .. tostring(usernameForLookup) .. "' (field '" .. tostring(usernameField) .. "')"},
+        err.status,
+        err.errors or {message = err.message}
+      )
     end
+    log.continue_with_reason({plugin = PLUGIN_NAME, reason = "consumer matched"})
   else
     ngx.log(ngx.DEBUG, "OidcConsumerHandler No username field found on decoded oidc userInfo header")
+    log.continue_with_reason({plugin = PLUGIN_NAME, reason = "no username field; skipped"})
   end
 end
 

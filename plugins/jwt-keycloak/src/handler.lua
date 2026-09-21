@@ -1,9 +1,12 @@
 local constants = require "kong.constants"
 local jwt_decoder = require "kong.plugins.jwt.jwt_parser"
 local kong_meta = require "kong.meta"
+local log = require("kong.plugins.plugin-log.log")
 
 local socket = require "socket"
 local keycloak_keys = require("kong.plugins.jwt-keycloak.keycloak_keys")
+
+local PLUGIN_NAME = "jwt-keycloak"
 
 local validate_audience = require("kong.plugins.jwt-keycloak.validators.audience").validate_audience
 local validate_issuer = require("kong.plugins.jwt-keycloak.validators.issuers").validate_issuer
@@ -106,7 +109,11 @@ local function custom_validate_token_signature(conf, jwt, second_call)
     if err then
       kong.log.err(err)
     end
-    return kong.response.exit(403, {message = "Unable to get public key for issuer"})
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "could not retrieve public keys for issuer '" .. tostring(jwt.claims.iss) .. "': " .. tostring(err)},
+      403,
+      {message = "Unable to get public key for issuer"}
+    )
   end
 
   -- Verify signatures
@@ -128,7 +135,11 @@ local function custom_validate_token_signature(conf, jwt, second_call)
     return custom_validate_token_signature(conf, jwt, true)
   end
 
-  return kong.response.exit(401, {message = "Invalid token signature"})
+  return log.exit_with_reason(
+    {plugin = PLUGIN_NAME, reason = "JWT signature did not verify against any of the issuer's public keys"},
+    401,
+    {message = "Invalid token signature"}
+  )
 end
 
 -------------------------------------------------------------------------------
@@ -349,7 +360,11 @@ local function do_authentication(conf)
     err = retrieve_tokens(conf)
   if err then
     kong.log.err(err)
-    return kong.response.exit(500, {message = "An unexpected auth error occurred"})
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "error while extracting bearer token from request: " .. tostring(err)},
+      500,
+      {message = "An unexpected auth error occurred"}
+    )
   end
 
   local token_type = type(token)
@@ -468,13 +483,25 @@ function JwtKeycloakHandler:access(conf)
         err = kong.cache:get(consumer_cache_key, nil, kong.client.load_consumer, conf.anonymous, true)
       if err then
         kong.log.err(err)
-        return kong.response.exit(500, {message = "An unexpected error occurred during authentication"})
+        return log.exit_with_reason(
+          {plugin = PLUGIN_NAME, reason = "failed to load configured anonymous consumer from cache/db: " .. tostring(err)},
+          500,
+          {message = "An unexpected error occurred during authentication"}
+        )
       end
 
       set_consumer(consumer)
+      log.continue_with_reason({plugin = PLUGIN_NAME, reason = "fallback to anonymous"})
     else
-      return kong.response.exit(err.status, err.errors or {message = err.message}, error_exit_headers(err.status, conf))
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "JWT authentication rejected: " .. tostring(err.message)},
+        err.status,
+        err.errors or {message = err.message},
+        error_exit_headers(err.status, conf)
+      )
     end
+  else
+    log.continue_with_reason({plugin = PLUGIN_NAME, reason = "JWT authenticated"})
   end
 
   if conf.disable_access_token_header then
