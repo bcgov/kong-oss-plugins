@@ -133,7 +133,6 @@ function create_client_assertion(config)
     local resolved_kid, resolve_err =
       jwk_sign.resolve_kid(
       {
-        keyid = signing_conf.key_id,
         keyset_name = signing_conf.keyset_name,
         private_key_location = signing_conf.private_key_location
       }

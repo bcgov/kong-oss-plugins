@@ -2,6 +2,8 @@ import { test, expect } from "@playwright/test";
 import { uniquePrefix, proxyGet } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
+  provisionSigningKeyset,
+  trustSignConfig,
   cleanupByPrefix,
   cleanupStale,
   decodeJwt,
@@ -10,6 +12,7 @@ import {
   fixtureKeyPem,
   findHeader,
   CONTAINER_KEYS_DIR,
+  type SigningKeyset,
 } from "../../../helpers/trust-sign";
 
 const PREFIX = uniquePrefix("trust-sign");
@@ -17,13 +20,10 @@ const PREFIX = uniquePrefix("trust-sign");
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+let keyset: SigningKeyset;
+
 function baseConfig(alg: string) {
-  return {
-    keyid: "rsa-2048",
-    private_key_location: `${CONTAINER_KEYS_DIR}/rsa-2048.pem`,
-    alg,
-    direction: "request",
-  };
+  return trustSignConfig(keyset.keysetName, { alg, direction: "request" });
 }
 
 async function fetchEmittedToken(
@@ -41,6 +41,7 @@ async function fetchEmittedToken(
 test.describe("trust-sign — JWT token format and key resolution", () => {
   test.beforeAll(async ({ request }) => {
     await cleanupStale(request, "trust-sign-");
+    keyset = await provisionSigningKeyset(request, { prefix: PREFIX });
   });
 
   test.afterAll(async ({ request }) => {
@@ -62,7 +63,7 @@ test.describe("trust-sign — JWT token format and key resolution", () => {
 
     const jwt = decodeJwt(token);
     expect(jwt.header.alg).toBe("RS256");
-    expect(jwt.header.kid).toBe("rsa-2048");
+    expect(jwt.header.kid).toBe(keyset.expectedKid);
     expect(jwt.payload.jti).toMatch(UUID_RE);
     expect(typeof jwt.payload.iat).toBe("number");
 
@@ -138,10 +139,14 @@ test.describe("trust-sign — JWT token format and key resolution", () => {
   test("RSA alg with an ECDSA key fails the exchange with a 5xx", async ({
     request,
   }) => {
+    const ecKeyset = await provisionSigningKeyset(request, {
+      prefix: PREFIX,
+      keys: [{ kid: `${PREFIX}-ec`, publicKeyFile: "ec-p256.pub.pem" }],
+    });
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
       config: {
-        keyid: "ec-p256",
+        keyset_name: ecKeyset.keysetName,
         private_key_location: `${CONTAINER_KEYS_DIR}/ec-p256.pem`,
         alg: "RS256", // ECDSA key file + RSA alg
         direction: "request",

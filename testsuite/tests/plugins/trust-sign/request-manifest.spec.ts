@@ -2,27 +2,25 @@ import { test, expect } from "@playwright/test";
 import { uniquePrefix, proxyGet, proxyRequest } from "../../../helpers/kong";
 import {
   provisionPluginRoute,
+  provisionSigningKeyset,
+  trustSignConfig,
   cleanupByPrefix,
   cleanupStale,
   decodeJwt,
   findHeader,
-  CONTAINER_KEYS_DIR,
+  type SigningKeyset,
 } from "../../../helpers/trust-sign";
 
 const PREFIX = uniquePrefix("trust-sign");
 
-const requestConfig = {
-  keyid: "rsa-2048",
-  private_key_location: `${CONTAINER_KEYS_DIR}/rsa-2048.pem`,
-  alg: "RS256",
-  direction: "request",
-};
-
 const JWKS_URI = "https://jwks.example.test/keys.json";
+
+let keyset: SigningKeyset;
 
 test.describe("trust-sign — request manifest signing", () => {
   test.beforeAll(async ({ request }) => {
     await cleanupStale(request, "trust-sign-");
+    keyset = await provisionSigningKeyset(request, { prefix: PREFIX });
   });
 
   test.afterAll(async ({ request }) => {
@@ -36,11 +34,11 @@ test.describe("trust-sign — request manifest signing", () => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
       serviceTags: ["client:c1", "service:s1"],
-      config: {
-        ...requestConfig,
+      config: trustSignConfig(keyset.keysetName, {
+        direction: "request",
         signature_header_key: "X-Trust-Manifest",
         jwks_uri: JWKS_URI,
-      },
+      }),
     });
 
     const body = "standard signing body";
@@ -75,7 +73,10 @@ test.describe("trust-sign — request manifest signing", () => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
       // no serviceTags
-      config: { ...requestConfig, jwks_uri: JWKS_URI },
+      config: trustSignConfig(keyset.keysetName, {
+        direction: "request",
+        jwks_uri: JWKS_URI,
+      }),
     });
 
     const res = await proxyGet(request, routePath);
@@ -96,7 +97,7 @@ test.describe("trust-sign — request manifest signing", () => {
   }) => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: { ...requestConfig }, // jwks_uri deliberately unset
+      config: trustSignConfig(keyset.keysetName, { direction: "request" }), // jwks_uri deliberately unset
     });
 
     const res = await proxyGet(request, routePath);
@@ -114,7 +115,7 @@ test.describe("trust-sign — request manifest signing", () => {
   }) => {
     const { routePath } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: { ...requestConfig }, // signature_header_key deliberately omitted
+      config: trustSignConfig(keyset.keysetName, { direction: "request" }), // signature_header_key deliberately omitted
     });
 
     const res = await proxyGet(request, routePath);
@@ -124,6 +125,6 @@ test.describe("trust-sign — request manifest signing", () => {
     const token = findHeader(echoedHeaders, "X-Edge-Token");
     expect(token).toBeTruthy();
     const { header } = decodeJwt(token!);
-    expect(header.kid).toBe("rsa-2048");
+    expect(header.kid).toBe(keyset.expectedKid);
   });
 });

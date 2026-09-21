@@ -6,7 +6,12 @@
 |---|---|---|
 | `config.direction` (one_of request/response, optional) | config | Requirement: Direction gating |
 | `config.jwks_uri` (optional) | config | Requirement: Request manifest signing; Requirement: Response manifest signing |
-| `config.keyid` (required) | config | Requirement: JWT token format; Requirement: Configuration schema |
+| `config.keyset_name` (required) | config | Requirement: JWT kid resolution; Requirement: Configuration schema |
+| Kong keyset named by `config.keyset_name` | input | Requirement: JWT kid resolution |
+| Keyset PEM `public_key` material | input | Requirement: JWT kid resolution (PEM match) |
+| Keyset JWK material | input | Requirement: JWT kid resolution (JWK match) |
+| Keyset missing / zero matches / duplicate matches | input | Requirement: JWT kid resolution (fail closed) |
+| Private-key fingerprint after promotion/restart | input | Requirement: JWT kid resolution (new kid after restart) |
 | `config.signature_header_key` (required, default `X-Edge-Token`) | config | Requirement: Request manifest signing; Requirement: Response manifest signing; Requirement: Configuration schema |
 | `config.private_key_location` (required) | config | Requirement: Private key resolution; Requirement: Configuration schema |
 | `config.alg` (one_of RS256/RS512/ES256/ES512, required) | config | Requirement: JWT token format; Requirement: Configuration schema (pending APS-4798: required; digests derived; key-type check) |
@@ -28,7 +33,7 @@
 | `Content-Digest` response header (set) | output | Requirement: Response digest generation |
 | Signature header on request (`signature_header_key`) | output | Requirement: Request manifest signing |
 | Signature header on response (`signature_header_key`) | output | Requirement: Response manifest signing |
-| JWT header/claims content and encoding | output | Requirement: JWT token format |
+| JWT header `kid` (from keyset match) | output | Requirement: JWT token format; Requirement: JWT kid resolution |
 | 403 early exit on bad inbound token | output | Requirement: Response manifest signing |
 | Commented-out RFC 9421 signing (`Signature-Input`/`Signature`, signature-base module) | dead code | Out of scope |
 | Commented-out x5c / public-key handling | dead code | Out of scope |
