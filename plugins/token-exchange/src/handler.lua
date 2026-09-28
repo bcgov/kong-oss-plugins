@@ -7,6 +7,7 @@ local kong = kong
 local http = require "resty.http"
 
 local PLUGIN_NAME = "token-exchange"
+local ORIGINAL_AZP_HEADER = "X-SDX-Original-AZP"
 
 local TokenExchangeHandler = {
   PRIORITY = 930,
@@ -15,6 +16,17 @@ local TokenExchangeHandler = {
 
 function TokenExchangeHandler:access(conf)
   local request = kong.service.request
+  local verified_token = kong.ctx.shared.jwt_keycloak_token
+  local original_azp = verified_token and verified_token.claims and verified_token.claims.azp
+
+  -- Never forward a caller-supplied identity header. The header is populated
+  -- below only from the JWT that jwt-keycloak has already verified.
+  request.clear_header(ORIGINAL_AZP_HEADER)
+
+  if type(original_azp) ~= "string" or original_azp == "" then
+    original_azp = nil
+    kong.log.warn("Verified subject token has no usable azp claim; ", ORIGINAL_AZP_HEADER, " will be omitted")
+  end
 
   kong.log.warn("Token Exchange")
 
@@ -45,6 +57,9 @@ function TokenExchangeHandler:access(conf)
   end
 
   request.set_header("Authorization", "Bearer " .. token_response.access_token)
+  if original_azp then
+    request.set_header(ORIGINAL_AZP_HEADER, original_azp)
+  end
   log.continue_with_reason({plugin = PLUGIN_NAME, reason = "token exchanged"})
 end
 

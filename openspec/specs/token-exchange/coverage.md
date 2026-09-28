@@ -19,6 +19,8 @@
 | Current Unix time | input | Requirement: Client assertion contents |
 | 16 random bytes per assertion | input | Requirement: Client assertion contents (`jti`) |
 | Inbound `Authorization` header | input | Requirement: Subject token extraction |
+| Verified subject token `azp` claim | input | Requirement: Original authorized party header |
+| Caller-supplied `X-SDX-Original-AZP` | input | Requirement: Original authorized party header |
 | Missing inbound `Authorization` header | input | Requirement: Subject token extraction |
 | Case-sensitive, unanchored `Bearer%s+(.+)` matching | input | Requirement: Subject token extraction |
 | Token endpoint transport success/failure | input | Requirement: Token endpoint failure mapping |
@@ -33,6 +35,7 @@
 | Conditional `subject_token`, `audience`, and `scope` form parameters | output | Requirement: Subject token extraction; Requirement: Token endpoint request |
 | Unspecified form parameter order and form encoding | output | Requirement: Token endpoint request |
 | Upstream `Authorization: Bearer <access_token>` replacement | output | Requirement: Successful exchange |
+| Upstream `X-SDX-Original-AZP` replacement or omission | output | Requirement: Original authorized party header |
 | Client status/body for transport failure (`E1`) | output | Requirement: Token endpoint failure mapping |
 | Redacted client status/body for non-200 endpoint response (`E2`) | output | Requirement: Token endpoint failure mapping |
 | Client status/body for invalid 200 JSON (`E3`) | output | Requirement: Token endpoint failure mapping |
