@@ -20,13 +20,19 @@ function collectBody(request) {
 }
 
 function captureForRequest(request, url, body) {
-  const form = Object.fromEntries(new URLSearchParams(body));
+  const params = new URLSearchParams(body);
+  const form = Object.fromEntries(params);
+  const formAll = {};
+  for (const key of new Set(params.keys())) {
+    formAll[key] = params.getAll(key);
+  }
   const capture = {
     id: nextCaptureId++,
     method: request.method,
     path: `${url.pathname}${url.search}`,
     headers: request.headers,
     form,
+    formAll,
     receivedAt: Date.now(),
   };
   captures.push(capture);
