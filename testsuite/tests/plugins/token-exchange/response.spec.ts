@@ -8,6 +8,7 @@ import {
 import { clientLogin, createClient } from "../../../helpers/keycloak";
 import {
   KEY_PATHS,
+  capturesForClient,
   cleanupByPrefix,
   provisionPluginRoute,
   proxyPluginGet,
@@ -35,6 +36,13 @@ function headerValue(headers: Record<string, string>, name: string): string | un
     ([headerName]) => headerName.toLowerCase() === name.toLowerCase()
   );
   return entry?.[1];
+}
+
+function tokenScopes(token: string): string[] {
+  const payload = JSON.parse(
+    Buffer.from(token.split(".")[1], "base64url").toString("utf8")
+  );
+  return Array.from(new Set(String(payload.scope).split(/\s+/).filter(Boolean)));
 }
 
 async function expectHandledError(response: import("@playwright/test").APIResponse, code: string) {
@@ -206,6 +214,77 @@ test.describe("token-exchange — successful and failed exchanges", () => {
     });
     const body = await expectHandledError(response, "E2");
     expect(body.error).not.toHaveProperty("detail");
+  });
+
+  // [Verifies: token-exchange.configuration-error.invalid-scope]
+  test("returns a correlated, redacted configuration error for invalid_scope", async ({
+    request,
+  }) => {
+    const subjectClient = await createClient(request, {
+      standardFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+    });
+    const subjectToken = await clientLogin(
+      subjectClient.clientId,
+      subjectClient.clientSecret
+    );
+    const expectedScope = tokenScopes(subjectToken).join(" ");
+    const id = clientId("invalid-scope");
+    const { routePath, routeId } = await provisionPluginRoute(request, {
+      prefix: PREFIX,
+      config: {
+        ...config(
+          id,
+          tokenEndpoint("error-json", {
+            status: 400,
+            error: "invalid_scope",
+            error_description: "the SDX client is missing a secret scope",
+          })
+        ),
+        audience: "provider-api-secret",
+        scopes: ["configured.scope.must.not.be.used"],
+      },
+    });
+    await provisionKong(request, `${KONG_ADMIN_URL}/plugins`, {
+      name: "jwt-keycloak",
+      route: { id: routeId },
+      config: {
+        allowed_iss: ["http://keycloak.localtest.me:9081/auth/realms/e2e"],
+      },
+    });
+
+    const response = await proxyRequest(request, routePath, {
+      headers: { Authorization: `Bearer ${subjectToken}` },
+      shouldRetry: async (candidate) => {
+        if (candidate.status() !== 500) {
+          return true;
+        }
+        const captures = await capturesForClient(request, id);
+        return captures.at(-1)?.form.scope !== expectedScope;
+      },
+    });
+
+    expect(response.status()).toBe(500);
+    const requestId = response.headers()["x-kong-request-id"];
+    expect(requestId).toBeTruthy();
+    const body = await response.json();
+    expect(body.error).toEqual({ code: "SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR" });
+    expect(body.message).toBe(
+      "The SDX token-exchange client is not configured to complete this request. " +
+        `Refer to the SDX Kong token-exchange plugin logs using request ID ${requestId} for details.`
+    );
+
+    const publicResponse = JSON.stringify(body);
+    expect(publicResponse).not.toContain("invalid_scope");
+    expect(publicResponse).not.toContain("secret scope");
+    expect(publicResponse).not.toContain("provider-api-secret");
+    for (const scope of tokenScopes(subjectToken)) {
+      expect(publicResponse).not.toContain(scope);
+    }
+
+    const captures = await capturesForClient(request, id);
+    expect(captures.at(-1)?.form.scope).toBe(expectedScope);
+    expect(captures.at(-1)?.form.audience).toBe("provider-api-secret");
   });
 
   // [Verifies: token-exchange.token-endpoint-failure-mapping.invalid-200-json-e3]
