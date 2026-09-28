@@ -73,10 +73,13 @@ async function handle(request, response) {
       const payload = {
         access_token: url.searchParams.get("access_token") ?? "exchanged-token",
       };
+      if (url.searchParams.has("scope")) {
+        payload.scope = url.searchParams.get("scope");
+      }
       if (url.searchParams.get("additional") === "true") {
         payload.token_type = "Bearer";
         payload.expires_in = 300;
-        payload.scope = "read write";
+        payload.scope ??= "read write";
       }
       return sendJson(response, 200, payload);
     }
@@ -91,8 +94,10 @@ async function handle(request, response) {
       return response.end("{not-json");
     case "error-json":
       return sendJson(response, Number(url.searchParams.get("status") ?? "401"), {
-        error: "invalid_subject_token",
-        error_description: "details must not cross the plugin boundary",
+        error: url.searchParams.get("error") ?? "invalid_subject_token",
+        error_description:
+          url.searchParams.get("error_description") ??
+          "details must not cross the plugin boundary",
       });
     case "error-text":
       response.writeHead(Number(url.searchParams.get("status") ?? "503"), {

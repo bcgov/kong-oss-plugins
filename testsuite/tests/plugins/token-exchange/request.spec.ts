@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { proxyGet, uniquePrefix } from "../../../helpers/kong";
+import {
+  KONG_ADMIN_URL,
+  provisionKong,
+  proxyGet,
+  proxyRequest,
+  uniquePrefix,
+} from "../../../helpers/kong";
+import { clientLogin, createClient } from "../../../helpers/keycloak";
 import {
   KEY_PATHS,
   capturesForClient,
@@ -24,6 +31,26 @@ function config(id: string, endpoint: string) {
     client_id: id,
     token_endpoint: endpoint,
   };
+}
+
+function tokenScopes(token: string): string[] {
+  const payload = JSON.parse(
+    Buffer.from(token.split(".")[1], "base64url").toString("utf8")
+  );
+  return Array.from(new Set(String(payload.scope).split(/\s+/).filter(Boolean)));
+}
+
+async function addJwtVerification(
+  request: import("@playwright/test").APIRequestContext,
+  routeId: string
+) {
+  await provisionKong(request, `${KONG_ADMIN_URL}/plugins`, {
+    name: "jwt-keycloak",
+    route: { id: routeId },
+    config: {
+      allowed_iss: ["http://keycloak.localtest.me:9081/auth/realms/e2e"],
+    },
+  });
 }
 
 test.describe("token-exchange — subject extraction and endpoint request", () => {
@@ -241,6 +268,49 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     const emptyCaptures = await capturesForClient(request, emptyId);
     expect(emptyCaptures).toHaveLength(1);
     expect(emptyCaptures[0].form).not.toHaveProperty("scope");
+  });
+
+  // [Verifies: token-exchange.scope-transfer.verified-subject-scopes]
+  test("uses the verified subject token scopes instead of configured scopes", async ({
+    request,
+  }) => {
+    const subjectClient = await createClient(request, {
+      standardFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+    });
+    const subjectToken = await clientLogin(
+      subjectClient.clientId,
+      subjectClient.clientSecret
+    );
+    const expectedScopes = tokenScopes(subjectToken);
+    expect(expectedScopes.length).toBeGreaterThan(0);
+
+    const id = clientId("verified-subject-scopes");
+    const { routePath, routeId } = await provisionPluginRoute(request, {
+      prefix: PREFIX,
+      config: {
+        ...config(id, tokenEndpoint("success")),
+        scopes: ["configured.scope.must.not.be.used"],
+      },
+    });
+    await addJwtVerification(request, routeId);
+
+    const response = await proxyRequest(request, routePath, {
+      headers: { Authorization: `Bearer ${subjectToken}` },
+      shouldRetry: async (candidate) => {
+        if (candidate.status() !== 200) {
+          return true;
+        }
+        const captures = await capturesForClient(request, id);
+        return captures.length === 0;
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const captures = await capturesForClient(request, id);
+    expect(captures).toHaveLength(1);
+    expect(captures[0].form.scope?.split(" ")).toEqual(expectedScopes);
+    expect(captures[0].form.scope).not.toContain("configured.scope.must.not.be.used");
   });
 
   // [Verifies: token-exchange.token-endpoint-request.timeout-field-unavailable]
