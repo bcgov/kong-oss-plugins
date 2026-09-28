@@ -22,16 +22,17 @@ local function urlencode(str)
 end
 
 local function encode_form_data(data)
-  local encoded_body = ""
-  local first = true
+  local encoded = {}
   for key, value in pairs(data) do
-    if not first then
-      encoded_body = encoded_body .. "&"
+    if type(value) == "table" then
+      for _, item in ipairs(value) do
+        table.insert(encoded, urlencode(key) .. "=" .. urlencode(item))
+      end
+    else
+      table.insert(encoded, urlencode(key) .. "=" .. urlencode(value))
     end
-    encoded_body = encoded_body .. urlencode(key) .. "=" .. urlencode(value)
-    first = false
   end
-  return encoded_body
+  return table.concat(encoded, "&")
 end
 
 local function unique_scopes(scope_string)
@@ -67,7 +68,7 @@ local function same_scope_set(requested_scopes, granted_scopes)
   return true
 end
 
-local function do_token_exchange(conf, requested_scopes)
+local function do_token_exchange(conf, requested_scopes, requested_audiences)
   -- get the client assertion token
   local client_assertion_token,
     err = client_assertion.create_client_assertion(conf)
@@ -83,9 +84,17 @@ local function do_token_exchange(conf, requested_scopes)
     grant_type = "urn:ietf:params:oauth:grant-type:token-exchange",
     subject_token = kong.request.get_header("Authorization"):match("Bearer%s+(.+)"),
     subject_token_type = "urn:ietf:params:oauth:token-type:access_token",
-    requested_token_type = "urn:ietf:params:oauth:token-type:access_token",
-    audience = conf.audience
+    requested_token_type = "urn:ietf:params:oauth:token-type:access_token"
   }
+
+  -- A verified SDX request supplies its normalized audiences explicitly. Keep
+  -- the configured audience as a compatibility fallback for direct plugin use.
+  if requested_audiences == nil and conf.audience then
+    requested_audiences = {conf.audience}
+  end
+  if requested_audiences and #requested_audiences > 0 then
+    data.audience = requested_audiences
+  end
 
   -- Limit the exchanged token to the scopes in the verified subject token.
   if requested_scopes and #requested_scopes > 0 then

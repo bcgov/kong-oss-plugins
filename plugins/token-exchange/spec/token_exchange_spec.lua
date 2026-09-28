@@ -3,7 +3,7 @@ local ASSERTION_MODULE = "kong.plugins.token-exchange.client_assertion"
 local HTTP_MODULE = "resty.http"
 local META_MODULE = "kong.meta"
 
-describe("token-exchange scopes", function()
+describe("token-exchange scopes and audiences", function()
   local original_kong
   local original_modules = {}
   local response
@@ -81,7 +81,8 @@ describe("token-exchange scopes", function()
       client_id = "sdx-client",
       client_assertion_type = "ignored",
       token_endpoint = "https://tokens.example.test/exchange",
-      scopes = {"configured.scope.must.not.be.used"}
+      scopes = {"configured.scope.must.not.be.used"},
+      audience = "configured-provider"
     }
   end
 
@@ -96,6 +97,30 @@ describe("token-exchange scopes", function()
     assert.equals("exchanged-token", token.access_token)
     assert.matches("scope=openid%+records%.read%+records%.write", captured_request.options.body)
     assert.is_nil(captured_request.options.body:find("configured.scope", 1, true))
+  end)
+
+  -- [Verifies: token-exchange.audience-transfer.repeated-parameters]
+  it("sends each normalized audience as a repeated form parameter", function()
+    local token, err = exchange.do_token_exchange(
+      config(),
+      {"openid"},
+      {"configured-provider", "optional-provider"}
+    )
+
+    assert.is_nil(err)
+    assert.equals("exchanged-token", token.access_token)
+    assert.matches("audience=configured%-provider", captured_request.options.body)
+    assert.matches("audience=optional%-provider", captured_request.options.body)
+    assert.is_nil(captured_request.options.body:find("audience=sdx%-client"))
+  end)
+
+  -- [Verifies: token-exchange.audience-transfer.configured-fallback]
+  it("uses the configured audience when normalized audiences are not supplied", function()
+    local token, err = exchange.do_token_exchange(config(), {"openid"})
+
+    assert.is_nil(err)
+    assert.equals("exchanged-token", token.access_token)
+    assert.matches("audience=configured%-provider", captured_request.options.body)
   end)
 
   -- [Verifies: token-exchange.scope-transfer.omitted-response-scope]
