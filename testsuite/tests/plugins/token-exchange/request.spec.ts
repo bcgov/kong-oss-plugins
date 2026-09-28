@@ -4,7 +4,11 @@ import {
   proxyRequest,
   uniquePrefix,
 } from "../../../helpers/kong";
-import { clientLogin, createClient } from "../../../helpers/keycloak";
+import {
+  audienceMapper,
+  clientLogin,
+  createClient,
+} from "../../../helpers/keycloak";
 import {
   KEY_PATHS,
   addJwtVerification,
@@ -255,9 +259,11 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
   test("uses the verified subject token scopes instead of configured scopes", async ({
     request,
   }) => {
+    const id = clientId("verified-subject-scopes");
     const subjectClient = await createClient(request, {
       standardFlowEnabled: false,
       directAccessGrantsEnabled: false,
+      protocolMappers: [audienceMapper("sdx exchange audience", id)],
     });
     const subjectToken = await clientLogin(
       subjectClient.clientId,
@@ -270,7 +276,6 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
       new Set([...subjectScopes, targetPrivacyZoneScope])
     );
 
-    const id = clientId("verified-subject-scopes");
     const { routePath, routeId } = await provisionPluginRoute(request, {
       prefix: PREFIX,
       config: {
@@ -278,6 +283,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
         scopes: ["configured.scope.must.not.be.used"],
         scope_source: "verified_subject_token",
         target_privacy_zone_scope: targetPrivacyZoneScope,
+        audience: "provider-resource",
       },
     });
     await addJwtVerification(request, routeId, routePath, id);
@@ -333,6 +339,99 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     expect(body.error?.code).not.toBe("E4");
     expect(await capturesForClient(request, id)).toEqual([]);
   });
+
+  // [Verifies: token-exchange.audience-transfer.configured-and-original]
+  // [Verifies: token-exchange.audience-transfer.repeated-parameters]
+  test("merges the configured audience with optional verified subject audiences", async ({
+    request,
+  }) => {
+    const id = clientId("verified-subject-audiences");
+    const configuredAudience = "provider-resource";
+    const optionalAudience = "provider-downstream-client";
+    const subjectClient = await createClient(request, {
+      standardFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+      protocolMappers: [
+        audienceMapper("sdx exchange audience", id),
+        audienceMapper("configured provider audience", configuredAudience),
+        audienceMapper("optional downstream audience", optionalAudience),
+      ],
+    });
+    const subjectToken = await clientLogin(
+      subjectClient.clientId,
+      subjectClient.clientSecret
+    );
+    const { routePath, routeId } = await provisionPluginRoute(request, {
+      prefix: PREFIX,
+      config: {
+        ...config(id, tokenEndpoint("success")),
+        audience: configuredAudience,
+        scope_source: "verified_subject_token",
+      },
+    });
+    await addJwtVerification(request, routeId, routePath, id);
+
+    const response = await proxyRequest(request, routePath, {
+      headers: { Authorization: `Bearer ${subjectToken}` },
+      shouldRetry: async (candidate) => {
+        if (candidate.status() !== 200) return true;
+        return (await capturesForClient(request, id)).length === 0;
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const captures = await capturesForClient(request, id);
+    expect(captures).toHaveLength(1);
+    expect(captures[0].formAll.audience).toEqual([
+      configuredAudience,
+      optionalAudience,
+    ]);
+    expect(captures[0].formAll.audience).not.toContain(id);
+  });
+
+  // [Verifies: token-exchange.audience-transfer.subject-not-authorized]
+  test("returns a correlated 400 before exchange when the subject omits the SDX client", async ({
+    request,
+  }) => {
+    const id = clientId("missing-sdx-audience");
+    const subjectClient = await createClient(request, {
+      standardFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+      protocolMappers: [
+        audienceMapper("unrelated audience", "provider-downstream-client"),
+      ],
+    });
+    const subjectToken = await clientLogin(
+      subjectClient.clientId,
+      subjectClient.clientSecret
+    );
+
+    const { routePath, routeId } = await provisionPluginRoute(request, {
+      prefix: PREFIX,
+      config: {
+        ...config(id, tokenEndpoint("success")),
+        audience: "provider-resource",
+        scope_source: "verified_subject_token",
+      },
+    });
+    await addJwtVerification(request, routeId, routePath, id);
+
+    const response = await proxyRequest(request, routePath, {
+      headers: { Authorization: `Bearer ${subjectToken}` },
+    });
+
+    expect(response.status()).toBe(400);
+    const requestId = response.headers()["x-kong-request-id"];
+    expect(requestId).toBeTruthy();
+    expect(await response.json()).toEqual({
+      message:
+        "The supplied token is not authorized for SDX token exchange. " +
+        `Refer to the SDX documentation and use request ID ${requestId} when requesting support.`,
+      error: { code: "SDX_TOKEN_EXCHANGE_NOT_AUTHORIZED" },
+    });
+    expect(await capturesForClient(request, id)).toEqual([]);
+  });
+
   // [Verifies: token-exchange.token-endpoint-request.timeout-field-unavailable]
   test("uses a configured timeout and the 10-second default", async ({ request }) => {
     const configuredId = clientId("timeout-configured");

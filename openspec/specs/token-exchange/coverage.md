@@ -27,6 +27,8 @@
 | Verified `jwt-keycloak` scope claim and context | input | Requirement: Verified subject scope transfer |
 | Provisioned target provider privacy-zone scope | config/input | Requirement: Verified subject scope transfer |
 | JWT query parameter on an SDX scope-transfer route | input | Requirement: Verified subject scope transfer |
+| Verified subject `aud` string or array | input | Requirement: Audience transfer |
+| Missing, malformed, or unauthorized verified subject `aud` | input | Requirement: Audience transfer |
 | Case-sensitive, unanchored `Bearer%s+(.+)` matching | input | Requirement: Subject token extraction |
 | Token endpoint transport success/failure | input | Requirement: Token endpoint failure mapping |
 | Token endpoint HTTP status | input | Requirement: Successful exchange; Requirement: Token endpoint failure mapping |
@@ -38,6 +40,10 @@
 | Token endpoint `Content-Type` and `Accept` headers | output | Requirement: Token endpoint request |
 | Fixed token-exchange form parameters | output | Requirement: Token endpoint request |
 | Conditional `subject_token`, `audience`, and `scope` form parameters | output | Requirement: Subject token extraction; Requirement: Token endpoint request |
+| Configured consumer audience merged with deduplicated optional subject audiences | output | Requirement: Audience transfer |
+| Repeated RFC 8693 `audience` form parameters | output | Requirement: Audience transfer |
+| Correlated, redacted 400 when the subject token does not authorize the SDX exchange client | output | Requirement: Audience transfer |
+| Correlated, redacted 500 for `invalid_target` | output | Requirement: Token endpoint failure mapping |
 | Unspecified form parameter order and form encoding | output | Requirement: Token endpoint request |
 | Upstream `Authorization: Bearer <access_token>` replacement | output | Requirement: Successful exchange |
 | Upstream `X-SDX-Original-AZP` replacement or omission | output | Requirement: Original authorized party header |
