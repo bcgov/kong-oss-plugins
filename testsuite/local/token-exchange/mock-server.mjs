@@ -45,6 +45,16 @@ async function handle(request, response) {
     return sendJson(response, 200, { status: "reset" });
   }
 
+  if (request.method === "DELETE" && url.pathname.startsWith("/captures/")) {
+    const clientId = decodeURIComponent(url.pathname.slice("/captures/".length));
+    for (let index = captures.length - 1; index >= 0; index -= 1) {
+      if (captures[index].form.client_id === clientId) {
+        captures.splice(index, 1);
+      }
+    }
+    return sendJson(response, 200, { status: "reset" });
+  }
+
   if (request.method === "GET" && url.pathname.startsWith("/captures/")) {
     const clientId = decodeURIComponent(url.pathname.slice("/captures/".length));
     return sendJson(response, 200, {

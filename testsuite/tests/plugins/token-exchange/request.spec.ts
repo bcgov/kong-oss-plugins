@@ -15,6 +15,7 @@ import {
   proxyPluginGet,
   selfSignedTokenEndpoint,
   tokenEndpoint,
+  waitForJwtVerification,
 } from "../../../helpers/token-exchange";
 
 const PREFIX = uniquePrefix("token-exchange-request");
@@ -42,7 +43,9 @@ function tokenScopes(token: string): string[] {
 
 async function addJwtVerification(
   request: import("@playwright/test").APIRequestContext,
-  routeId: string
+  routeId: string,
+  routePath: string,
+  tokenExchangeClientId: string
 ) {
   await provisionKong(request, `${KONG_ADMIN_URL}/plugins`, {
     name: "jwt-keycloak",
@@ -51,6 +54,7 @@ async function addJwtVerification(
       allowed_iss: ["http://keycloak.localtest.me:9081/auth/realms/e2e"],
     },
   });
+  await waitForJwtVerification(request, routePath, tokenExchangeClientId);
 }
 
 test.describe("token-exchange — subject extraction and endpoint request", () => {
@@ -293,7 +297,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
         scopes: ["configured.scope.must.not.be.used"],
       },
     });
-    await addJwtVerification(request, routeId);
+    await addJwtVerification(request, routeId, routePath, id);
 
     const response = await proxyRequest(request, routePath, {
       headers: { Authorization: `Bearer ${subjectToken}` },
