@@ -34,7 +34,40 @@ local function encode_form_data(data)
   return encoded_body
 end
 
-local function do_token_exchange(conf)
+local function unique_scopes(scope_string)
+  if type(scope_string) ~= "string" then
+    return nil
+  end
+
+  local scopes = {}
+  local seen = {}
+  for scope in scope_string:gmatch("%S+") do
+    if not seen[scope] then
+      table.insert(scopes, scope)
+      seen[scope] = true
+    end
+  end
+  return scopes
+end
+
+local function same_scope_set(requested_scopes, granted_scopes)
+  if #requested_scopes ~= #granted_scopes then
+    return false
+  end
+
+  local requested = {}
+  for _, scope in ipairs(requested_scopes) do
+    requested[scope] = true
+  end
+  for _, scope in ipairs(granted_scopes) do
+    if not requested[scope] then
+      return false
+    end
+  end
+  return true
+end
+
+local function do_token_exchange(conf, requested_scopes)
   -- get the client assertion token
   local client_assertion_token,
     err = client_assertion.create_client_assertion(conf)
@@ -54,9 +87,9 @@ local function do_token_exchange(conf)
     audience = conf.audience
   }
 
-  -- include any scopes
-  if conf.scopes and #conf.scopes > 0 then
-    data.scope = table.concat(conf.scopes, " ")
+  -- Limit the exchanged token to the scopes in the verified subject token.
+  if requested_scopes and #requested_scopes > 0 then
+    data.scope = table.concat(requested_scopes, " ")
   end
 
   -- call the token endpoint to exchange the token
@@ -103,6 +136,23 @@ local function do_token_exchange(conf)
   if type(token_response.access_token) ~= "string" or token_response.access_token == "" then
     kong.log.err("Token response does not contain a non-empty string access_token")
     return nil, {code = "E3"}
+  end
+
+  -- RFC 8693 allows scope to be omitted when the granted scopes are identical
+  -- to those requested. When it is present, record a difference for operators
+  -- but honor the authorization server's successful response.
+  if token_response.scope ~= nil then
+    local granted_scopes = unique_scopes(token_response.scope)
+    if not granted_scopes or not same_scope_set(requested_scopes or {}, granted_scopes) then
+      kong.log.warn(
+        "Token exchange granted scopes differ from requested scopes: ",
+        cjson.encode({
+          requested_scopes = requested_scopes,
+          granted_scopes = granted_scopes,
+          granted_scope_value_type = type(token_response.scope)
+        })
+      )
+    end
   end
 
   return token_response
