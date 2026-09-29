@@ -19,6 +19,8 @@
 | Current Unix time | input | Requirement: Client assertion contents |
 | 16 random bytes per assertion | input | Requirement: Client assertion contents (`jti`) |
 | Inbound `Authorization` header | input | Requirement: Subject token extraction |
+| Verified subject `aud` string or array | input | Requirement: Audience transfer |
+| Missing, malformed, or unauthorized verified subject `aud` | input | Requirement: Audience transfer |
 | Missing inbound `Authorization` header | input | Requirement: Subject token extraction |
 | Case-sensitive, unanchored `Bearer%s+(.+)` matching | input | Requirement: Subject token extraction |
 | Token endpoint transport success/failure | input | Requirement: Token endpoint failure mapping |
@@ -31,6 +33,10 @@
 | Token endpoint `Content-Type` and `Accept` headers | output | Requirement: Token endpoint request |
 | Fixed token-exchange form parameters | output | Requirement: Token endpoint request |
 | Conditional `subject_token`, `audience`, and `scope` form parameters | output | Requirement: Subject token extraction; Requirement: Token endpoint request |
+| Configured consumer audience merged with deduplicated optional subject audiences | output | Requirement: Audience transfer |
+| Repeated RFC 8693 `audience` form parameters | output | Requirement: Audience transfer |
+| Correlated, redacted 400 when the subject token does not authorize the SDX exchange client | output | Requirement: Audience transfer |
+| Correlated, redacted 500 for `invalid_target` | output | Requirement: Token endpoint failure mapping |
 | Unspecified form parameter order and form encoding | output | Requirement: Token endpoint request |
 | Upstream `Authorization: Bearer <access_token>` replacement | output | Requirement: Successful exchange |
 | Client status/body for transport failure (`E1`) | output | Requirement: Token endpoint failure mapping |

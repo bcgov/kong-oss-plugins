@@ -57,6 +57,7 @@ export type TokenEndpointCapture = {
   path: string;
   headers: Record<string, string>;
   form: Record<string, string>;
+  formAll: Record<string, string[]>;
   receivedAt: number;
 };
 

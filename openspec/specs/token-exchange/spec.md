@@ -168,6 +168,75 @@ direct-invocation cases below therefore do not occur in that supported pipeline.
 - **WHEN** an `Authorization` value contains arbitrary text followed later by `Bearer <token>`
 - **THEN** the token endpoint receives `<token>` as the `subject_token`
 
+### Requirement: Audience transfer
+
+**ID**: `token-exchange.audience-transfer`
+
+When `jwt-keycloak` has placed a verified subject token in Kong's shared
+request context, the plugin SHALL derive exchange audiences only from that
+token and the configured consumer `audience`. The verified subject `aud` SHALL
+be accepted as either a string or an array of non-empty strings. Audience
+values SHALL use exact, case-sensitive comparison.
+
+The verified subject audience SHALL contain `config.client_id`. The plugin
+SHALL remove that SDX exchange client, remove duplicate values, and merge the
+remaining optional audiences with `config.audience`. The configured audience
+SHALL appear first and exactly once. The plugin SHALL send every resulting
+value as a repeated RFC 8693 `audience` form parameter.
+
+When verified-token context is unavailable, the plugin SHALL preserve its
+legacy direct-use behavior by requesting only `config.audience` when set.
+
+#### Scenario: Configured and optional original audiences are combined
+
+**ID**: `token-exchange.audience-transfer.configured-and-original`
+
+- **WHEN** `config.client_id = sdx-client`, `config.audience = provider-resource`, and the verified subject `aud` is `[requesting-client, sdx-client, provider-resource, optional-client, requesting-client]`
+- **THEN** the exchange request contains the ordered audience values `[provider-resource, requesting-client, optional-client]`, each encoded as a separate `audience` parameter
+
+#### Scenario: A string subject audience authorizes exchange
+
+**ID**: `token-exchange.audience-transfer.string-audience`
+
+- **WHEN** the verified subject `aud` is the string equal to `config.client_id`
+- **THEN** the exchange proceeds with only `config.audience`
+
+#### Scenario: Configured consumer audience is required
+
+**ID**: `token-exchange.audience-transfer.configured-audience-required`
+
+- **WHEN** verified-token context exists and `config.audience` is absent, empty, or equal to `config.client_id`
+- **THEN** the exchange is not attempted and the client receives the correlated `SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR` response
+
+#### Scenario: Subject token does not authorize the SDX exchange client
+
+**ID**: `token-exchange.audience-transfer.subject-not-authorized`
+
+- **WHEN** the verified subject `aud` does not contain an exact value equal to `config.client_id`
+- **THEN** the token endpoint is not called and the client receives status 400, `error.code = SDX_TOKEN_EXCHANGE_NOT_AUTHORIZED`, a generic message containing the Kong request ID, and an `X-Kong-Request-Id` response header with the same value
+- **AND** the public response omits audience values, the configured client ID, tokens, and identity-provider details, while the plugin log records the request ID and diagnostic reason
+
+#### Scenario: Malformed subject audience is rejected
+
+**ID**: `token-exchange.audience-transfer.malformed-subject-audience`
+
+- **WHEN** the verified subject `aud` is missing, empty, neither a string nor an array, or contains a non-string or empty value
+- **THEN** the request follows the same correlated, redacted 400 authorization-error contract and the token endpoint is not called
+
+#### Scenario: Repeated audience parameters are encoded
+
+**ID**: `token-exchange.audience-transfer.repeated-parameters`
+
+- **WHEN** the normalized audience list contains more than one value
+- **THEN** the form body contains one `audience=<value>` parameter for each value rather than one joined value
+
+#### Scenario: Configured audience remains the direct-use fallback
+
+**ID**: `token-exchange.audience-transfer.configured-fallback`
+
+- **WHEN** no verified subject token exists in shared request context and `config.audience` is set
+- **THEN** the exchange request contains that configured audience once
+
 ### Requirement: Token endpoint request
 
 **ID**: `token-exchange.token-endpoint-request`
@@ -191,11 +260,11 @@ defaults to 10,000 milliseconds when omitted. Unit tests MAY call
 - **WHEN** a request with a matching bearer credential is processed using a canonical config
 - **THEN** the token endpoint receives one form-encoded POST with the required fixed parameters, configured client ID, generated client assertion, extracted subject token, JSON accept header, TLS verification enabled, and a 10,000 millisecond timeout
 
-#### Scenario: Audience is conditional
+#### Scenario: Configured audience is conditional for direct use
 
 **ID**: `token-exchange.token-endpoint-request.audience-conditional`
 
-- **WHEN** `audience` is set to a string
+- **WHEN** normalized verified-token audiences are not supplied and `audience` is set to a string
 - **THEN** the exchange form contains `audience` equal to that string; when `audience` is unset, the parameter is omitted
 
 #### Scenario: Scopes are joined in configured order
@@ -272,6 +341,14 @@ SHALL not proxy the request upstream or replace its `Authorization` header.
 
 - **WHEN** the token endpoint returns any status other than 200 with an absent or non-JSON body
 - **THEN** the client receives status 400 with `error.code = "E2"` and no `error.detail` member
+
+#### Scenario: Invalid target is an SDX configuration failure
+
+**ID**: `token-exchange.configuration-error.invalid-target`
+
+- **WHEN** the token endpoint rejects a requested audience with OAuth error `invalid_target`
+- **THEN** the client receives status 500, `error.code = SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR`, a generic message containing the Kong request ID, and an `X-Kong-Request-Id` response header with the same value
+- **AND** exact requested audiences and identity-provider diagnostics remain only in the plugin log
 
 #### Scenario: Invalid JSON in a 200 response maps to E3
 

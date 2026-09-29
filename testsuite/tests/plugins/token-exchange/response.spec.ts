@@ -5,7 +5,11 @@ import {
   proxyRequest,
   uniquePrefix,
 } from "../../../helpers/kong";
-import { clientLogin, createClient } from "../../../helpers/keycloak";
+import {
+  audienceMapper,
+  clientLogin,
+  createClient,
+} from "../../../helpers/keycloak";
 import {
   KEY_PATHS,
   capturesForClient,
@@ -13,6 +17,7 @@ import {
   provisionPluginRoute,
   proxyPluginGet,
   tokenEndpoint,
+  waitForJwtVerification,
 } from "../../../helpers/token-exchange";
 
 const PREFIX = uniquePrefix("token-exchange-response");
@@ -159,16 +164,17 @@ test.describe("token-exchange — successful and failed exchanges", () => {
   test("returns a correlated, redacted configuration error for invalid_scope", async ({
     request,
   }) => {
+    const id = clientId("invalid-scope");
     const subjectClient = await createClient(request, {
       standardFlowEnabled: false,
       directAccessGrantsEnabled: false,
+      protocolMappers: [audienceMapper("sdx exchange audience", id)],
     });
     const subjectToken = await clientLogin(
       subjectClient.clientId,
       subjectClient.clientSecret
     );
     const expectedScope = tokenScopes(subjectToken).join(" ");
-    const id = clientId("invalid-scope");
     const { routePath, routeId } = await provisionPluginRoute(request, {
       prefix: PREFIX,
       config: {
@@ -191,6 +197,7 @@ test.describe("token-exchange — successful and failed exchanges", () => {
         allowed_iss: ["http://keycloak.localtest.me:9081/auth/realms/e2e"],
       },
     });
+    await waitForJwtVerification(request, routePath, id);
 
     const response = await proxyRequest(request, routePath, {
       headers: { Authorization: `Bearer ${subjectToken}` },
