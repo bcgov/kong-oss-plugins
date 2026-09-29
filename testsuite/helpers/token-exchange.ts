@@ -227,3 +227,51 @@ export async function capturesForClient(
   }
   return (await response.json()).captures;
 }
+
+/**
+ * Require a stable streak of JWT rejections across fresh proxy connections.
+ * A route can become available one sync cycle before a newly attached plugin,
+ * and connection reuse can keep probes pinned to one data plane.
+ */
+export async function waitForJwtVerification(
+  request: APIRequestContext,
+  routePath: string,
+  tokenExchangeClientId: string
+): Promise<void> {
+  const deadline = Date.now() + 15_000;
+  const requiredConsecutiveResponses = 9;
+  let consecutiveResponses = 0;
+  let lastStatus: number | undefined;
+
+  while (Date.now() < deadline) {
+    const response = await request.get(`${KONG_PROXY_URL}${routePath}/headers`, {
+      headers: {
+        Authorization: "Bearer invalid-readiness-token",
+        Connection: "close",
+      },
+    });
+    lastStatus = response.status();
+    if (lastStatus === 401) {
+      consecutiveResponses += 1;
+      if (consecutiveResponses >= requiredConsecutiveResponses) break;
+    } else {
+      consecutiveResponses = 0;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  if (consecutiveResponses < requiredConsecutiveResponses) {
+    throw new Error(
+      `jwt-keycloak did not become active on every data plane: last status ${lastStatus}`
+    );
+  }
+
+  const clearResponse = await request.delete(
+    `${TOKEN_EXCHANGE_MOCK_CAPTURE_URL}/captures/${encodeURIComponent(tokenExchangeClientId)}`
+  );
+  if (!clearResponse.ok()) {
+    throw new Error(
+      `failed to clear token endpoint captures for ${tokenExchangeClientId}: ${clearResponse.status()}`
+    );
+  }
+}
