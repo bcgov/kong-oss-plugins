@@ -5,6 +5,7 @@ local log = require("kong.plugins.plugin-log.log")
 
 local socket = require "socket"
 local keycloak_keys = require("kong.plugins.jwt-keycloak.keycloak_keys")
+local consumer_match = require("kong.plugins.jwt-keycloak.consumer_match")
 
 local PLUGIN_NAME = "jwt-keycloak"
 
@@ -153,7 +154,7 @@ end
 -- https://docs.konghq.com/gateway-oss/2.2.x/plugin-development/entities-cache/#manual-cache-invalidation
 -------------------------------------------------------------------------------
 local function get_consumer_custom_id_cache_key(custom_id)
-  return "custom_id_key_" .. custom_id
+  return consumer_match.custom_id_cache_key(custom_id)
 end
 
 local function invalidate_customer(data)
@@ -311,44 +312,8 @@ end
 -- of consumer id from the token against the kong user object in the config
 -- in a very configurable way.
 -------------------------------------------------------------------------------
-local function custom_load_consumer_by_custom_id(custom_id)
-  local result,
-    err = kong.db.consumers:select_by_custom_id(custom_id)
-  if not result then
-    return nil, err
-  end
-  return result
-end
-
 local function custom_match_consumer(conf, jwt)
-  local consumer,
-    err
-  local consumer_id = jwt.claims[conf.consumer_match_claim]
-
-  if conf.consumer_match_claim_custom_id then
-    local consumer_cache_key = get_consumer_custom_id_cache_key(consumer_id)
-    consumer,
-      err = kong.cache:get(consumer_cache_key, nil, custom_load_consumer_by_custom_id, consumer_id, true)
-  else
-    local consumer_cache_key = kong.db.consumers:cache_key(consumer_id)
-    consumer,
-      err = kong.cache:get(consumer_cache_key, nil, kong.client.load_consumer, consumer_id, true)
-  end
-
-  if err then
-    kong.log.err(err)
-  end
-
-  if not consumer and not conf.consumer_match_ignore_not_found then
-    kong.log.debug("Unable to find consumer " .. consumer_id .. " for token")
-    return false, {status = 401, message = "Unable to find consumer " .. consumer_id .. " for token"}
-  end
-
-  if consumer then
-    set_consumer(consumer, {id = jwt.claims["sub"]}, nil)
-  end
-
-  return true
+  return consumer_match.match(conf, jwt, set_consumer)
 end
 
 -------------------------------------------------------------------------------
