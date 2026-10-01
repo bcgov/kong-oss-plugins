@@ -2,6 +2,7 @@ import { test, expect, Cookie, Page } from "@playwright/test";
 import { URL } from "url";
 import runE2Etest, { checks } from "../../../helpers/e2e-test";
 import prepare from "../../../helpers/prepare-client-and-service";
+import { waitForRouteReady } from "../../../helpers/kong";
 import { clientLogin } from "../../../helpers/keycloak";
 import { callAPI, setHeaders } from "../../../helpers/api";
 import logger from "../../../helpers/logger";
@@ -21,6 +22,11 @@ test.describe("jwt-keycloak plugin - happy paths", () => {
       },
       ["admin", "viewer"]
     );
+
+    await waitForRouteReady(request, routePath, {
+      timeoutMs: 15_000,
+      consecutive: 9,
+    });
 
     logger.debug(clientDetails, "test client details");
 
