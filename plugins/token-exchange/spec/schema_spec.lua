@@ -58,6 +58,7 @@ describe("token-exchange configuration schema", function()
     assert.equals("RS256", processed.algorithm)
     assert.equals(60, processed.expiration)
     assert.same({}, processed.scopes)
+    assert.equals("configured", processed.scope_source)
     assert.equals(10000, processed.timeout)
   end)
 
@@ -66,6 +67,17 @@ describe("token-exchange configuration schema", function()
       keyset_name = "sdx.edge.myrg.dev",
     }))
     assert.is_truthy(ok, "keyset_name-only config rejected")
+    assert.is_nil(err)
+  end)
+
+  -- [Verifies: token-exchange.configuration-schema.scope-source-enum]
+  it("accepts only an explicit supported scope source", function()
+    local ok, err = config_schema:validate(canonical_config({scope_source = "request_header"}))
+    assert.is_falsy(ok)
+    assert.is_truthy(err.scope_source)
+
+    ok, err = config_schema:validate(canonical_config({scope_source = "verified_subject_token"}))
+    assert.is_truthy(ok)
     assert.is_nil(err)
   end)
 

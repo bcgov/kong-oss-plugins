@@ -17,10 +17,13 @@ local TokenExchangeHandler = {
 }
 
 local function subject_scopes(conf)
+  if conf.scope_source ~= "verified_subject_token" then
+    return conf.scopes or {}
+  end
+
   local verified_token = kong.ctx.shared.jwt_keycloak_token
   if not verified_token then
-    kong.log.warn("No verified subject token is available; using configured token exchange scopes")
-    return conf.scopes or {}
+    return nil, "verified subject token is unavailable"
   end
 
   local scope_claim = verified_token and verified_token.claims and verified_token.claims.scope
@@ -28,15 +31,7 @@ local function subject_scopes(conf)
     return nil, "verified subject token has no string scope claim"
   end
 
-  local scopes = {}
-  local seen = {}
-  for scope in scope_claim:gmatch("%S+") do
-    if not seen[scope] then
-      table.insert(scopes, scope)
-      seen[scope] = true
-    end
-  end
-
+  local scopes = token_exchange.unique_scopes(scope_claim)
   if #scopes == 0 then
     return nil, "verified subject token has an empty scope claim"
   end
@@ -62,10 +57,6 @@ local function configuration_error(conf, requested_scopes, detail)
   }
   local message = "The SDX token-exchange client is not configured to complete this request. " ..
     "Refer to the SDX Kong token-exchange plugin logs using request ID " .. request_id .. " for details."
-  local headers
-  if request_id ~= "" then
-    headers = { ["X-Kong-Request-Id"] = request_id }
-  end
 
   kong.log.err("Token exchange configuration error: ", cjson.encode(diagnostic))
   return log.exit_with_reason(
@@ -78,8 +69,7 @@ local function configuration_error(conf, requested_scopes, detail)
     {
       message = message,
       error = { code = CONFIGURATION_ERROR_CODE }
-    },
-    headers
+    }
   )
 end
 
@@ -104,7 +94,7 @@ function TokenExchangeHandler:access(conf)
     kong.log.err("Unable to derive token exchange scopes: ", scope_err)
     return log.exit_with_reason(
       {plugin = PLUGIN_NAME, reason = scope_err},
-      400,
+      500,
       {
         message = "Token exchange failed",
         error = {code = "E4"}
@@ -134,7 +124,7 @@ function TokenExchangeHandler:access(conf)
 
     return log.exit_with_reason(
       plugin_result,
-      status or 400,
+      status or 500,
       {
         message = "Token exchange failed",
         error = err

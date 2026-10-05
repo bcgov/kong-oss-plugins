@@ -68,6 +68,13 @@ local function same_scope_set(requested_scopes, granted_scopes)
 end
 
 local function do_token_exchange(conf, requested_scopes)
+  local authorization = kong.request.get_header("Authorization")
+  local subject_token = type(authorization) == "string"
+    and authorization:match("Bearer%s+(.+)")
+  if not subject_token then
+    return nil, {code = "E4"}, 401
+  end
+
   -- get the client assertion token
   local client_assertion_token,
     err = client_assertion.create_client_assertion(conf)
@@ -81,7 +88,7 @@ local function do_token_exchange(conf, requested_scopes)
     client_assertion_type = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
     client_assertion = client_assertion_token,
     grant_type = "urn:ietf:params:oauth:grant-type:token-exchange",
-    subject_token = kong.request.get_header("Authorization"):match("Bearer%s+(.+)"),
+    subject_token = subject_token,
     subject_token_type = "urn:ietf:params:oauth:token-type:access_token",
     requested_token_type = "urn:ietf:params:oauth:token-type:access_token",
     audience = conf.audience
@@ -159,5 +166,6 @@ local function do_token_exchange(conf, requested_scopes)
 end
 
 return {
-  do_token_exchange = do_token_exchange
+  do_token_exchange = do_token_exchange,
+  unique_scopes = unique_scopes
 }

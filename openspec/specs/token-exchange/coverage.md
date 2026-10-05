@@ -12,6 +12,7 @@
 | `config.expiration` (number greater than zero, default `60`) | config | Requirement: Configuration schema; Requirement: Client assertion contents |
 | `config.key_id` (optional string) | config | Requirement: Configuration schema; Requirement: Client assertion contents |
 | `config.scopes` (string array, default empty) | config | Requirement: Configuration schema; Requirement: Token endpoint request |
+| `config.scope_source` (`configured` or `verified_subject_token`) | config | Requirement: Configuration schema; Requirement: Verified subject scope transfer |
 | `config.audience` (optional string) | config | Requirement: Configuration schema; Requirement: Token endpoint request |
 | `config.timeout` (number, default `10000`) | config/runtime | Requirement: Configuration schema; Requirement: Token endpoint request |
 | PEM file at `private_key_location` | input | Requirement: Private key resolution |
@@ -21,7 +22,9 @@
 | Inbound `Authorization` header | input | Requirement: Subject token extraction |
 | Verified subject token `azp` claim | input | Requirement: Original authorized party header |
 | Caller-supplied `X-SDX-Original-AZP` | input | Requirement: Original authorized party header |
-| Missing inbound `Authorization` header | input | Requirement: Subject token extraction |
+| Missing or nonmatching inbound `Authorization` header | input | Requirement: Subject token extraction |
+| Verified `jwt-keycloak` scope claim and context | input | Requirement: Verified subject scope transfer |
+| JWT query parameter on an SDX scope-transfer route | input | Requirement: Verified subject scope transfer |
 | Case-sensitive, unanchored `Bearer%s+(.+)` matching | input | Requirement: Subject token extraction |
 | Token endpoint transport success/failure | input | Requirement: Token endpoint failure mapping |
 | Token endpoint HTTP status | input | Requirement: Successful exchange; Requirement: Token endpoint failure mapping |
@@ -37,10 +40,11 @@
 | Upstream `Authorization: Bearer <access_token>` replacement | output | Requirement: Successful exchange |
 | Upstream `X-SDX-Original-AZP` replacement or omission | output | Requirement: Original authorized party header |
 | Client status/body for transport failure (`E1`) | output | Requirement: Token endpoint failure mapping |
+| Correlated, redacted `invalid_scope` configuration error | output | Requirement: Invalid-scope configuration error |
 | Redacted client status/body for non-200 endpoint response (`E2`) | output | Requirement: Token endpoint failure mapping |
 | Client status/body for invalid 200 JSON (`E3`) | output | Requirement: Token endpoint failure mapping |
 | Handled 500 when the configured key file cannot be read | output | Requirement: Private key resolution |
-| 5xx from missing request Authorization; handled 500 from malformed key contents; handled 400 from a missing response `access_token` | output | Requirement: Subject token extraction; Requirement: Private key resolution; Requirement: Successful exchange |
+| Handled 401 from missing/nonmatching request Authorization; handled 500 from malformed key contents or a missing response `access_token` | output | Requirement: Subject token extraction; Requirement: Private key resolution; Requirement: Successful exchange |
 | Repository claim of token introspection | documented but unimplemented | Out of scope |
 | Packaged `client_token.get_access_token_string` client-credentials flow | unintegrated code | Out of scope |
 | `client_token` singular `config.scope` and runtime-only `config.timeout` | unintegrated inputs | Out of scope |

@@ -1,7 +1,5 @@
 import { expect, test } from "@playwright/test";
 import {
-  KONG_ADMIN_URL,
-  provisionKong,
   proxyGet,
   proxyRequest,
   uniquePrefix,
@@ -9,13 +7,14 @@ import {
 import { clientLogin, createClient } from "../../../helpers/keycloak";
 import {
   KEY_PATHS,
+  addJwtVerification,
   capturesForClient,
   cleanupByPrefix,
   provisionPluginRoute,
   proxyPluginGet,
   selfSignedTokenEndpoint,
   tokenEndpoint,
-  waitForJwtVerification,
+  tokenScopes,
 } from "../../../helpers/token-exchange";
 
 const PREFIX = uniquePrefix("token-exchange-request");
@@ -32,29 +31,6 @@ function config(id: string, endpoint: string) {
     client_id: id,
     token_endpoint: endpoint,
   };
-}
-
-function tokenScopes(token: string): string[] {
-  const payload = JSON.parse(
-    Buffer.from(token.split(".")[1], "base64url").toString("utf8")
-  );
-  return Array.from(new Set(String(payload.scope).split(/\s+/).filter(Boolean)));
-}
-
-async function addJwtVerification(
-  request: import("@playwright/test").APIRequestContext,
-  routeId: string,
-  routePath: string,
-  tokenExchangeClientId: string
-) {
-  await provisionKong(request, `${KONG_ADMIN_URL}/plugins`, {
-    name: "jwt-keycloak",
-    route: { id: routeId },
-    config: {
-      allowed_iss: ["http://keycloak.localtest.me:9081/auth/realms/e2e"],
-    },
-  });
-  await waitForJwtVerification(request, routePath, tokenExchangeClientId);
 }
 
 test.describe("token-exchange — subject extraction and endpoint request", () => {
@@ -91,8 +67,8 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     }
   });
 
-  // [Verifies: token-exchange.subject-token-extraction.missing-header-unhandled-failure]
-  test("returns a Kong-generated 5xx when Authorization is missing", async ({ request }) => {
+  // [Verifies: token-exchange.subject-token-extraction.missing-header-handled]
+  test("returns a handled 401 when Authorization is missing", async ({ request }) => {
     const id = clientId("missing-authorization");
     const { proxyUrl } = await provisionPluginRoute(request, {
       prefix: PREFIX,
@@ -100,14 +76,16 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     });
 
     const response = await proxyPluginGet(request, proxyUrl);
-    expect(response.status()).toBeGreaterThanOrEqual(500);
-    expect(response.status()).toBeLessThan(600);
-    expect(await response.text()).not.toContain("Token exchange failed");
+    expect(response.status()).toBe(401);
+    expect(await response.json()).toEqual({
+      message: "Token exchange failed",
+      error: { code: "E4" },
+    });
     expect(await capturesForClient(request, id)).toEqual([]);
   });
 
-  // [Verifies: token-exchange.subject-token-extraction.nonmatching-header-omits-subject-token]
-  test("still exchanges while omitting a nonmatching subject token", async ({ request }) => {
+  // [Verifies: token-exchange.subject-token-extraction.nonmatching-header-rejected]
+  test("rejects a nonmatching subject token without calling the endpoint", async ({ request }) => {
     for (const authorization of ["bearer lowercase", "Basic credentials"]) {
       const id = clientId("nonmatching");
       const { proxyUrl } = await provisionPluginRoute(request, {
@@ -117,10 +95,9 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
       const response = await proxyPluginGet(request, proxyUrl, {
         Authorization: authorization,
       });
-      expect(response.status()).toBe(200);
+      expect(response.status()).toBe(401);
       const captures = await capturesForClient(request, id);
-      expect(captures).toHaveLength(1);
-      expect(captures[0].form).not.toHaveProperty("subject_token");
+      expect(captures).toEqual([]);
     }
   });
 
@@ -186,7 +163,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     const response = await proxyPluginGet(request, proxyUrl, {
       Authorization: "Bearer inbound",
     });
-    expect(response.status()).toBe(400);
+    expect(response.status()).toBe(500);
     const body = await response.json();
     expect(body.message).toBe("Token exchange failed");
     expect(body.error).toMatchObject({ code: "E1" });
@@ -295,6 +272,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
       config: {
         ...config(id, tokenEndpoint("success")),
         scopes: ["configured.scope.must.not.be.used"],
+        scope_source: "verified_subject_token",
       },
     });
     await addJwtVerification(request, routeId, routePath, id);
@@ -317,6 +295,35 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     expect(captures[0].form.scope).not.toContain("configured.scope.must.not.be.used");
   });
 
+  // [Verifies: token-exchange.scope-transfer.query-token-rejected]
+  test("does not accept a verified token from the jwt query parameter", async ({
+    request,
+  }) => {
+    const subjectClient = await createClient(request, {
+      standardFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+    });
+    const subjectToken = await clientLogin(
+      subjectClient.clientId,
+      subjectClient.clientSecret
+    );
+    const id = clientId("query-token-rejected");
+    const { proxyUrl, routePath, routeId } = await provisionPluginRoute(request, {
+      prefix: PREFIX,
+      config: {
+        ...config(id, tokenEndpoint("success")),
+        scope_source: "verified_subject_token",
+      },
+    });
+    await addJwtVerification(request, routeId, routePath, id);
+
+    const response = await request.get(
+      `${proxyUrl}/headers?jwt=${encodeURIComponent(subjectToken)}`
+    );
+
+    expect(response.status()).toBe(401);
+    expect(await capturesForClient(request, id)).toEqual([]);
+  });
   // [Verifies: token-exchange.token-endpoint-request.timeout-field-unavailable]
   test("uses a configured timeout and the 10-second default", async ({ request }) => {
     const configuredId = clientId("timeout-configured");
@@ -330,7 +337,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     const configuredResponse = await proxyPluginGet(request, configured.proxyUrl, {
       Authorization: "Bearer inbound",
     });
-    expect(configuredResponse.status()).toBe(400);
+    expect(configuredResponse.status()).toBe(500);
     expect((await configuredResponse.json()).error).toMatchObject({ code: "E1" });
     const configuredCaptures = await capturesForClient(request, configuredId);
     expect(configuredCaptures).toHaveLength(1);
@@ -344,7 +351,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     const defaultResponse = await proxyPluginGet(request, omitted.proxyUrl, {
       Authorization: "Bearer inbound",
     });
-    expect(defaultResponse.status()).toBe(400);
+    expect(defaultResponse.status()).toBe(500);
     expect((await defaultResponse.json()).error).toMatchObject({ code: "E1" });
     const defaultCaptures = await capturesForClient(request, defaultId);
     expect(defaultCaptures).toHaveLength(1);

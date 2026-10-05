@@ -41,6 +41,7 @@ export type TokenExchangeConfig = {
   expiration?: number;
   key_id?: string;
   scopes?: string[];
+  scope_source?: "configured" | "verified_subject_token";
   audience?: string;
   timeout?: number;
 };
@@ -228,6 +229,15 @@ export async function capturesForClient(
   return (await response.json()).captures;
 }
 
+export function tokenScopes(token: string): string[] {
+  const payload = JSON.parse(
+    Buffer.from(token.split(".")[1], "base64url").toString("utf8")
+  );
+  return Array.from(
+    new Set(String(payload.scope).split(/\s+/).filter(Boolean))
+  );
+}
+
 /**
  * Require a stable streak of JWT rejections across fresh proxy connections.
  * A route can become available one sync cycle before a newly attached plugin,
@@ -274,4 +284,25 @@ export async function waitForJwtVerification(
       `failed to clear token endpoint captures for ${tokenExchangeClientId}: ${clearResponse.status()}`
     );
   }
+}
+
+export async function addJwtVerification(
+  request: APIRequestContext,
+  routeId: string,
+  routePath: string,
+  tokenExchangeClientId: string
+): Promise<void> {
+  await provisionKong(request, `${KONG_ADMIN_URL}/plugins`, {
+    name: "jwt-keycloak",
+    route: { id: routeId },
+    config: {
+      allowed_iss: ["http://keycloak.localtest.me:9081/auth/realms/e2e"],
+      uri_param_names: [],
+    },
+  });
+  await waitForJwtVerification(
+    request,
+    routePath,
+    tokenExchangeClientId
+  );
 }
