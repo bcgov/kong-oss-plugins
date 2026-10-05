@@ -75,6 +75,16 @@ return {
             }
           },
           {
+            scope_source = {
+              type = "string",
+              default = "configured",
+              one_of = {
+                "configured",
+                "verified_subject_token"
+              }
+            }
+          },
+          {
             audience = {
               type = "string",
               required = false

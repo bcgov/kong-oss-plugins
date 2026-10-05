@@ -1,18 +1,18 @@
 import { expect, test } from "@playwright/test";
 import {
-  KONG_ADMIN_URL,
-  provisionKong,
   proxyRequest,
   uniquePrefix,
 } from "../../../helpers/kong";
 import { clientLogin, createClient } from "../../../helpers/keycloak";
 import {
   KEY_PATHS,
+  addJwtVerification,
   capturesForClient,
   cleanupByPrefix,
   provisionPluginRoute,
   proxyPluginGet,
   tokenEndpoint,
+  tokenScopes,
 } from "../../../helpers/token-exchange";
 
 const PREFIX = uniquePrefix("token-exchange-response");
@@ -46,7 +46,7 @@ function tokenScopes(token: string): string[] {
 }
 
 async function expectHandledError(response: import("@playwright/test").APIResponse, code: string) {
-  expect(response.status()).toBe(400);
+  expect(response.status()).toBe(500);
   const body = await response.json();
   expect(body.message).toBe("Token exchange failed");
   expect(body.error).toMatchObject({ code });
@@ -160,7 +160,7 @@ test.describe("token-exchange — successful and failed exchanges", () => {
     );
   });
 
-  // [Verifies: token-exchange.successful-exchange.missing-access-token-unhandled-failure]
+  // [Verifies: token-exchange.successful-exchange.missing-access-token-rejected]
   test("rejects missing, non-string, and empty access tokens with E3", async ({ request }) => {
     for (const mode of ["missing", "nonstring", "empty"]) {
       const id = clientId(`bad-access-token-${mode}`);
@@ -243,15 +243,10 @@ test.describe("token-exchange — successful and failed exchanges", () => {
         ),
         audience: "provider-api-secret",
         scopes: ["configured.scope.must.not.be.used"],
+        scope_source: "verified_subject_token",
       },
     });
-    await provisionKong(request, `${KONG_ADMIN_URL}/plugins`, {
-      name: "jwt-keycloak",
-      route: { id: routeId },
-      config: {
-        allowed_iss: ["http://keycloak.localtest.me:9081/auth/realms/e2e"],
-      },
-    });
+    await addJwtVerification(request, routeId, routePath, id);
 
     const response = await proxyRequest(request, routePath, {
       headers: { Authorization: `Bearer ${subjectToken}` },

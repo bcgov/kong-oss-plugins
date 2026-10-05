@@ -19,8 +19,9 @@ with these fields: `private_key_location` (required string), `client_id`
 (required string), `token_endpoint` (required string), `algorithm` (string,
 default `RS256`, one of `RS256`/`RS384`/`RS512`/`ES256`/`ES384`/`ES512`),
 `expiration` (number, default `60`), `key_id` (optional string), `scopes` (array
-of strings, default empty), `audience` (optional string), and `timeout` (number,
-default `10000`). `expiration` SHALL be greater than zero.
+of strings, default empty), `scope_source` (string, default `configured`, one of
+`configured`/`verified_subject_token`), `audience` (optional string), and
+`timeout` (number, default `10000`). `expiration` SHALL be greater than zero.
 
 #### Scenario: Required fields are enforced
 
@@ -41,7 +42,14 @@ default `10000`). `expiration` SHALL be greater than zero.
 **ID**: `token-exchange.configuration-schema.canonical-config-accepted`
 
 - **WHEN** a config supplies valid strings for `private_key_location`, `client_id`, and `token_endpoint` and omits all optional fields
-- **THEN** schema validation accepts it with `algorithm = RS256`, `expiration = 60`, `scopes` equal to an empty array, and `timeout = 10000`
+- **THEN** schema validation accepts it with `algorithm = RS256`, `expiration = 60`, `scopes` equal to an empty array, `scope_source = configured`, and `timeout = 10000`
+
+#### Scenario: Scope source is enumerated
+
+**ID**: `token-exchange.configuration-schema.scope-source-enum`
+
+- **WHEN** `scope_source` is neither `configured` nor `verified_subject_token`
+- **THEN** schema validation rejects the configuration
 
 #### Scenario: Nonpositive expiration is rejected
 
@@ -147,19 +155,19 @@ direct-invocation cases below therefore do not occur in that supported pipeline.
 - **WHEN** the inbound request has `Authorization: Bearer <token>` with at least one whitespace character after `Bearer` and a non-empty `<token>`
 - **THEN** the token endpoint receives `<token>` as the `subject_token`
 
-#### Scenario: Missing Authorization header raises an unhandled failure
+#### Scenario: Missing Authorization header is handled
 
-**ID**: `token-exchange.subject-token-extraction.missing-header-unhandled-failure`
+**ID**: `token-exchange.subject-token-extraction.missing-header-handled`
 
 - **WHEN** the inbound request has no `Authorization` header
-- **THEN** no token-endpoint request is made and the client receives a Kong-generated 5xx response rather than the plugin's structured 400 response
+- **THEN** no token-endpoint request is made and the client receives a structured 401 response with `error.code = "E4"`
 
-#### Scenario: Nonmatching Authorization omits the subject token
+#### Scenario: Nonmatching Authorization is rejected
 
-**ID**: `token-exchange.subject-token-extraction.nonmatching-header-omits-subject-token`
+**ID**: `token-exchange.subject-token-extraction.nonmatching-header-rejected`
 
 - **WHEN** the inbound `Authorization` value does not contain the exact case-sensitive pattern `Bearer` followed by whitespace and at least one character
-- **THEN** the plugin still calls the token endpoint but omits `subject_token` from the form body
+- **THEN** no token-endpoint request is made and the client receives a structured 401 response with `error.code = "E4"`
 
 #### Scenario: Embedded Bearer substring is accepted
 
@@ -202,7 +210,7 @@ defaults to 10,000 milliseconds when omitted. Unit tests MAY call
 
 **ID**: `token-exchange.token-endpoint-request.scopes-joined-in-order`
 
-- **WHEN** `scopes` contains one or more strings
+- **WHEN** `scope_source = configured` and `scopes` contains one or more strings
 - **THEN** the exchange form contains one `scope` parameter formed by joining them in array order with single spaces; when `scopes` is empty, the parameter is omitted
 
 #### Scenario: Configured token-endpoint timeout is used
@@ -211,6 +219,69 @@ defaults to 10,000 milliseconds when omitted. Unit tests MAY call
 
 - **WHEN** an administrator configures `timeout` to a number of milliseconds
 - **THEN** schema validation accepts the field and the token-endpoint HTTP request uses that timeout; when omitted, the request uses 10,000 milliseconds
+
+### Requirement: Verified subject scope transfer
+
+**ID**: `token-exchange.scope-transfer`
+
+When `scope_source = verified_subject_token`, the plugin SHALL obtain scopes
+only from the `scope` claim in `kong.ctx.shared.jwt_keycloak_token`, split the
+string on whitespace, remove duplicates while retaining first-seen order, and
+send that list in the token-exchange request. It SHALL NOT fall back to
+`config.scopes` when verified-token context is missing or invalid.
+
+When a successful token response omits `scope`, the plugin SHALL treat the
+granted scope set as identical to the requested set. When the response includes
+a different scope set, the plugin SHALL log a warning and continue.
+
+#### Scenario: Verified subject scopes are transferred
+
+**ID**: `token-exchange.scope-transfer.verified-subject-scopes`
+
+- **WHEN** verified-token context has a non-empty string `scope` claim with duplicate values
+- **THEN** each verified subject scope is sent once and configured scopes are not sent
+
+#### Scenario: Invalid verified-token scope context fails closed
+
+**ID**: `token-exchange.scope-transfer.invalid-subject-scope`
+
+- **WHEN** verified-token context is absent or its `scope` claim is missing, non-string, or empty
+- **THEN** no token-endpoint request is made and the client receives status 500 with `error.code = "E4"`
+
+#### Scenario: Transferred scopes are sent to the token endpoint
+
+**ID**: `token-exchange.scope-transfer.exchange-request`
+
+- **WHEN** verified subject scopes are supplied to the exchange
+- **THEN** the exchange form contains those scopes once each and does not contain configured fallback scopes
+
+#### Scenario: Omitted response scope is accepted
+
+**ID**: `token-exchange.scope-transfer.omitted-response-scope`
+
+- **WHEN** a successful token response omits its `scope` member
+- **THEN** the plugin accepts the response without logging a scope-mismatch warning
+
+#### Scenario: Response scope order does not matter
+
+**ID**: `token-exchange.scope-transfer.response-scope-order`
+
+- **WHEN** a successful token response declares the requested scopes in a different order
+- **THEN** the plugin accepts the response without logging a scope-mismatch warning
+
+#### Scenario: Response scope mismatch is reported
+
+**ID**: `token-exchange.scope-transfer.response-scope-mismatch`
+
+- **WHEN** a successful token response declares a scope set different from the requested set
+- **THEN** the plugin logs a warning describing both sets and continues with the returned token
+
+#### Scenario: JWT query parameter is disabled for scope-transfer routes
+
+**ID**: `token-exchange.scope-transfer.query-token-rejected`
+
+- **WHEN** an SDX route receives a valid JWT only through the `jwt` query parameter
+- **THEN** `jwt-keycloak` rejects the request and token exchange is not attempted
 
 ### Requirement: Successful exchange
 
@@ -238,10 +309,10 @@ error code `E3`.
 
 #### Scenario: Successful response without access token is rejected
 
-**ID**: `token-exchange.successful-exchange.missing-access-token-unhandled-failure`
+**ID**: `token-exchange.successful-exchange.missing-access-token-rejected`
 
 - **WHEN** the token endpoint returns status 200 with a JSON object whose `access_token` is missing, non-string, or empty
-- **THEN** the request is not proxied and the client receives status 400 with `error` equal to an object containing `code = "E3"`
+- **THEN** the request is not proxied and the client receives status 500 with `error` equal to an object containing `code = "E3"`
 
 ### Requirement: Original authorized party header
 
@@ -280,9 +351,10 @@ unverified bearer value directly.
 
 **ID**: `token-exchange.token-endpoint-failure-mapping`
 
-When the token exchange returns a handled error, the plugin SHALL terminate the
-client request with status 400 and a JSON body containing `message = "Token
-exchange failed"` and an `error` value described by the scenarios below. It
+When the token exchange returns a handled token-endpoint, assertion, or response error,
+the plugin SHALL terminate the client request with a 5xx status and a JSON body
+containing `message = "Token exchange failed"` and an `error` value described by
+the scenarios below. It
 SHALL not proxy the request upstream or replace its `Authorization` header.
 
 #### Scenario: Transport failure maps to E1
@@ -290,28 +362,53 @@ SHALL not proxy the request upstream or replace its `Authorization` header.
 **ID**: `token-exchange.token-endpoint-failure-mapping.transport-failure-e1`
 
 - **WHEN** the HTTP client cannot obtain a response from the token endpoint
-- **THEN** the client receives status 400 with `error` equal to an object containing `code = "E1"`
+- **THEN** the client receives status 500 with `error` equal to an object containing `code = "E1"`
 
 #### Scenario: Non-200 JSON response maps to E2 without detail
 
 **ID**: `token-exchange.token-endpoint-failure-mapping.non-200-json-e2`
 
 - **WHEN** the token endpoint returns any status other than 200 with a JSON body
-- **THEN** the client receives status 400 with `error.code = "E2"` and no `error.detail` member
+- **THEN** the client receives status 500 with `error.code = "E2"` and no `error.detail` member
 
 #### Scenario: Non-200 non-JSON response maps to E2 without detail
 
 **ID**: `token-exchange.token-endpoint-failure-mapping.non-200-non-json-e2`
 
 - **WHEN** the token endpoint returns any status other than 200 with an absent or non-JSON body
-- **THEN** the client receives status 400 with `error.code = "E2"` and no `error.detail` member
+- **THEN** the client receives status 500 with `error.code = "E2"` and no `error.detail` member
 
 #### Scenario: Invalid JSON in a 200 response maps to E3
 
 **ID**: `token-exchange.token-endpoint-failure-mapping.invalid-200-json-e3`
 
 - **WHEN** the token endpoint returns status 200 with a body that cannot be decoded as JSON
-- **THEN** the client receives status 400 with `error` equal to an object containing `code = "E3"`
+- **THEN** the client receives status 500 with `error` equal to an object containing `code = "E3"`
+
+### Requirement: Invalid-scope configuration error
+
+**ID**: `token-exchange.configuration-error`
+
+When the token endpoint returns OAuth `invalid_scope`, the plugin SHALL return
+status 500 with public code `SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR` and a
+generic message containing Kong's request ID. The public response SHALL NOT
+contain the requested scopes, audience, token-endpoint response, or OAuth error
+description. Diagnostics SHALL log the request ID, requested scopes, audience,
+IdP status, and OAuth error code without logging the error description.
+
+#### Scenario: Invalid scope is correlated and redacted
+
+**ID**: `token-exchange.configuration-error.invalid-scope`
+
+- **WHEN** the token endpoint returns `invalid_scope`
+- **THEN** the client receives the correlated redacted configuration error and internal diagnostics retain only the approved diagnostic fields
+
+#### Scenario: Other token errors retain the generic failure response
+
+**ID**: `token-exchange.configuration-error.non-scope-errors-unchanged`
+
+- **WHEN** the token endpoint returns an OAuth error other than `invalid_scope`
+- **THEN** the client receives the generic status 500 token-exchange failure with its existing public error code
 
 ## Out of scope
 

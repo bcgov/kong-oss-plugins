@@ -10,6 +10,7 @@ describe("token-exchange scopes", function()
   local captured_request
   local warnings
   local exchange
+  local authorization_header
 
   local function remember_module(name)
     original_modules[name] = {value = package.loaded[name]}
@@ -23,6 +24,7 @@ describe("token-exchange scopes", function()
     }
     captured_request = nil
     warnings = {}
+    authorization_header = "Bearer subject-token"
 
     for _, name in ipairs({MODULE, ASSERTION_MODULE, HTTP_MODULE, META_MODULE}) do
       remember_module(name)
@@ -50,7 +52,7 @@ describe("token-exchange scopes", function()
       request = {
         get_header = function(name)
           assert.equals("Authorization", name)
-          return "Bearer subject-token"
+          return authorization_header
         end
       },
       log = {
@@ -84,6 +86,29 @@ describe("token-exchange scopes", function()
       scopes = {"configured.scope.must.not.be.used"}
     }
   end
+
+  it("parses and deduplicates scopes through the shared helper", function()
+    assert.same(
+      {"openid", "records.read", "records.write"},
+      exchange.unique_scopes("  openid records.read records.write records.read  ")
+    )
+    assert.same({}, exchange.unique_scopes("   "))
+    assert.is_nil(exchange.unique_scopes(nil))
+  end)
+
+  it("rejects a missing or non-bearer Authorization header without calling the endpoint", function()
+    for _, authorization in ipairs({false, "Basic credentials", "bearer lowercase"}) do
+      authorization_header = authorization == false and nil or authorization
+      captured_request = nil
+
+      local token, err, status = exchange.do_token_exchange(config(), {"openid"})
+
+      assert.is_nil(token)
+      assert.same({code = "E4"}, err)
+      assert.equals(401, status)
+      assert.is_nil(captured_request)
+    end
+  end)
 
   -- [Verifies: token-exchange.scope-transfer.exchange-request]
   it("sends scopes supplied from the verified subject token", function()

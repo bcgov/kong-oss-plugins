@@ -135,6 +135,20 @@ describe("token-exchange scope transfer", function()
       do_token_exchange = function(conf, scopes)
         exchange_call = {conf = conf, scopes = scopes}
         return {access_token = "exchanged-token"}
+      end,
+      unique_scopes = function(scope_string)
+        if type(scope_string) ~= "string" then
+          return nil
+        end
+        local scopes = {}
+        local seen = {}
+        for scope in scope_string:gmatch("%S+") do
+          if not seen[scope] then
+            table.insert(scopes, scope)
+            seen[scope] = true
+          end
+        end
+        return scopes
       end
     }
     package.loaded[HANDLER_MODULE] = nil
@@ -197,7 +211,7 @@ describe("token-exchange scope transfer", function()
 
   -- [Verifies: token-exchange.scope-transfer.verified-subject-scopes]
   it("passes the verified subject scopes to the exchange once each", function()
-    handler:access({audience = "provider-api"})
+    handler:access({audience = "provider-api", scope_source = "verified_subject_token"})
 
     assert.same({"openid", "records.read", "records.write"}, exchange_call.scopes)
     assert.equals("provider-api", exchange_call.conf.audience)
@@ -205,8 +219,27 @@ describe("token-exchange scope transfer", function()
     assert.is_nil(exit_call)
   end)
 
+  it("uses configured scopes only when that source is explicit", function()
+    _G.kong.ctx.shared.jwt_keycloak_token = nil
+
+    handler:access({scopes = {"configured.read"}, scope_source = "configured"})
+
+    assert.same({"configured.read"}, exchange_call.scopes)
+    assert.is_nil(exit_call)
+  end)
+
   -- [Verifies: token-exchange.scope-transfer.invalid-subject-scope]
-  it("rejects a missing, non-string, or empty subject scope before exchange", function()
+  it("fails closed when verified token context is unavailable", function()
+    _G.kong.ctx.shared.jwt_keycloak_token = nil
+
+    handler:access({scopes = {"must.not.fallback"}, scope_source = "verified_subject_token"})
+
+    assert.is_nil(exchange_call)
+    assert.equals(500, exit_call.status)
+    assert.equals("E4", exit_call.body.error.code)
+  end)
+
+  it("rejects a missing, non-string, or empty verified subject scope before exchange", function()
     for _, value in ipairs({false, {}, "   "}) do
       exchange_call = nil
       exit_call = nil
@@ -216,10 +249,10 @@ describe("token-exchange scope transfer", function()
         _G.kong.ctx.shared.jwt_keycloak_token.claims.scope = value
       end
 
-      handler:access({})
+      handler:access({scope_source = "verified_subject_token"})
 
       assert.is_nil(exchange_call)
-      assert.equals(400, exit_call.status)
+      assert.equals(500, exit_call.status)
       assert.equals("Token exchange failed", exit_call.body.message)
       assert.equals("E4", exit_call.body.error.code)
     end
@@ -241,7 +274,7 @@ describe("token-exchange scope transfer", function()
         }
     end
 
-    handler:access({audience = "provider-api"})
+    handler:access({audience = "provider-api", scope_source = "verified_subject_token"})
 
     assert.equals(500, exit_call.status)
     assert.equals("SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR", exit_call.body.error.code)
@@ -250,7 +283,7 @@ describe("token-exchange scope transfer", function()
         "Refer to the SDX Kong token-exchange plugin logs using request ID request-id-123 for details.",
       exit_call.body.message
     )
-    assert.equals("request-id-123", exit_call.headers["X-Kong-Request-Id"])
+    assert.is_nil(exit_call.headers)
     assert.same({"openid", "records.read", "records.write"}, exit_call.reason.detail.requested_scopes)
     assert.equals("provider-api", exit_call.reason.detail.audience)
     assert.equals(400, exit_call.reason.detail.idp_status)
@@ -278,9 +311,9 @@ describe("token-exchange scope transfer", function()
         {idp_status = 401, idp_response = {error = "invalid_client"}}
     end
 
-    handler:access({audience = "provider-api"})
+    handler:access({audience = "provider-api", scope_source = "verified_subject_token"})
 
-    assert.equals(400, exit_call.status)
+    assert.equals(500, exit_call.status)
     assert.equals("Token exchange failed", exit_call.body.message)
     assert.equals("E2", exit_call.body.error.code)
   end)
