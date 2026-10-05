@@ -44,7 +44,7 @@
 | Redacted client status/body for non-200 endpoint response (`E2`) | output | Requirement: Token endpoint failure mapping |
 | Client status/body for invalid 200 JSON (`E3`) | output | Requirement: Token endpoint failure mapping |
 | Handled 500 when the configured key file cannot be read | output | Requirement: Private key resolution |
-| Handled 401 from missing/nonmatching request Authorization; handled 500 from malformed key contents or a missing response `access_token` | output | Requirement: Subject token extraction; Requirement: Private key resolution; Requirement: Successful exchange |
+| Handled 401 from missing/nonmatching request Authorization (`E5`); handled 500 from malformed key contents or a missing response `access_token` | output | Requirement: Subject token extraction; Requirement: Private key resolution; Requirement: Successful exchange |
 | Repository claim of token introspection | documented but unimplemented | Out of scope |
 | Packaged `client_token.get_access_token_string` client-credentials flow | unintegrated code | Out of scope |
 | `client_token` singular `config.scope` and runtime-only `config.timeout` | unintegrated inputs | Out of scope |
