@@ -160,14 +160,14 @@ direct-invocation cases below therefore do not occur in that supported pipeline.
 **ID**: `token-exchange.subject-token-extraction.missing-header-handled`
 
 - **WHEN** the inbound request has no `Authorization` header
-- **THEN** no token-endpoint request is made and the client receives a structured 401 response with `error.code = "E4"`
+- **THEN** no token-endpoint request is made and the client receives a structured 401 response with `error.code = "E5"`
 
 #### Scenario: Nonmatching Authorization is rejected
 
 **ID**: `token-exchange.subject-token-extraction.nonmatching-header-rejected`
 
 - **WHEN** the inbound `Authorization` value does not contain the exact case-sensitive pattern `Bearer` followed by whitespace and at least one character
-- **THEN** no token-endpoint request is made and the client receives a structured 401 response with `error.code = "E4"`
+- **THEN** no token-endpoint request is made and the client receives a structured 401 response with `error.code = "E5"`
 
 #### Scenario: Embedded Bearer substring is accepted
 

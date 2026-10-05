@@ -72,7 +72,7 @@ local function do_token_exchange(conf, requested_scopes)
   local subject_token = type(authorization) == "string"
     and authorization:match("Bearer%s+(.+)")
   if not subject_token then
-    return nil, {code = "E4"}, 401
+    return nil, {code = "E5"}, 401
   end
 
   -- get the client assertion token

@@ -104,7 +104,7 @@ describe("token-exchange scopes", function()
       local token, err, status = exchange.do_token_exchange(config(), {"openid"})
 
       assert.is_nil(token)
-      assert.same({code = "E4"}, err)
+      assert.same({code = "E5"}, err)
       assert.equals(401, status)
       assert.is_nil(captured_request)
     end

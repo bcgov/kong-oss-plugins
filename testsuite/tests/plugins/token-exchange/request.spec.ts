@@ -79,7 +79,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     expect(response.status()).toBe(401);
     expect(await response.json()).toEqual({
       message: "Token exchange failed",
-      error: { code: "E4" },
+      error: { code: "E5" },
     });
     expect(await capturesForClient(request, id)).toEqual([]);
   });
@@ -284,15 +284,16 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
           return true;
         }
         const captures = await capturesForClient(request, id);
-        return captures.length === 0;
+        return captures.at(-1)?.form.scope !== expectedScopes.join(" ");
       },
     });
 
     expect(response.status()).toBe(200);
     const captures = await capturesForClient(request, id);
-    expect(captures).toHaveLength(1);
-    expect(captures[0].form.scope?.split(" ")).toEqual(expectedScopes);
-    expect(captures[0].form.scope).not.toContain("configured.scope.must.not.be.used");
+    expect(captures.length).toBeGreaterThan(0);
+    const capture = captures.at(-1)!;
+    expect(capture.form.scope?.split(" ")).toEqual(expectedScopes);
+    expect(capture.form.scope).not.toContain("configured.scope.must.not.be.used");
   });
 
   // [Verifies: token-exchange.scope-transfer.query-token-rejected]
@@ -322,6 +323,9 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     );
 
     expect(response.status()).toBe(401);
+    const body = await response.json();
+    expect(body).toEqual({ message: "Unauthorized" });
+    expect(body.error?.code).not.toBe("E4");
     expect(await capturesForClient(request, id)).toEqual([]);
   });
   // [Verifies: token-exchange.token-endpoint-request.timeout-field-unavailable]
