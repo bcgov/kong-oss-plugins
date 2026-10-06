@@ -7,8 +7,6 @@ local UNMATCHED_CONSUMER_ERROR = {
   log_attributes = {consumer_match_claim = "azp"}
 }
 
-local LOOKUP_FAILURE_MESSAGE = "An unexpected error occurred during authentication"
-
 local function default_config(overrides)
   local config = {
     consumer_match_claim = "azp",
@@ -174,8 +172,8 @@ describe("jwt-keycloak consumer matching", function()
     assert.same(lookup_result, authenticated.consumer)
   end)
 
-  -- [Verifies: APS-4990 unknown consumer response]
-  it("returns a generic 500 and records the cache or database error", function()
+  -- [Verifies: APS-4990 lookup failure diagnostics]
+  it("returns a generic 401 and records the cache or database error", function()
     lookup_error = "database failed while looking up sensitive-client"
 
     local ok, err = match({
@@ -185,8 +183,8 @@ describe("jwt-keycloak consumer matching", function()
     })
 
     assert.is_false(ok)
-    assert.same(500, err.status)
-    assert.same(LOOKUP_FAILURE_MESSAGE, err.message)
+    assert.same(401, err.status)
+    assert.same("Unable to match token to a Kong consumer", err.message)
     assert.same("consumer lookup failed: " .. lookup_error, err.log_reason)
     assert.same({
       consumer_match_claim = "azp",
@@ -200,7 +198,31 @@ describe("jwt-keycloak consumer matching", function()
       {consumer_match_ignore_not_found = true}
     )
     assert.is_false(ok)
-    assert.same(500, err.status)
+    assert.same(401, err.status)
+    assert.same("Unable to match token to a Kong consumer", err.message)
+  end)
+
+  -- [Verifies: APS-4990 diagnostic privacy]
+  it("does not include arbitrary configured claim values in diagnostics", function()
+    lookup_error = "database unavailable"
+
+    local ok, err = match(
+      {
+        sub = "subject",
+        email = "person@example.test",
+        azp = "service-client",
+        client_id = "client-alias"
+      },
+      {consumer_match_claim = "email"}
+    )
+
+    assert.is_false(ok)
+    assert.same(401, err.status)
+    assert.same({
+      consumer_match_claim = "email",
+      azp = "service-client",
+      client_id = "client-alias"
+    }, err.log_attributes)
   end)
 
   -- [Verifies: APS-4990 ignore-not-found compatibility]

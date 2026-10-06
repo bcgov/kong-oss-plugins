@@ -1,7 +1,6 @@
 local ConsumerMatch = {}
 
 local UNMATCHED_CONSUMER_MESSAGE = "Unable to match token to a Kong consumer"
-local LOOKUP_FAILURE_MESSAGE = "An unexpected error occurred during authentication"
 local CLIENT_IDENTIFIER_CLAIMS = {"azp", "client_id"}
 
 local function log_attributes(claim_name, claims)
@@ -91,12 +90,11 @@ function ConsumerMatch.match(conf, jwt, set_consumer)
 
   if err then
     kong.log.err("Consumer lookup failed for the configured match claim: " .. tostring(err))
-    return false, {
-      status = 500,
-      message = LOOKUP_FAILURE_MESSAGE,
-      log_reason = "consumer lookup failed: " .. tostring(err),
-      log_attributes = log_attributes(conf.consumer_match_claim, jwt.claims)
-    }
+    return rejected(
+      "consumer lookup failed: " .. tostring(err),
+      conf.consumer_match_claim,
+      jwt.claims
+    )
   end
 
   if not consumer then
