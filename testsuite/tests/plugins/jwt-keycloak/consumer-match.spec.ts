@@ -10,6 +10,16 @@ import {
 
 const issuer = "http://keycloak.localtest.me:9081/auth/realms/e2e";
 const unmatchedConsumerMessage = "Unable to match token to a Kong consumer";
+const stableProbeCount = 9;
+
+function responseHeaders(body: { headers: Record<string, unknown> }) {
+  return Object.fromEntries(
+    Object.entries(body.headers).map(([name, value]) => [
+      name.toLowerCase(),
+      value,
+    ])
+  );
+}
 
 async function prepareConsumerMatch(
   request: APIRequestContext,
@@ -79,12 +89,7 @@ test.describe("jwt-keycloak consumer matching", () => {
 
     expect(response.status()).toBe(200);
     const body = await response.json();
-    const headers = Object.fromEntries(
-      Object.entries(body.headers).map(([name, value]) => [
-        name.toLowerCase(),
-        value,
-      ])
-    );
+    const headers = responseHeaders(body);
     expect(headers["x-consumer-custom-id"]).toBe(clientDetails.clientId);
   });
 
@@ -109,6 +114,9 @@ test.describe("jwt-keycloak consumer matching", () => {
     );
 
     expect(response.status()).toBe(200);
+    const body = await response.json();
+    const headers = responseHeaders(body);
+    expect(headers["x-consumer-username"]).toBe(clientDetails.clientId);
   });
 
   // [Verifies: APS-4990 invalid match claims]
@@ -161,6 +169,21 @@ test.describe("jwt-keycloak consumer matching", () => {
       consumer_match_ignore_not_found: true,
     });
 
+    const deadline = Date.now() + 15_000;
+    let consecutiveDenials = 0;
+    while (Date.now() < deadline && consecutiveDenials < stableProbeCount) {
+      const probe = await proxyGet(request, routePath, {
+        attempts: 1,
+        headers: { Connection: "close" },
+      });
+      consecutiveDenials =
+        probe.status() === 401 ? consecutiveDenials + 1 : 0;
+      if (consecutiveDenials < stableProbeCount) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
+    expect(consecutiveDenials).toBe(stableProbeCount);
+
     const response = await authenticatedGet(
       request,
       routePath,
@@ -169,5 +192,9 @@ test.describe("jwt-keycloak consumer matching", () => {
     );
 
     expect(response.status()).toBe(200);
+    const body = await response.json();
+    const headers = responseHeaders(body);
+    expect(headers["x-consumer-custom-id"]).toBeUndefined();
+    expect(headers["x-consumer-username"]).toBeUndefined();
   });
 });
