@@ -458,8 +458,16 @@ function JwtKeycloakHandler:access(conf)
       set_consumer(consumer)
       log.continue_with_reason({plugin = PLUGIN_NAME, reason = "fallback to anonymous"})
     else
+      local plugin_result = {
+        plugin = PLUGIN_NAME,
+        reason = err.log_reason or "JWT authentication rejected: " .. tostring(err.message)
+      }
+      for name, value in pairs(err.log_attributes or {}) do
+        plugin_result[name] = value
+      end
+
       return log.exit_with_reason(
-        {plugin = PLUGIN_NAME, reason = "JWT authentication rejected: " .. tostring(err.message)},
+        plugin_result,
         err.status,
         err.errors or {message = err.message},
         error_exit_headers(err.status, conf)
