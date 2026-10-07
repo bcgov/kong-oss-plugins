@@ -10,7 +10,7 @@ supported_platforms = { "linux", "macosx" }
 source = {
   url = "git://github.com/bcgov/kong-oss-plugins",
   tag = "v1.0.0",
-  dir = "plugins/dpop/src"
+  dir = "plugins/trust-registry/src"
 }
 
 description = {
