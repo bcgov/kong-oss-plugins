@@ -51,7 +51,6 @@ local function configuration_error(conf, requested_scopes, detail)
   local diagnostic = {
     idp_status = detail.idp_status,
     idp_error = "invalid_scope",
-    request_id = request_id,
     audience = conf.audience,
     requested_scopes = requested_scopes
   }

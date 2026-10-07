@@ -393,8 +393,9 @@ When the token endpoint returns OAuth `invalid_scope`, the plugin SHALL return
 status 500 with public code `SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR` and a
 generic message containing Kong's request ID. The public response SHALL NOT
 contain the requested scopes, audience, token-endpoint response, or OAuth error
-description. Diagnostics SHALL log the request ID, requested scopes, audience,
-IdP status, and OAuth error code without logging the error description.
+description. Diagnostic detail SHALL log the requested scopes, audience, IdP
+status, and OAuth error code without logging the error description or
+duplicating the request ID already present on the enclosing Kong log record.
 
 #### Scenario: Invalid scope is correlated and redacted
 
