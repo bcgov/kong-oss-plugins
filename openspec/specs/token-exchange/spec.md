@@ -243,6 +243,39 @@ error code `E3`.
 - **WHEN** the token endpoint returns status 200 with a JSON object whose `access_token` is missing, non-string, or empty
 - **THEN** the request is not proxied and the client receives status 400 with `error` equal to an object containing `code = "E3"`
 
+### Requirement: Original authorized party header
+
+**ID**: `token-exchange.original-azp-header`
+
+The plugin SHALL remove any inbound `X-SDX-Original-AZP` header before the
+request is proxied. When `jwt-keycloak` has stored a verified subject token in
+`kong.ctx.shared.jwt_keycloak_token` and its `azp` claim is a non-empty string,
+the plugin SHALL set `X-SDX-Original-AZP` to that claim after a successful token
+exchange. The plugin SHALL omit the header when no verified token or usable
+`azp` claim is available. It SHALL never derive this header by decoding the
+unverified bearer value directly.
+
+#### Scenario: Verified original AZP is forwarded
+
+**ID**: `token-exchange.original-azp-header.verified-azp-forwarded`
+
+- **WHEN** the previously verified subject token contains `azp = <client>` and the token exchange succeeds
+- **THEN** the upstream request contains `X-SDX-Original-AZP: <client>`, replacing any caller-supplied value
+
+#### Scenario: Caller-supplied value is removed without a verified token
+
+**ID**: `token-exchange.original-azp-header.unverified-value-removed`
+
+- **WHEN** the request contains `X-SDX-Original-AZP` but no verified subject token is available
+- **THEN** the token exchange may otherwise proceed, but the upstream request omits `X-SDX-Original-AZP`
+
+#### Scenario: Missing or invalid AZP is omitted
+
+**ID**: `token-exchange.original-azp-header.invalid-azp-omitted`
+
+- **WHEN** the verified subject token has no `azp` claim or its value is not a non-empty string
+- **THEN** the token exchange may otherwise proceed, but the upstream request omits `X-SDX-Original-AZP`
+
 ### Requirement: Token endpoint failure mapping
 
 **ID**: `token-exchange.token-endpoint-failure-mapping`

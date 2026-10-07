@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { uniquePrefix } from "../../../helpers/kong";
+import {
+  KONG_ADMIN_URL,
+  provisionKong,
+  proxyRequest,
+  uniquePrefix,
+} from "../../../helpers/kong";
+import { clientLogin, createClient } from "../../../helpers/keycloak";
 import {
   KEY_PATHS,
   cleanupByPrefix,
@@ -22,6 +28,13 @@ function config(id: string, endpoint: string) {
     client_id: id,
     token_endpoint: endpoint,
   };
+}
+
+function headerValue(headers: Record<string, string>, name: string): string | undefined {
+  const entry = Object.entries(headers).find(
+    ([headerName]) => headerName.toLowerCase() === name.toLowerCase()
+  );
+  return entry?.[1];
 }
 
 async function expectHandledError(response: import("@playwright/test").APIResponse, code: string) {
@@ -83,6 +96,60 @@ test.describe("token-exchange — successful and failed exchanges", () => {
     expect(upstream.headers).not.toHaveProperty("token_type");
     expect(upstream.headers).not.toHaveProperty("expires_in");
     expect(upstream.headers).not.toHaveProperty("scope");
+  });
+
+  // [Verifies: token-exchange.original-azp-header.verified-azp-forwarded]
+  test("forwards the original AZP from the verified subject token", async ({ request }) => {
+    const subjectClient = await createClient(request, {
+      standardFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+    });
+    const subjectToken = await clientLogin(
+      subjectClient.clientId,
+      subjectClient.clientSecret
+    );
+    const id = clientId("original-azp");
+    const { routePath, routeId } = await provisionPluginRoute(request, {
+      prefix: PREFIX,
+      config: config(
+        id,
+        tokenEndpoint("success", { access_token: "exchanged-with-original-azp" })
+      ),
+    });
+
+    await provisionKong(request, `${KONG_ADMIN_URL}/plugins`, {
+      name: "jwt-keycloak",
+      route: { id: routeId },
+      config: {
+        allowed_iss: ["http://keycloak.localtest.me:9081/auth/realms/e2e"],
+      },
+    });
+
+    const response = await proxyRequest(request, routePath, {
+      headers: {
+        Authorization: `Bearer ${subjectToken}`,
+        "X-SDX-Original-AZP": "caller-supplied",
+      },
+      shouldRetry: async (candidate) => {
+        if (candidate.status() !== 200) {
+          return true;
+        }
+        const upstream = await candidate.json();
+        return (
+          headerValue(upstream.headers, "X-SDX-Original-AZP") !==
+          subjectClient.clientId
+        );
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const upstream = await response.json();
+    expect(headerValue(upstream.headers, "Authorization")).toBe(
+      "Bearer exchanged-with-original-azp"
+    );
+    expect(headerValue(upstream.headers, "X-SDX-Original-AZP")).toBe(
+      subjectClient.clientId
+    );
   });
 
   // [Verifies: token-exchange.successful-exchange.missing-access-token-unhandled-failure]
