@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
+  KONG_ADMIN_URL,
+  provisionKong,
   proxyRequest,
   uniquePrefix,
 } from "../../../helpers/kong";
@@ -36,13 +38,6 @@ function headerValue(headers: Record<string, string>, name: string): string | un
     ([headerName]) => headerName.toLowerCase() === name.toLowerCase()
   );
   return entry?.[1];
-}
-
-function tokenScopes(token: string): string[] {
-  const payload = JSON.parse(
-    Buffer.from(token.split(".")[1], "base64url").toString("utf8")
-  );
-  return Array.from(new Set(String(payload.scope).split(/\s+/).filter(Boolean)));
 }
 
 async function expectHandledError(response: import("@playwright/test").APIResponse, code: string) {
