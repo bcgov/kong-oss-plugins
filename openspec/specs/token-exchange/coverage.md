@@ -13,6 +13,7 @@
 | `config.key_id` (optional string) | config | Requirement: Configuration schema; Requirement: Client assertion contents |
 | `config.scopes` (string array, default empty) | config | Requirement: Configuration schema; Requirement: Token endpoint request |
 | `config.scope_source` (`configured` or `verified_subject_token`) | config | Requirement: Configuration schema; Requirement: Verified subject scope transfer |
+| `config.target_privacy_zone_scope` (optional single scope) | config | Requirement: Configuration schema; Requirement: Verified subject scope transfer |
 | `config.audience` (optional string) | config | Requirement: Configuration schema; Requirement: Token endpoint request |
 | `config.timeout` (number, default `10000`) | config/runtime | Requirement: Configuration schema; Requirement: Token endpoint request |
 | PEM file at `private_key_location` | input | Requirement: Private key resolution |
@@ -24,6 +25,7 @@
 | Caller-supplied `X-SDX-Original-AZP` | input | Requirement: Original authorized party header |
 | Missing or nonmatching inbound `Authorization` header | input | Requirement: Subject token extraction |
 | Verified `jwt-keycloak` scope claim and context | input | Requirement: Verified subject scope transfer |
+| Provisioned target provider privacy-zone scope | config/input | Requirement: Verified subject scope transfer |
 | JWT query parameter on an SDX scope-transfer route | input | Requirement: Verified subject scope transfer |
 | Case-sensitive, unanchored `Bearer%s+(.+)` matching | input | Requirement: Subject token extraction |
 | Token endpoint transport success/failure | input | Requirement: Token endpoint failure mapping |

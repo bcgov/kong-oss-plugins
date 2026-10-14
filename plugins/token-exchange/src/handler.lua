@@ -35,6 +35,20 @@ local function subject_scopes(conf)
   if #scopes == 0 then
     return nil, "verified subject token has an empty scope claim"
   end
+
+  local target_scope = conf.target_privacy_zone_scope
+  if target_scope ~= nil then
+    if type(target_scope) ~= "string" or target_scope == "" or target_scope:find("%s") then
+      return nil, "target privacy-zone scope must contain exactly one non-empty OAuth scope value"
+    end
+    for _, scope in ipairs(scopes) do
+      if scope == target_scope then
+        return scopes
+      end
+    end
+    table.insert(scopes, target_scope)
+  end
+
   return scopes
 end
 

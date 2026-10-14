@@ -210,19 +210,49 @@ describe("token-exchange scope transfer", function()
   end)
 
   -- [Verifies: token-exchange.scope-transfer.verified-subject-scopes]
-  it("passes the verified subject scopes to the exchange once each", function()
-    handler:access({audience = "provider-api", scope_source = "verified_subject_token"})
+  it("appends the provisioned target privacy-zone scope to verified subject scopes", function()
+    handler:access({
+      audience = "provider-api",
+      scope_source = "verified_subject_token",
+      target_privacy_zone_scope = "urn:ca:bc:gov:provider"
+    })
 
-    assert.same({"openid", "records.read", "records.write"}, exchange_call.scopes)
+    assert.same({
+      "openid",
+      "records.read",
+      "records.write",
+      "urn:ca:bc:gov:provider"
+    }, exchange_call.scopes)
     assert.equals("provider-api", exchange_call.conf.audience)
     assert.equals("Bearer exchanged-token", request_headers.Authorization)
+    assert.is_nil(exit_call)
+  end)
+
+  it("deduplicates the target privacy-zone scope already present in the subject token", function()
+    _G.kong.ctx.shared.jwt_keycloak_token.claims.scope =
+      "openid urn:ca:bc:gov:provider records.read urn:ca:bc:gov:provider"
+
+    handler:access({
+      scope_source = "verified_subject_token",
+      target_privacy_zone_scope = "urn:ca:bc:gov:provider"
+    })
+
+    assert.same({
+      "openid",
+      "urn:ca:bc:gov:provider",
+      "records.read"
+    }, exchange_call.scopes)
     assert.is_nil(exit_call)
   end)
 
   it("uses configured scopes only when that source is explicit", function()
     _G.kong.ctx.shared.jwt_keycloak_token = nil
 
-    handler:access({scopes = {"configured.read"}, scope_source = "configured"})
+    handler:access({
+      scopes = {"configured.read"},
+      scope_source = "configured",
+      target_privacy_zone_scope = "must.not.be.composed"
+    })
 
     assert.same({"configured.read"}, exchange_call.scopes)
     assert.is_nil(exit_call)
@@ -256,6 +286,17 @@ describe("token-exchange scope transfer", function()
       assert.equals("Token exchange failed", exit_call.body.message)
       assert.equals("E4", exit_call.body.error.code)
     end
+  end)
+
+  it("fails closed when a configured target privacy-zone scope is malformed", function()
+    handler:access({
+      scope_source = "verified_subject_token",
+      target_privacy_zone_scope = "scope.one scope.two"
+    })
+
+    assert.is_nil(exchange_call)
+    assert.equals(500, exit_call.status)
+    assert.equals("E4", exit_call.body.error.code)
   end)
 
   -- [Verifies: token-exchange.configuration-error.invalid-scope]

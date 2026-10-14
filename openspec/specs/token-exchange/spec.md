@@ -20,8 +20,10 @@ with these fields: `private_key_location` (required string), `client_id`
 default `RS256`, one of `RS256`/`RS384`/`RS512`/`ES256`/`ES384`/`ES512`),
 `expiration` (number, default `60`), `key_id` (optional string), `scopes` (array
 of strings, default empty), `scope_source` (string, default `configured`, one of
-`configured`/`verified_subject_token`), `audience` (optional string), and
-`timeout` (number, default `10000`). `expiration` SHALL be greater than zero.
+`configured`/`verified_subject_token`), `target_privacy_zone_scope`
+(optional string containing exactly one non-empty OAuth scope), `audience`
+(optional string), and `timeout` (number, default `10000`). `expiration`
+SHALL be greater than zero.
 
 #### Scenario: Required fields are enforced
 
@@ -42,7 +44,7 @@ of strings, default empty), `scope_source` (string, default `configured`, one of
 **ID**: `token-exchange.configuration-schema.canonical-config-accepted`
 
 - **WHEN** a config supplies valid strings for `private_key_location`, `client_id`, and `token_endpoint` and omits all optional fields
-- **THEN** schema validation accepts it with `algorithm = RS256`, `expiration = 60`, `scopes` equal to an empty array, `scope_source = configured`, and `timeout = 10000`
+- **THEN** schema validation accepts it with `algorithm = RS256`, `expiration = 60`, `scopes` equal to an empty array, `scope_source = configured`, `target_privacy_zone_scope` unset, and `timeout = 10000`
 
 #### Scenario: Scope source is enumerated
 
@@ -50,6 +52,13 @@ of strings, default empty), `scope_source` (string, default `configured`, one of
 
 - **WHEN** `scope_source` is neither `configured` nor `verified_subject_token`
 - **THEN** schema validation rejects the configuration
+
+#### Scenario: Target privacy-zone scope is singular
+
+**ID**: `token-exchange.configuration-schema.target-privacy-zone-scope`
+
+- **WHEN** `target_privacy_zone_scope` is set
+- **THEN** schema validation accepts exactly one non-empty, whitespace-free OAuth scope and rejects empty or compound values
 
 #### Scenario: Nonpositive expiration is rejected
 
@@ -230,6 +239,13 @@ string on whitespace, remove duplicates while retaining first-seen order, and
 send that list in the token-exchange request. It SHALL NOT fall back to
 `config.scopes` when verified-token context is missing or invalid.
 
+When `target_privacy_zone_scope` is set in verified-subject-token mode,
+the plugin SHALL append that administrator-provisioned scope after the verified
+subject scopes and de-duplicate the complete outgoing set. It SHALL ignore this
+field in configured-scope mode so the meaning of `config.scopes` does not
+change. The field is supplied by trusted control-plane configuration, never by
+the calling consumer.
+
 When a successful token response omits `scope`, the plugin SHALL treat the
 granted scope set as identical to the requested set. When the response includes
 a different scope set, the plugin SHALL log a warning and continue.
@@ -240,6 +256,20 @@ a different scope set, the plugin SHALL log a warning and continue.
 
 - **WHEN** verified-token context has a non-empty string `scope` claim with duplicate values
 - **THEN** each verified subject scope is sent once and configured scopes are not sent
+
+#### Scenario: Target provider privacy-zone scope is composed once
+
+**ID**: `token-exchange.scope-transfer.target-privacy-zone-scope`
+
+- **WHEN** verified subject scopes are valid and `target_privacy_zone_scope` is provisioned
+- **THEN** the exchange request contains the verified subject scopes plus exactly one instance of the target privacy-zone scope, without configured fallback scopes
+
+#### Scenario: Configured-scope behavior is unchanged
+
+**ID**: `token-exchange.scope-transfer.configured-scope-compatibility`
+
+- **WHEN** `scope_source = configured` and `target_privacy_zone_scope` is also present
+- **THEN** the exchange request continues to use only `config.scopes`
 
 #### Scenario: Invalid verified-token scope context fails closed
 
@@ -410,6 +440,15 @@ duplicating the request ID already present on the enclosing Kong log record.
 
 - **WHEN** the token endpoint returns an OAuth error other than `invalid_scope`
 - **THEN** the client receives the generic status 500 token-exchange failure with its existing public error code
+
+## Deployment prerequisite
+
+Before provisioning `target_privacy_zone_scope`, the token-exchange client in
+the target Keycloak realm must be permitted to request every provider
+privacy-zone client scope that SDX routes can target. Deploy the plugin first,
+then provision and preview the portal configuration, re-provision existing SDX
+connections, and require a successful exchange before enabling the cutover. An
+`invalid_scope` response remains a redacted, correlated configuration error.
 
 ## Out of scope
 

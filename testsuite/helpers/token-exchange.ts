@@ -42,6 +42,7 @@ export type TokenExchangeConfig = {
   key_id?: string;
   scopes?: string[];
   scope_source?: "configured" | "verified_subject_token";
+  target_privacy_zone_scope?: string;
   audience?: string;
   timeout?: number;
 };
