@@ -84,7 +84,8 @@ local function subject_audiences(conf)
     end
     if audience == conf.client_id then
       exchange_client_present = true
-    elseif not seen[audience] then
+    end
+    if not seen[audience] then
       table.insert(normalized, audience)
       seen[audience] = true
     end

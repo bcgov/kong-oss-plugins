@@ -40,7 +40,7 @@
 | Token endpoint `Content-Type` and `Accept` headers | output | Requirement: Token endpoint request |
 | Fixed token-exchange form parameters | output | Requirement: Token endpoint request |
 | Conditional `subject_token`, `audience`, and `scope` form parameters | output | Requirement: Subject token extraction; Requirement: Token endpoint request |
-| Configured consumer audience merged with deduplicated optional subject audiences | output | Requirement: Audience transfer |
+| Configured consumer audience merged with deduplicated verified subject audiences, retaining the SDX exchange client | output | Requirement: Audience transfer |
 | Repeated RFC 8693 `audience` form parameters | output | Requirement: Audience transfer |
 | Correlated, redacted 400 when the subject token does not authorize the SDX exchange client | output | Requirement: Audience transfer |
 | Correlated, redacted 500 for `invalid_target` | output | Requirement: Token endpoint failure mapping |

@@ -182,7 +182,7 @@ describe("token-exchange scope and audience transfer", function()
           jwt_keycloak_token = {
             claims = {
               scope = "openid records.read records.write records.read",
-              aud = {"requesting-client", "sdx-client", "provider-api", "requesting-client"}
+              aud = {"requesting-client", "sdx-client", "provider-api", "sdx-client", "requesting-client"}
             }
           }
         }
@@ -222,6 +222,7 @@ describe("token-exchange scope and audience transfer", function()
 
   -- [Verifies: token-exchange.scope-transfer.verified-subject-scopes]
   -- [Verifies: token-exchange.audience-transfer.configured-and-original]
+  -- [Verifies: token-exchange.audience-transfer.exchange-client-retained]
   it("passes verified scopes, the target scope, and normalized audiences", function()
     handler:access({
       client_id = "sdx-client",
@@ -236,7 +237,7 @@ describe("token-exchange scope and audience transfer", function()
       "records.write",
       "urn:ca:bc:gov:provider"
     }, exchange_call.scopes)
-    assert.same({"provider-api", "requesting-client"}, exchange_call.audiences)
+    assert.same({"provider-api", "requesting-client", "sdx-client"}, exchange_call.audiences)
     assert.equals("provider-api", exchange_call.conf.audience)
     assert.equals("Bearer exchanged-token", request_headers.Authorization)
     assert.is_nil(exit_call)
@@ -275,7 +276,7 @@ describe("token-exchange scope and audience transfer", function()
 
   -- [Verifies: token-exchange.audience-transfer.string-audience]
   -- [Verifies: token-exchange.audience-transfer.configured-audience-required]
-  it("accepts a string SDX audience and still requests the configured audience", function()
+  it("accepts and retains a string SDX audience with the configured audience", function()
     _G.kong.ctx.shared.jwt_keycloak_token.claims.aud = "sdx-client"
 
     handler:access({
@@ -284,7 +285,7 @@ describe("token-exchange scope and audience transfer", function()
       scope_source = "verified_subject_token"
     })
 
-    assert.same({"provider-api"}, exchange_call.audiences)
+    assert.same({"provider-api", "sdx-client"}, exchange_call.audiences)
     assert.is_nil(exit_call)
   end)
 
@@ -437,7 +438,7 @@ describe("token-exchange scope and audience transfer", function()
     assert.is_nil(exit_call.headers)
     assert.same({"openid", "records.read", "records.write"}, exit_call.reason.detail.requested_scopes)
     assert.equals("provider-api", exit_call.reason.detail.configured_audience)
-    assert.same({"provider-api", "requesting-client"}, exit_call.reason.detail.requested_audiences)
+    assert.same({"provider-api", "requesting-client", "sdx-client"}, exit_call.reason.detail.requested_audiences)
     assert.equals(400, exit_call.reason.detail.idp_status)
     assert.equals("invalid_scope", exit_call.reason.detail.idp_error)
     assert.is_nil(exit_call.reason.detail.request_id)
