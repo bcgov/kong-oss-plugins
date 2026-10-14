@@ -107,21 +107,25 @@ test.describe("token-exchange — successful and failed exchanges", () => {
 
   // [Verifies: token-exchange.original-azp-header.verified-azp-forwarded]
   test("forwards the original AZP from the verified subject token", async ({ request }) => {
+    const id = clientId("original-azp");
     const subjectClient = await createClient(request, {
       standardFlowEnabled: false,
       directAccessGrantsEnabled: false,
+      protocolMappers: [audienceMapper("sdx exchange audience", id)],
     });
     const subjectToken = await clientLogin(
       subjectClient.clientId,
       subjectClient.clientSecret
     );
-    const id = clientId("original-azp");
     const { routePath, routeId } = await provisionPluginRoute(request, {
       prefix: PREFIX,
-      config: config(
-        id,
-        tokenEndpoint("success", { access_token: "exchanged-with-original-azp" })
-      ),
+      config: {
+        ...config(
+          id,
+          tokenEndpoint("success", { access_token: "exchanged-with-original-azp" })
+        ),
+        audience: "provider-api",
+      },
     });
 
     await provisionKong(request, `${KONG_ADMIN_URL}/plugins`, {
@@ -279,7 +283,10 @@ test.describe("token-exchange — successful and failed exchanges", () => {
 
     const captures = await capturesForClient(request, id);
     expect(captures.at(-1)?.form.scope).toBe(expectedScope);
-    expect(captures.at(-1)?.form.audience).toBe("provider-api-secret");
+    expect(captures.at(-1)?.formAll.audience).toEqual([
+      "provider-api-secret",
+      id,
+    ]);
   });
 
   // [Verifies: token-exchange.token-endpoint-failure-mapping.invalid-200-json-e3]
