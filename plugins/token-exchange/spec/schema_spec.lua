@@ -59,6 +59,7 @@ describe("token-exchange configuration schema", function()
     assert.equals(60, processed.expiration)
     assert.same({}, processed.scopes)
     assert.equals("configured", processed.scope_source)
+    assert.equals(ngx.null, processed.target_privacy_zone_scope)
     assert.equals(10000, processed.timeout)
   end)
 
@@ -79,6 +80,23 @@ describe("token-exchange configuration schema", function()
     ok, err = config_schema:validate(canonical_config({scope_source = "verified_subject_token"}))
     assert.is_truthy(ok)
     assert.is_nil(err)
+  end)
+
+  -- [Verifies: token-exchange.configuration-schema.target-privacy-zone-scope]
+  it("accepts one target privacy-zone scope and rejects empty or compound values", function()
+    local ok, err = config_schema:validate(canonical_config({
+      target_privacy_zone_scope = "urn:ca:bc:gov:provider"
+    }))
+    assert.is_truthy(ok)
+    assert.is_nil(err)
+
+    for _, value in ipairs({"", "   ", "scope.one scope.two"}) do
+      ok, err = config_schema:validate(canonical_config({
+        target_privacy_zone_scope = value
+      }))
+      assert.is_falsy(ok)
+      assert.is_truthy(err.target_privacy_zone_scope)
+    end
   end)
 
   -- [Verifies: token-exchange.configuration-schema.nonpositive-expiration-accepted]

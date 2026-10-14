@@ -263,8 +263,12 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
       subjectClient.clientId,
       subjectClient.clientSecret
     );
-    const expectedScopes = tokenScopes(subjectToken);
-    expect(expectedScopes.length).toBeGreaterThan(0);
+    const subjectScopes = tokenScopes(subjectToken);
+    expect(subjectScopes.length).toBeGreaterThan(0);
+    const targetPrivacyZoneScope = "urn:ca:bc:gov:provider";
+    const expectedScopes = Array.from(
+      new Set([...subjectScopes, targetPrivacyZoneScope])
+    );
 
     const id = clientId("verified-subject-scopes");
     const { routePath, routeId } = await provisionPluginRoute(request, {
@@ -273,6 +277,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
         ...config(id, tokenEndpoint("success")),
         scopes: ["configured.scope.must.not.be.used"],
         scope_source: "verified_subject_token",
+        target_privacy_zone_scope: targetPrivacyZoneScope,
       },
     });
     await addJwtVerification(request, routeId, routePath, id);
