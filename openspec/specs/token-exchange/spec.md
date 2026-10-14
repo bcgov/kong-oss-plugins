@@ -196,27 +196,36 @@ be accepted as either a string or an array of non-empty strings. Audience
 values SHALL use exact, case-sensitive comparison.
 
 The verified subject audience SHALL contain `config.client_id`. The plugin
-SHALL remove that SDX exchange client, remove duplicate values, and merge the
-remaining optional audiences with `config.audience`. The configured audience
-SHALL appear first and exactly once. The plugin SHALL send every resulting
-value as a repeated RFC 8693 `audience` form parameter.
+SHALL retain that SDX exchange client, remove duplicate values, and merge all
+verified subject audiences with `config.audience`. The configured audience
+SHALL appear first and exactly once, and the SDX exchange client SHALL appear
+exactly once. The plugin SHALL send every resulting value as a repeated RFC
+8693 `audience` form parameter. Retaining the SDX exchange client allows the
+exchanged token to authorize a subsequent SDX token exchange.
 
 When verified-token context is unavailable, the plugin SHALL preserve its
 legacy direct-use behavior by requesting only `config.audience` when set.
 
-#### Scenario: Configured and optional original audiences are combined
+#### Scenario: Configured and original audiences are combined
 
 **ID**: `token-exchange.audience-transfer.configured-and-original`
 
 - **WHEN** `config.client_id = sdx-client`, `config.audience = provider-resource`, and the verified subject `aud` is `[requesting-client, sdx-client, provider-resource, optional-client, requesting-client]`
-- **THEN** the exchange request contains the ordered audience values `[provider-resource, requesting-client, optional-client]`, each encoded as a separate `audience` parameter
+- **THEN** the exchange request contains the ordered audience values `[provider-resource, requesting-client, sdx-client, optional-client]`, each encoded as a separate `audience` parameter
 
 #### Scenario: A string subject audience authorizes exchange
 
 **ID**: `token-exchange.audience-transfer.string-audience`
 
 - **WHEN** the verified subject `aud` is the string equal to `config.client_id`
-- **THEN** the exchange proceeds with only `config.audience`
+- **THEN** the exchange request contains `[config.audience, config.client_id]`
+
+#### Scenario: SDX exchange client is retained for a subsequent exchange
+
+**ID**: `token-exchange.audience-transfer.exchange-client-retained`
+
+- **WHEN** the verified subject audience authorizes `config.client_id`
+- **THEN** the exchange request contains `config.client_id` exactly once so that the exchanged token can authorize a subsequent SDX token exchange
 
 #### Scenario: Configured consumer audience is required
 

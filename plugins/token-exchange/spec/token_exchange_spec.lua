@@ -125,18 +125,19 @@ describe("token-exchange scopes and audiences", function()
   end)
 
   -- [Verifies: token-exchange.audience-transfer.repeated-parameters]
+  -- [Verifies: token-exchange.audience-transfer.exchange-client-retained]
   it("sends each normalized audience as a repeated form parameter", function()
     local token, err = exchange.do_token_exchange(
       config(),
       {"openid"},
-      {"configured-provider", "optional-provider"}
+      {"configured-provider", "sdx-client", "optional-provider"}
     )
 
     assert.is_nil(err)
     assert.equals("exchanged-token", token.access_token)
     assert.matches("audience=configured%-provider", captured_request.options.body)
+    assert.matches("audience=sdx%-client", captured_request.options.body)
     assert.matches("audience=optional%-provider", captured_request.options.body)
-    assert.is_nil(captured_request.options.body:find("audience=sdx%-client"))
   end)
 
   -- [Verifies: token-exchange.audience-transfer.configured-fallback]
