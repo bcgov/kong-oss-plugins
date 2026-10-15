@@ -454,13 +454,16 @@ describe("token-exchange scope and audience transfer", function()
     assert.is_nil(diagnostic_log:find("client is missing", 1, true))
   end)
 
-  -- [Verifies: token-exchange.configuration-error.non-scope-errors-unchanged]
-  it("keeps other token endpoint errors on the existing response path", function()
+  -- [Verifies: token-exchange.configuration-error.non-configuration-errors-unchanged]
+  it("keeps unrelated token endpoint errors on the existing response path", function()
     exchange.do_token_exchange = function()
       return nil,
         {code = "E2"},
         nil,
-        {idp_status = 401, idp_response = {error = "invalid_client"}}
+        {
+          idp_status = 400,
+          idp_response = {error = "invalid_request", error_description = "Invalid token"}
+        }
     end
 
     handler:access({
@@ -474,23 +477,27 @@ describe("token-exchange scope and audience transfer", function()
     assert.equals("E2", exit_call.body.error.code)
   end)
 
-  -- [Verifies: token-exchange.configuration-error.invalid-target]
-  it("maps IdP invalid_target to the correlated configuration error", function()
-    exchange.do_token_exchange = function()
-      return nil,
-        {code = "E2"},
-        nil,
-        {idp_status = 400, idp_response = {error = "invalid_target"}}
+  -- [Verifies: token-exchange.configuration-error.invalid-audience]
+  it("maps IdP audience configuration errors to the correlated configuration error", function()
+    for _, idp_response in ipairs({
+      {error = "invalid_target"},
+      {error = "invalid_client", error_description = "Audience not found"},
+      {error = "invalid_request", error_description = "Requested audience not available: provider-api"}
+    }) do
+      exit_call = nil
+      exchange.do_token_exchange = function()
+        return nil, {code = "E2"}, nil, {idp_status = 400, idp_response = idp_response}
+      end
+
+      handler:access({
+        client_id = "sdx-client",
+        audience = "provider-api",
+        scope_source = "verified_subject_token"
+      })
+
+      assert.equals(500, exit_call.status)
+      assert.equals("SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR", exit_call.body.error.code)
+      assert.equals(idp_response.error, exit_call.reason.detail.idp_error)
     end
-
-    handler:access({
-      client_id = "sdx-client",
-      audience = "provider-api",
-      scope_source = "verified_subject_token"
-    })
-
-    assert.equals(500, exit_call.status)
-    assert.equals("SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR", exit_call.body.error.code)
-    assert.equals("invalid_target", exit_call.reason.detail.idp_error)
   end)
 end)

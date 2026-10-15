@@ -111,11 +111,21 @@ local function subject_audiences(conf)
 end
 
 local function is_exchange_configuration_error(err, detail)
-  return type(err) == "table"
-    and err.code == "E2"
-    and type(detail) == "table"
-    and type(detail.idp_response) == "table"
-    and (detail.idp_response.error == "invalid_scope" or detail.idp_response.error == "invalid_target")
+  if type(err) ~= "table"
+    or err.code ~= "E2"
+    or type(detail) ~= "table"
+    or type(detail.idp_response) ~= "table" then
+    return false
+  end
+
+  local idp_error = detail.idp_response.error
+  local error_description = detail.idp_response.error_description
+  return idp_error == "invalid_scope"
+    or idp_error == "invalid_target"
+    or idp_error == "invalid_client"
+    or (idp_error == "invalid_request"
+      and type(error_description) == "string"
+      and error_description:sub(1, 33) == "Requested audience not available:")
 end
 
 local function configuration_error(conf, requested_scopes, requested_audiences, detail, reason)
