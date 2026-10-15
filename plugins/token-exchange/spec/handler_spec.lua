@@ -275,17 +275,16 @@ describe("token-exchange scope and audience transfer", function()
   end)
 
   -- [Verifies: token-exchange.audience-transfer.string-audience]
-  -- [Verifies: token-exchange.audience-transfer.configured-audience-required]
-  it("accepts and retains a string SDX audience with the configured audience", function()
+  -- [Verifies: token-exchange.audience-transfer.configured-audience-optional]
+  it("accepts a string SDX audience without a configured provider audience", function()
     _G.kong.ctx.shared.jwt_keycloak_token.claims.aud = "sdx-client"
 
     handler:access({
       client_id = "sdx-client",
-      audience = "provider-api",
       scope_source = "verified_subject_token"
     })
 
-    assert.same({"provider-api", "sdx-client"}, exchange_call.audiences)
+    assert.same({"sdx-client"}, exchange_call.audiences)
     assert.is_nil(exit_call)
   end)
 
@@ -346,8 +345,9 @@ describe("token-exchange scope and audience transfer", function()
     end
   end)
 
-  -- [Verifies: token-exchange.audience-transfer.invalid-configured-audience]
-  it("returns a configuration error for a missing or self-targeted configured audience", function()
+  -- [Verifies: token-exchange.audience-transfer.configured-audience-optional]
+  it("ignores an empty audience and deduplicates a self-targeted audience", function()
+    _G.kong.ctx.shared.jwt_keycloak_token.claims.aud = {"sdx-client"}
     for _, audience in ipairs({false, "", "sdx-client"}) do
       exchange_call = nil
       exit_call = nil
@@ -358,10 +358,8 @@ describe("token-exchange scope and audience transfer", function()
 
       handler:access(conf)
 
-      assert.is_nil(exchange_call)
-      assert.equals(500, exit_call.status)
-      assert.equals("SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR", exit_call.body.error.code)
-      assert.is_nil(exit_call.headers)
+      assert.same({"sdx-client"}, exchange_call.audiences)
+      assert.is_nil(exit_call)
     end
   end)
 

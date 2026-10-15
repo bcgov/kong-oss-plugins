@@ -196,12 +196,13 @@ be accepted as either a string or an array of non-empty strings. Audience
 values SHALL use exact, case-sensitive comparison.
 
 The verified subject audience SHALL contain `config.client_id`. The plugin
-SHALL retain that SDX exchange client, remove duplicate values, and merge all
-verified subject audiences with `config.audience`. The configured audience
-SHALL appear first and exactly once, and the SDX exchange client SHALL appear
-exactly once. The plugin SHALL send every resulting value as a repeated RFC
-8693 `audience` form parameter. Retaining the SDX exchange client allows the
-exchanged token to authorize a subsequent SDX token exchange.
+SHALL retain that SDX exchange client and remove duplicate values. When the
+optional `config.audience` is set to a non-empty string, the plugin SHALL merge
+it with the verified subject audiences and place it first and exactly once.
+The SDX exchange client SHALL appear exactly once. The plugin SHALL send every
+resulting value as a repeated RFC 8693 `audience` form parameter. Retaining the
+SDX exchange client allows the exchanged token to authorize a subsequent SDX
+token exchange.
 
 When verified-token context is unavailable, the plugin SHALL preserve its
 legacy direct-use behavior by requesting only `config.audience` when set.
@@ -217,8 +218,8 @@ legacy direct-use behavior by requesting only `config.audience` when set.
 
 **ID**: `token-exchange.audience-transfer.string-audience`
 
-- **WHEN** the verified subject `aud` is the string equal to `config.client_id`
-- **THEN** the exchange request contains `[config.audience, config.client_id]`
+- **WHEN** the verified subject `aud` is the string equal to `config.client_id` and `config.audience` is not set
+- **THEN** the exchange request contains only `[config.client_id]`
 
 #### Scenario: SDX exchange client is retained for a subsequent exchange
 
@@ -227,12 +228,14 @@ legacy direct-use behavior by requesting only `config.audience` when set.
 - **WHEN** the verified subject audience authorizes `config.client_id`
 - **THEN** the exchange request contains `config.client_id` exactly once so that the exchanged token can authorize a subsequent SDX token exchange
 
-#### Scenario: Configured consumer audience is required
+#### Scenario: Configured consumer audience is optional
 
-**ID**: `token-exchange.audience-transfer.configured-audience-required`
+**ID**: `token-exchange.audience-transfer.configured-audience-optional`
 
-- **WHEN** verified-token context exists and `config.audience` is absent, empty, or equal to `config.client_id`
-- **THEN** the exchange is not attempted and the client receives the correlated `SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR` response
+- **WHEN** verified-token context exists and `config.audience` is absent or empty
+- **THEN** the exchange request contains the deduplicated verified subject audiences, including `config.client_id`
+- **AND WHEN** `config.audience` equals an existing verified subject audience
+- **THEN** that audience is requested exactly once
 
 #### Scenario: Subject token does not authorize the SDX exchange client
 

@@ -94,21 +94,16 @@ local function subject_audiences(conf)
   if not exchange_client_present then
     return nil, "authorization", "verified subject token audience does not authorize the SDX exchange client", original_audiences
   end
-  if type(conf.audience) ~= "string" or conf.audience == "" then
-    return nil, "configuration", "consumer token exchange audience is not configured", original_audiences
-  end
-  if conf.audience == conf.client_id then
-    return nil, "configuration", "consumer token exchange audience equals the SDX exchange client", original_audiences
-  end
-
-  if not seen[conf.audience] then
-    table.insert(normalized, 1, conf.audience)
-  else
-    for index, audience in ipairs(normalized) do
-      if audience == conf.audience and index ~= 1 then
-        table.remove(normalized, index)
-        table.insert(normalized, 1, audience)
-        break
+  if type(conf.audience) == "string" and conf.audience ~= "" then
+    if not seen[conf.audience] then
+      table.insert(normalized, 1, conf.audience)
+    else
+      for index, audience in ipairs(normalized) do
+        if audience == conf.audience and index ~= 1 then
+          table.remove(normalized, index)
+          table.insert(normalized, 1, audience)
+          break
+        end
       end
     end
   end

@@ -391,6 +391,44 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     );
   });
 
+  // [Verifies: token-exchange.audience-transfer.string-audience]
+  // [Verifies: token-exchange.audience-transfer.configured-audience-optional]
+  test("exchanges a token containing only the SDX client audience", async ({
+    request,
+  }) => {
+    const id = clientId("sdx-audience-only");
+    const subjectClient = await createClient(request, {
+      standardFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+      protocolMappers: [audienceMapper("sdx exchange audience", id)],
+    });
+    const subjectToken = await clientLogin(
+      subjectClient.clientId,
+      subjectClient.clientSecret
+    );
+    const { routePath, routeId } = await provisionPluginRoute(request, {
+      prefix: PREFIX,
+      config: {
+        ...config(id, tokenEndpoint("success")),
+        scope_source: "verified_subject_token",
+      },
+    });
+    await addJwtVerification(request, routeId, routePath, id);
+
+    const response = await proxyRequest(request, routePath, {
+      headers: { Authorization: `Bearer ${subjectToken}` },
+      shouldRetry: async (candidate) => {
+        if (candidate.status() !== 200) return true;
+        return (await capturesForClient(request, id)).length === 0;
+      },
+    });
+
+    expect(response.status()).toBe(200);
+    const captures = await capturesForClient(request, id);
+    expect(captures).toHaveLength(1);
+    expect(captures[0].formAll.audience).toEqual([id]);
+  });
+
   // [Verifies: token-exchange.audience-transfer.subject-not-authorized]
   test("returns a correlated 400 before exchange when the subject omits the SDX client", async ({
     request,
