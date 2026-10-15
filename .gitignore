@@ -1,0 +1,10 @@
+# OpenSpec agent commands / skills / prompts (local tooling)
+.cursor/commands/
+.cursor/skills/openspec-*/
+.claude/skills/openspec-*/
+
+.github/prompts/
+.github/skills/openspec-*/
+
+# spec-to-test clean-room session flag (Cursor + Claude Code)
+.claude/clean-room.active
