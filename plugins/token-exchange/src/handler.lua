@@ -201,11 +201,8 @@ function TokenExchangeHandler:access(conf)
     )
   end
 
-  local requested_audiences, audience_error_type, audience_err, original_audiences = subject_audiences(conf)
+  local requested_audiences, _, audience_err, original_audiences = subject_audiences(conf)
   if not requested_audiences then
-    if audience_error_type == "configuration" then
-      return configuration_error(conf, requested_scopes, nil, nil, audience_err)
-    end
     return authorization_error(conf, audience_err, original_audiences)
   end
 
