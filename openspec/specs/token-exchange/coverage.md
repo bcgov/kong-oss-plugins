@@ -43,12 +43,12 @@
 | Optional configured consumer audience merged with deduplicated verified subject audiences, retaining the SDX exchange client | output | Requirement: Audience transfer |
 | Repeated RFC 8693 `audience` form parameters | output | Requirement: Audience transfer |
 | Correlated, redacted 400 when the subject token does not authorize the SDX exchange client | output | Requirement: Audience transfer |
-| Correlated, redacted 500 for `invalid_target` | output | Requirement: Token endpoint failure mapping |
+| Correlated, redacted 500 for recognized scope and audience configuration errors | output | Requirement: Token endpoint configuration error |
 | Unspecified form parameter order and form encoding | output | Requirement: Token endpoint request |
 | Upstream `Authorization: Bearer <access_token>` replacement | output | Requirement: Successful exchange |
 | Upstream `X-SDX-Original-AZP` replacement or omission | output | Requirement: Original authorized party header |
 | Client status/body for transport failure (`E1`) | output | Requirement: Token endpoint failure mapping |
-| Correlated, redacted `invalid_scope` configuration error | output | Requirement: Invalid-scope configuration error |
+| Correlated, redacted `invalid_scope` configuration error | output | Requirement: Token endpoint configuration error |
 | Redacted client status/body for non-200 endpoint response (`E2`) | output | Requirement: Token endpoint failure mapping |
 | Client status/body for invalid 200 JSON (`E3`) | output | Requirement: Token endpoint failure mapping |
 | Handled 500 when the configured key file cannot be read | output | Requirement: Private key resolution |

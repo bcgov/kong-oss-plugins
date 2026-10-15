@@ -198,7 +198,7 @@ values SHALL use exact, case-sensitive comparison.
 The verified subject audience SHALL contain `config.client_id`. The plugin
 SHALL retain that SDX exchange client and remove duplicate values. When the
 optional `config.audience` is set to a non-empty string, the plugin SHALL merge
-it with the verified subject audiences and place it first and exactly once.
+it exactly once with the verified subject audiences.
 The SDX exchange client SHALL appear exactly once. The plugin SHALL send every
 resulting value as a repeated RFC 8693 `audience` form parameter. Retaining the
 SDX exchange client allows the exchanged token to authorize a subsequent SDX
@@ -212,7 +212,7 @@ legacy direct-use behavior by requesting only `config.audience` when set.
 **ID**: `token-exchange.audience-transfer.configured-and-original`
 
 - **WHEN** `config.client_id = sdx-client`, `config.audience = provider-resource`, and the verified subject `aud` is `[requesting-client, sdx-client, provider-resource, optional-client, requesting-client]`
-- **THEN** the exchange request contains the ordered audience values `[provider-resource, requesting-client, sdx-client, optional-client]`, each encoded as a separate `audience` parameter
+- **THEN** the exchange request contains `provider-resource`, `requesting-client`, `sdx-client`, and `optional-client` exactly once each, encoded as separate `audience` parameters
 
 #### Scenario: A string subject audience authorizes exchange
 
@@ -489,11 +489,11 @@ SHALL not proxy the request upstream or replace its `Authorization` header.
 - **WHEN** the token endpoint returns any status other than 200 with an absent or non-JSON body
 - **THEN** the client receives status 500 with `error.code = "E2"` and no `error.detail` member
 
-#### Scenario: Invalid target is an SDX configuration failure
+#### Scenario: Invalid audience is an SDX configuration failure
 
-**ID**: `token-exchange.configuration-error.invalid-target`
+**ID**: `token-exchange.configuration-error.invalid-audience`
 
-- **WHEN** the token endpoint rejects a requested audience with OAuth error `invalid_target`
+- **WHEN** the token endpoint rejects a requested audience with `invalid_target`, `invalid_client`, or `invalid_request` whose description begins with `Requested audience not available:`
 - **THEN** the client receives status 500, `error.code = SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR`, a generic message containing the Kong request ID, and an `X-Kong-Request-Id` response header with the same value
 - **AND** exact requested audiences and identity-provider diagnostics remain only in the plugin log
 
@@ -504,11 +504,11 @@ SHALL not proxy the request upstream or replace its `Authorization` header.
 - **WHEN** the token endpoint returns status 200 with a body that cannot be decoded as JSON
 - **THEN** the client receives status 500 with `error` equal to an object containing `code = "E3"`
 
-### Requirement: Invalid-scope configuration error
+### Requirement: Token endpoint configuration error
 
 **ID**: `token-exchange.configuration-error`
 
-When the token endpoint returns OAuth `invalid_scope`, the plugin SHALL return
+When the token endpoint returns OAuth `invalid_scope` or a recognized audience configuration error, the plugin SHALL return
 status 500 with public code `SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR` and a
 generic message containing Kong's request ID. The public response SHALL NOT
 contain the requested scopes, audience, token-endpoint response, or OAuth error
@@ -525,9 +525,9 @@ duplicating the request ID already present on the enclosing Kong log record.
 
 #### Scenario: Other token errors retain the generic failure response
 
-**ID**: `token-exchange.configuration-error.non-scope-errors-unchanged`
+**ID**: `token-exchange.configuration-error.non-configuration-errors-unchanged`
 
-- **WHEN** the token endpoint returns an OAuth error other than `invalid_scope`
+- **WHEN** the token endpoint returns an OAuth error that is not a recognized scope or audience configuration error
 - **THEN** the client receives the generic status 500 token-exchange failure with its existing public error code
 
 ## Deployment prerequisite
