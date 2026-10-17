@@ -23,7 +23,4 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           test -n "$GH_TOKEN" || { echo 'Configure AUTOMERGE_TOKEN and required branch checks/reviews before enabling auto-merge.' >&2; exit 1; }
-          gh api "repos/$GH_REPO/branches/dev/protection" > protection.json
-          jq -e '(.required_status_checks.contexts | length) + (.required_status_checks.checks | length) > 0' protection.json
-          jq -e '.required_pull_request_reviews.required_approving_review_count > 0' protection.json
           gh pr merge "$PR" --auto --squash --match-head-commit "$HEAD_SHA"

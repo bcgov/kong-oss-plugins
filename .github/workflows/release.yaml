@@ -20,9 +20,31 @@ jobs:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Plan release from the merged promotion and its labels
-        run: python3 .github/scripts/release_plan.py
-      - name: Create versioned source bundle, tag and release notes
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --global semver@7.7.3
+      - run: bash .github/scripts/release-plan.sh
+      - name: Create bundle tag and GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 .github/scripts/publish_releases.py
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r COMPONENT; do
+            TAG=$(jq -r .tag <<< "$COMPONENT")
+            PREVIOUS=$(jq -r .previous <<< "$COMPONENT")
+            SHA=$(git rev-parse HEAD)
+            if git rev-parse "$TAG" > /dev/null 2>&1; then
+              test "$(git rev-parse "$TAG^{commit}")" = "$SHA"
+            else
+              gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA"
+            fi
+            if DRAFT=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+              test "$DRAFT" = false || { echo "Resume draft $TAG with gh release edit before retrying." >&2; exit 1; }
+              continue
+            fi
+            printf 'Source: %s\nPromotion: %s\n\n' "$SHA" "$PR_URL" > notes.md
+            git log --format='- %s (%h)' "${PREVIOUS:+$PREVIOUS..}$SHA" -- plugins testsuite Dockerfile Dockerfile.busted .github tests/release.sh >> notes.md
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md --latest=false
+          done < <(jq -c '.[]' release-plan.json)

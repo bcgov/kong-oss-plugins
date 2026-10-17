@@ -9,8 +9,6 @@
 # spec-to-test clean-room session flag (Cursor + Claude Code)
 .claude/clean-room.active
 
-# Local release-tooling validation outputs
-.github/scripts/__pycache__/
-tests/release/__pycache__/
+# Local release validation outputs
 release-plan.json
-release-assets/
+dist/

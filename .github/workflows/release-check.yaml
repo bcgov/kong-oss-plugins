@@ -14,11 +14,15 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - run: python3 .github/scripts/release_plan.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --global semver@7.7.3
+      - run: bash .github/scripts/release-plan.sh
       - name: Summarize planned releases
         run: |
           echo '### Component release plan' >> "$GITHUB_STEP_SUMMARY"
-          jq -r '.components[] | "- \(.tag)"' release-plan.json >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.[] | "- \(.tag)"' release-plan.json >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: release-preview
