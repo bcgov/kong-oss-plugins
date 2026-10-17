@@ -8,3 +8,7 @@
 
 # spec-to-test clean-room session flag (Cursor + Claude Code)
 .claude/clean-room.active
+
+# Local release validation outputs
+release-plan.json
+dist/
