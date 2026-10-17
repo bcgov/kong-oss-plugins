@@ -1,0 +1,25 @@
+name: Release policy
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, labeled, unlabeled, edited]
+permissions:
+  contents: read
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - run: python3 .github/scripts/release_plan.py
+      - name: Summarize planned releases
+        run: |
+          echo '### Component release plan' >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.components[] | "- \(.tag)"' release-plan.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-preview
+          path: release-plan.json

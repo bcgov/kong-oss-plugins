@@ -2,8 +2,10 @@ name: Plugin Tests
 
 on:
   workflow_dispatch: {}
+  push:
+    branches: ["dev", "feature/**"]
   pull_request:
-    branches: ["main", "feature/*"]
+    branches: ["main", "dev", "feature/**"]
 
 env:
   GIT_COMMIT_BRANCH: ${{ github.ref_name }}
@@ -185,6 +187,7 @@ jobs:
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPORT_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           RESULTS="${{ github.workspace }}/testsuite/playwright-results/test-results.json"
           if [[ ! -f "$RESULTS" ]]; then
@@ -203,7 +206,7 @@ jobs:
             ' "$RESULTS")
             STATS=$(jq -r '.stats | to_entries | map("\(.key)\t\(.value)") | .[]' "$RESULTS" | column -t)
             RUN_LINK="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            BRANCH="${{ github.head_ref || github.ref_name }}"
+            BRANCH="$REPORT_BRANCH"
             if [[ "${{ github.event_name }}" == "pull_request" ]]; then
               COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
             else

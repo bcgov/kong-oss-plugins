@@ -1,0 +1,28 @@
+name: Plugin bundle release
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+permissions:
+  contents: read
+concurrency:
+  group: plugin-bundle-releases
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.event.pull_request.merged && github.event.pull_request.head.ref == 'dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Plan release from the merged promotion and its labels
+        run: python3 .github/scripts/release_plan.py
+      - name: Create versioned source bundle, tag and release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/publish_releases.py
