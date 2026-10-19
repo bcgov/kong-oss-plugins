@@ -1,6 +1,0 @@
-{
-  "components": [
-    {"name":"kong-oss-plugins","kind":"source","paths":["plugins/","testsuite/","Dockerfile","Dockerfile.busted"],"context":".","baseline":"1.5.0"}
-  ],
-  "shared_paths": [".github/", "tests/release.sh"]
-}
