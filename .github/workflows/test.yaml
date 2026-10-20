@@ -3,7 +3,7 @@ name: Plugin Tests
 on:
   workflow_dispatch: {}
   push:
-    branches: ["dev", "feature/**"]
+    branches: ["dev"]
   pull_request:
     branches: ["main", "dev", "feature/**"]
 
