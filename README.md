@@ -73,3 +73,15 @@ docker build -f Dockerfile.busted -t kong:busted .
 docker run --rm -v "$(pwd)":/work -w /work/plugins/jwt-keycloak -u root \
   kong:busted sh -c 'luarocks make && busted'
 ```
+
+## Releases
+
+This repository has one release version for all plugins, tagged `vX.Y.Z`. Individual plugins do not receive separate release tags; release notes group changes by plugin and list repository/tooling changes. Existing LuaRocks rockspec versions are preserved.
+
+Feature/dev builds run the existing Busted and integration tests. Feature PRs into dev request squash auto-merge after required checks/reviews. Promote dev to main with a reviewed merge-commit PR and exactly one `release=major`, `release=minor` or `release=patch` label. The release workflow validates the label and, on merge, uses the standard `semver` CLI to increment the latest repository version and `gh release create` to tag the exact merged commit and publish notes. GitHub supplies source archives.
+
+Historical `vX.Y.Z-N` tags remain unchanged; their base version is used when calculating the next stable release. For example, a patch promotion after `v1.5.0-1` produces `v1.5.1`. Retries reuse a stable tag already pointing at the merged commit. Tags are not moved.
+
+The SDX edge image consumes the release tag through `KONG_PLUGINS_REF`, with its resolved commit verified by `KONG_PLUGINS_REVISION`. Update the default dependency through a reviewed aps-devops PR; edge publication then releases its chart.
+
+Promote one PR at a time, and resolve a failed release before the next promotion; GitHub concurrency is not a durable queue. dev and main require reviews and passing tests; squash merges go into dev and merge commits into main.
