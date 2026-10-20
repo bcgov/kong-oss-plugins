@@ -84,4 +84,4 @@ Historical `vX.Y.Z-N` tags remain unchanged; their base version is used when cal
 
 The SDX edge image consumes the release tag through `KONG_PLUGINS_REF`, with its resolved commit verified by `KONG_PLUGINS_REVISION`. Update the default dependency through a reviewed aps-devops PR; edge publication then releases its chart.
 
-Before activation, carry this workflow through the reviewed feature/mtls -> dev migration (dev does not yet exist), confirm the APS Technical Change Management Process, protect dev/main with required reviews/tests, and configure repository auto-merge plus `AUTOMERGE_TOKEN` without bypass rights. Allow squash into dev and merge commits into main. Promote one PR at a time and resolve failed releases before the next promotion; GitHub concurrency is not a durable queue. This draft does not create branches, change settings, merge or publish a release.
+Promote one PR at a time, and resolve a failed release before the next promotion; GitHub concurrency is not a durable queue. dev and main require reviews and passing tests; squash merges go into dev and merge commits into main.
