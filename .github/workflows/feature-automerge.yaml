@@ -1,0 +1,26 @@
+name: Enable feature squash auto-merge
+on:
+  pull_request_target:
+    branches: [dev]
+    types: [opened, reopened, synchronize, ready_for_review]
+permissions:
+  contents: read
+jobs:
+  enable:
+    if: >-
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'feature/')
+    runs-on: ubuntu-latest
+    steps:
+      # Metadata only: never check out or execute PR code with this token.
+      # App/PAT credentials are needed so the eventual merge triggers dev builds.
+      - name: Request squash merge after repository requirements pass
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test -n "$GH_TOKEN" || { echo 'Configure AUTOMERGE_TOKEN and required branch checks/reviews before enabling auto-merge.' >&2; exit 1; }
+          gh pr merge "$PR" --auto --squash --match-head-commit "$HEAD_SHA"
