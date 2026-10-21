@@ -2,71 +2,22 @@
 
 ## Testing
 
-There are various configurations for testing to cover different versions of Keycloak and Kong.
+See [testsuite/README.md](testsuite/README.md) for the full testing guide: running the docker compose stack, executing Playwright and busted tests, spec-driven test generation, and the CI strategy.
 
-### Running
-
-#### Kong 2.x
-
-For `Kong v.2.8.5` and `Keycloak v.15.1.1`, run the following:
+Quickstart (for `Kong v.3.9.1` and `Keycloak v.26.5.3`):
 
 ```sh
 cd testsuite
 
-KONG_VERSION=2.8.5 KC_VERSION=15.1.1 \
+KONG_VERSION=3.9.1 KC_VERSION=26.5.3 \
 docker compose \
   -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml build
-```
-
-```sh
-KONG_VERSION=2.8.5 KC_VERSION=15.1.1 \
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml up
+  -f docker-compose-keycloak.yml \
+  up -d --build
 ```
 
 - Admin: http://localhost:8001
 - Proxy: http://localhost:8000
-
-#### Kong 3.x
-
-For `Kong v.3.9.0` and `Keycloak v.15.1.1`, run the following:
-
-```sh
-cd testsuite
-
-KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml build
-```
-
-```sh
-KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml up
-```
-
-- Admin: http://localhost:8001
-- Proxy: http://localhost:8000
-
-### Playright Tests
-
-```sh
-npm run test:ui
-```
-
-To run the test suite headless, use docker compose:
-
-```sh
-KONG_VERSION=3.9.0 KC_VERSION=15.1.1 \
-docker compose --profile tests \
-  -f docker-compose.yml \
-  -f docker-compose-keycloak-spring.yml up
-
-```
 
 ## Development
 
@@ -108,28 +59,29 @@ done
 ```sh
 docker run -ti --rm \
   --env-file ./local/kong/.env.local.dbless \
-  -p 8007:8007 \
+  -p 8007:8001 \
   --name kong kong:e2e
 ```
 
 ### Running tests with busted
 
-#### jwt-keycloak
+See [testsuite/README.md](testsuite/README.md#running-busted-tests). For a fast local loop, build once then re-run:
 
 ```sh
-docker run -ti --rm --net=host -v `pwd`:/work -w /work \
-  openresty/openresty:focal /bin/bash
+docker build -f Dockerfile.busted -t kong:busted .
 
-apt-get update && apt-get install -y libssl-dev
-
-luarocks install busted
-luarocks install LuaSocket
-luarocks install luasec
-luarocks install kong
-
-luarocks install kong --deps-mode none
-
-luarocks build
-
-busted
+docker run --rm -v "$(pwd)":/work -w /work/plugins/jwt-keycloak -u root \
+  kong:busted sh -c 'luarocks make && busted'
 ```
+
+## Releases
+
+This repository has one release version for all plugins, tagged `vX.Y.Z`. Individual plugins do not receive separate release tags; release notes group changes by plugin and list repository/tooling changes. Existing LuaRocks rockspec versions are preserved.
+
+Feature/dev builds run the existing Busted and integration tests. Feature PRs into dev request squash auto-merge after required checks/reviews. Promote dev to main with a reviewed merge-commit PR and exactly one `release=major`, `release=minor` or `release=patch` label. The release workflow validates the label and, on merge, uses the standard `semver` CLI to increment the latest repository version and `gh release create` to tag the exact merged commit and publish notes. GitHub supplies source archives.
+
+Historical `vX.Y.Z-N` tags remain unchanged; their base version is used when calculating the next stable release. For example, a patch promotion after `v1.5.0-1` produces `v1.5.1`. Retries reuse a stable tag already pointing at the merged commit. Tags are not moved.
+
+The SDX edge image consumes the release tag through `KONG_PLUGINS_REF`, with its resolved commit verified by `KONG_PLUGINS_REVISION`. Update the default dependency through a reviewed aps-devops PR; edge publication then releases its chart.
+
+Promote one PR at a time, and resolve a failed release before the next promotion; GitHub concurrency is not a durable queue. dev and main require reviews and passing tests; squash merges go into dev and merge commits into main.

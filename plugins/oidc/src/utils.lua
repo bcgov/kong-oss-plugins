@@ -60,6 +60,8 @@ function M.get_options(config, ngx)
     validate_scope = config.validate_scope,
     response_type = config.response_type,
     ssl_verify = config.ssl_verify,
+    ssl_client_cert = config.ssl_client_cert,
+    ssl_client_priv_key = config.ssl_client_priv_key,
     use_jwks = config.use_jwks,
     use_pkce = config.use_pkce == "yes",
     use_nonce = config.use_nonce == "yes",

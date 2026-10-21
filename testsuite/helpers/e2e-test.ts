@@ -5,8 +5,7 @@ import {
   Response,
   APIRequestContext,
 } from "@playwright/test";
-import { provisionNewService } from "./kong";
-import { createClient } from "./keycloak";
+import { KONG_PROXY_URL } from "./kong";
 import prepare from "./prepare-client-and-service";
 import logger from "./logger";
 
@@ -46,7 +45,7 @@ export default async function runE2Etest(
   // Use the new client setup to login
   async function do_page(retries: number = 0): Promise<null | Response> {
     const response = await page.goto(
-      `http://kong.localtest.me:8000${routePath}/headers`
+      `${KONG_PROXY_URL}${routePath}/headers`
     );
 
     if (response.status() == 404 && retries < 20) {
@@ -84,7 +83,29 @@ export default async function runE2Etest(
     ? hooks.onLoginSuccess
     : defaultHooks.onLoginSuccess)(response);
 
-  await expect(page).toHaveTitle(/Sign in/);
+  // Keycloak login: prefer the username field over document.title. Title can be
+  // briefly empty (or missing) while redirects settle; a premature 200 from
+  // Kong/upstream also has no "Sign in" title. Retry navigation until the
+  // login form appears.
+  const username = page.locator("input[name=username]");
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await username.waitFor({ state: "visible", timeout: 5_000 });
+      break;
+    } catch (err) {
+      if (attempt >= 19) {
+        const title = await page.title().catch(() => "<unavailable>");
+        throw new Error(
+          `Keycloak login form not visible after ${attempt + 1} attempts ` +
+            `(url=${page.url()} title=${JSON.stringify(title)})`,
+          { cause: err }
+        );
+      }
+      console.warn("Login form not ready, retry attempt", attempt + 1);
+      await page.waitForTimeout(500);
+      await page.goto(`${KONG_PROXY_URL}${routePath}/headers`);
+    }
+  }
 
   await page.locator("input[name=username]").fill("local");
   await page.locator("input[name=password]").fill("local");
@@ -93,7 +114,7 @@ export default async function runE2Etest(
   await expect(page.locator("pre")).toBeInViewport({ timeout: 20000 });
 
   const content = await page.locator("pre").evaluate((el) => el.textContent);
-  logger.debug(content, "pre content from httpbin");
+  logger.debug(content, "pre content from upstream");
   const jsonData = JSON.parse(content);
 
   for (const validator of validators) {
@@ -175,19 +196,18 @@ export const checks: any = {
           AUTH_SESSION_ID:
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
           KC_AUTH_SESSION_HASH:
-            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Strict"}',
+            '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
           KEYCLOAK_IDENTITY:
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":true,"secure":false,"sameSite":"Lax"}',
           KEYCLOAK_SESSION:
             '{"domain":"keycloak.localtest.me","path":"/auth/realms/e2e/","httpOnly":false,"secure":false,"sameSite":"Lax"}',
+          // Redis-backed session: single "session" cookie; SameSite follows plugin config
           session:
             '{"domain":"kong.localtest.me","path":"' +
             cookiePath +
-            '","httpOnly":true,"secure":false,"sameSite":"Lax"}',
-          session_2:
-            '{"domain":"kong.localtest.me","path":"' +
-            cookiePath +
-            '","httpOnly":true,"secure":false,"sameSite":"' + sameSite +'"}',
+            '","httpOnly":true,"secure":false,"sameSite":"' +
+            sameSite +
+            '"}',
         }
       : {
           AUTH_SESSION_ID_LEGACY:
@@ -199,7 +219,9 @@ export const checks: any = {
           session:
             '{"domain":"kong.localtest.me","path":"' +
             cookiePath +
-            '","httpOnly":true,"secure":false,"sameSite":"' + sameSite +'"}',
+            '","httpOnly":true,"secure":false,"sameSite":"' +
+            sameSite +
+            '"}',
         };
 
     for (const cookie of cookies) {

@@ -1,0 +1,242 @@
+# trust-verify-signature Specification
+
+## Purpose
+
+The trust-verify-signature plugin verifies the signed JWT manifest that
+trust-sign attaches to traffic. In the request direction it checks the inbound
+request's signature header before proxying; in the response direction it checks
+the upstream response's signature header before the response reaches the
+client. Verification resolves the issuer's public keys from the JWKS endpoint
+named in the token itself and rejects the exchange with an error status when
+the token is missing, malformed, or does not verify.
+
+## Requirements
+
+### Requirement: Direction gating
+
+**ID**: `trust-verify-signature.direction-gating`
+
+The plugin SHALL verify the inbound request only when `config.direction` is `request`, and the upstream response only when `config.direction` is `response`. With `direction` unset the plugin SHALL perform no verification and modify no headers in either direction.
+
+#### Scenario: Direction unset is a no-op
+
+**ID**: `trust-verify-signature.direction-gating.unset-noop`
+
+- **WHEN** the plugin is configured without `direction` and a request without any signature header is proxied
+- **THEN** the request and response pass through unmodified; no verification headers are added and no error is returned
+
+### Requirement: Request signature verification
+
+**ID**: `trust-verify-signature.request-verification`
+
+With `direction = request`, the plugin SHALL read the inbound request header named by `config.signature_header_key` and verify it as a JWT manifest per the manifest-check and key-discovery requirements. On success the plugin SHALL set the upstream request header `X-Trust-Verify-Signature-Req` to `OK` and forward the original signature header unchanged. On failure the plugin SHALL reject the request with the error status and a JSON body whose `message` field describes the failure, and nothing is proxied upstream.
+
+#### Scenario: Valid token is verified and marked
+
+**ID**: `trust-verify-signature.request-verification.valid-token-verified`
+
+- **WHEN** the inbound request carries, in the configured signature header, a JWT per the interop contract whose `jwks_uri` claim points to a JWKS endpoint serving the public key matching the token's `kid` and signature
+- **THEN** the request is proxied upstream with `X-Trust-Verify-Signature-Req: OK` and the signature header still present with its original value
+
+#### Scenario: Missing signature header is rejected
+
+**ID**: `trust-verify-signature.request-verification.missing-header-401`
+
+- **WHEN** the inbound request has no header named by `config.signature_header_key`
+- **THEN** the client receives status 401 with a JSON body whose `message` is `Missing Signature in <signature_header_key>`
+
+#### Scenario: Unparseable token is rejected
+
+**ID**: `trust-verify-signature.request-verification.unparseable-token-401`
+
+- **WHEN** the configured signature header is present but its value is not a parseable JWT
+- **THEN** the client receives status 401 with a JSON body whose `message` begins with `Bad token`
+
+### Requirement: Response signature verification
+
+**ID**: `trust-verify-signature.response-verification`
+
+With `direction = response`, the plugin SHALL read the upstream response header named by `config.signature_header_key` and verify it as a JWT manifest per the manifest-check and key-discovery requirements, regardless of the upstream response status code. On success the plugin SHALL add the response header `X-Trust-Verify-Signature-Res: OK` and pass the response (including the signature header) through to the client. On failure the plugin SHALL replace the upstream response: the client receives the error status and a JSON body whose `message` field describes the failure instead of the upstream status and body.
+
+#### Scenario: Valid response token is verified and marked
+
+**ID**: `trust-verify-signature.response-verification.valid-token-verified`
+
+- **WHEN** the upstream response carries, in the configured signature header, a JWT per the interop contract that verifies against the JWKS endpoint named in its `jwks_uri` claim
+- **THEN** the client receives the upstream response with `X-Trust-Verify-Signature-Res: OK` added and the signature header still present
+
+#### Scenario: Missing response signature header replaces the response
+
+**ID**: `trust-verify-signature.response-verification.missing-header-401`
+
+- **WHEN** the upstream response has no header named by `config.signature_header_key`
+- **THEN** the client receives status 401 with a JSON body whose `message` is `Missing Signature in <signature_header_key>`, and the upstream body is not delivered
+
+### Requirement: Issuer key discovery and signature verification
+
+**ID**: `trust-verify-signature.key-discovery`
+
+The plugin SHALL resolve verification keys from the JWKS endpoint named by the token's own `jwks_uri` payload claim, but only when that URI is allowed by `config.allowed_jwks_uri_prefix`. A URI is allowed when it equals a configured prefix or continues past it at a `/` boundary (so a prefix of `https://jwks.example.com` allows `https://jwks.example.com/keys.json` but not `https://jwks.example.com.evil/keys.json`). The allowlist check SHALL run before any outbound JWKS fetch. The endpoint must respond with HTTP 200 and a JSON object containing a `keys` array of JWK objects; the verification key is the entry whose `kid` equals the token header's `kid`. The signature SHALL be verified against that JWK using the algorithm named in the token header's `alg`. Fetched JWKS documents SHALL be cached keyed by `jwks_uri` with no TTL. When the cached keyset has no entry for the token's `kid` and the cache entry is older than `config.iss_key_grace_period` seconds, the plugin SHALL invalidate that cache entry, fetch the JWKS once more, and retry verification; if the `kid` is still absent (or the cache is younger than the grace period), the exchange is rejected. Failures reject the exchange with the statuses and `message` values below (in the request direction as a request rejection, in the response direction by replacing the response).
+
+#### Scenario: Missing jwks_uri claim is rejected
+
+**ID**: `trust-verify-signature.key-discovery.missing-jwks-uri-401`
+
+- **WHEN** the token parses but its payload has no `jwks_uri` claim
+- **THEN** the client receives status 401 with `message` = `Signature missing 'jwks_uri' claim`
+
+#### Scenario: Disallowed jwks_uri is rejected before fetch
+
+**ID**: `trust-verify-signature.key-discovery.jwks-uri-not-allowed-401`
+
+- **WHEN** the token's `jwks_uri` does not equal any entry in `config.allowed_jwks_uri_prefix` (or continues past it not at a `/` boundary)
+- **THEN** the client receives status 401 with `message` = `JWKS URI not allowed`, and no JWKS request is made
+
+#### Scenario: Unusable JWKS endpoint is rejected
+
+**ID**: `trust-verify-signature.key-discovery.jwks-fetch-failure-401`
+
+- **WHEN** the token's `jwks_uri` is allowed by `config.allowed_jwks_uri_prefix`, and the endpoint is unreachable, responds with a non-200 status, or returns a body that is not JSON with a `keys` array
+- **THEN** the client receives status 401 with `message` = `Unable to get public keys`
+
+#### Scenario: Unknown kid is rejected
+
+**ID**: `trust-verify-signature.key-discovery.unknown-kid-401`
+
+- **WHEN** the (possibly refreshed) JWKS keyset contains no key whose `kid` equals the token header's `kid`
+- **THEN** the client receives status 401 with `message` = `Signature public key not found`
+
+#### Scenario: Missing kid refreshes keyset after grace period
+
+**ID**: `trust-verify-signature.key-discovery.missing-kid-refreshes-after-grace`
+
+- **WHEN** a cached JWKS for an allowed `jwks_uri` was fetched more than `config.iss_key_grace_period` seconds ago, the token's `kid` is absent from that cache, and a fresh fetch of the same `jwks_uri` returns a keyset that includes that `kid` and verifies the signature
+- **THEN** the plugin invalidates the cache, refetches once, and verification succeeds
+
+#### Scenario: Missing kid does not refresh within grace period
+
+**ID**: `trust-verify-signature.key-discovery.missing-kid-no-refresh-within-grace`
+
+- **WHEN** a cached JWKS for an allowed `jwks_uri` was fetched within `config.iss_key_grace_period` seconds, and the token's `kid` is absent from that cache (even if the live JWKS endpoint would now serve that `kid`)
+- **THEN** the client receives status 401 with `message` = `Signature public key not found`, and no JWKS refetch is performed
+
+#### Scenario: Malformed JWK is rejected
+
+**ID**: `trust-verify-signature.key-discovery.malformed-jwk-401`
+
+- **WHEN** the JWKS entry matching the token's `kid` is not a usable public key (e.g. missing or garbage key material)
+- **THEN** the client receives status 401 with `message` = `Public key format error`
+
+#### Scenario: Signature mismatch is rejected
+
+**ID**: `trust-verify-signature.key-discovery.signature-mismatch-401`
+
+- **WHEN** the JWKS entry matching the token's `kid` is a well-formed public key that does not verify the token's signature
+- **THEN** the client receives status 401 with `message` = `Signature public key mismatch`
+
+#### Scenario: Allowed jwks_uri is used for key discovery
+
+**ID**: `trust-verify-signature.key-discovery.allowed-jwks-uri-used`
+
+- **WHEN** a token's `jwks_uri` matches an entry in `config.allowed_jwks_uri_prefix` (exact or `/`-bounded prefix) and that endpoint serves the public key matching the token's `kid` and signature
+- **THEN** verification succeeds and the exchange is marked verified
+
+#### Scenario: JWKS cache entries are keyed by jwks_uri
+
+**ID**: `trust-verify-signature.key-discovery.jwks-cache-keyed-by-uri`
+
+- **WHEN** a request bearing a token with allowed `jwks_uri` A is verified, and immediately afterwards a second request arrives bearing a token whose allowed `jwks_uri` B serves a matching key for its `kid`, where that `kid` is absent from A's keyset
+- **THEN** the second request is verified against B's keyset and succeeds
+
+### Requirement: Content-digest manifest check
+
+**ID**: `trust-verify-signature.content-digest-check`
+
+When `config.manifest_type` is `content-digest` and `config.direction` is `request`, the plugin SHALL require the token payload to contain a `digest` claim before signature verification is attempted, and reject the exchange when it is absent. When the claim is present, the plugin SHALL compare it to the inbound request's `Content-Digest` header and reject when they differ (including when the header is absent). The check SHALL NOT apply when `direction` is `response` (the producer binds the request digest into request tokens; response tokens echo that claim and do not bind the response `Content-Digest`). When `manifest_type` is `signature-only` or unset, the plugin SHALL perform no manifest-content checks.
+
+#### Scenario: signature-only and unset add no manifest checks
+
+**ID**: `trust-verify-signature.content-digest-check.signature-only-or-unset-no-checks`
+
+- **WHEN** `manifest_type` is `signature-only` or unset and an otherwise-valid token is presented without any `digest` claim
+- **THEN** verification proceeds and succeeds per the key-discovery requirement
+
+#### Scenario: Response direction skips content-digest checks
+
+**ID**: `trust-verify-signature.content-digest-check.response-direction-skips-checks`
+
+- **WHEN** `direction` is `response`, `manifest_type` is `content-digest`, and an otherwise-valid token is presented without a `digest` claim (and regardless of any response `Content-Digest` header)
+- **THEN** no content-digest check is performed; verification proceeds and succeeds per the key-discovery requirement
+
+#### Scenario: Missing digest claim is rejected in content-digest mode
+
+**ID**: `trust-verify-signature.content-digest-check.missing-digest-claim-401`
+
+- **WHEN** `direction` is `request`, `manifest_type` is `content-digest`, and the presented token parses but has no `digest` payload claim (regardless of signature validity)
+- **THEN** the client receives status 401 with `message` = `Signature missing content digest manifest (digest)`, before any key discovery occurs
+
+#### Scenario: Matching Content-Digest is accepted
+
+**ID**: `trust-verify-signature.content-digest-check.matching-content-digest-accepted`
+
+- **WHEN** `direction` is `request`, `manifest_type` is `content-digest`, the token has a `digest` claim, and the inbound request's `Content-Digest` header equals that claim
+- **THEN** the content-digest check passes and verification continues to key discovery
+
+#### Scenario: Mismatched or missing Content-Digest is rejected
+
+**ID**: `trust-verify-signature.content-digest-check.mismatched-content-digest-400`
+
+- **WHEN** `direction` is `request`, `manifest_type` is `content-digest`, the token has a `digest` claim, and the inbound request's `Content-Digest` header is absent or differs from that claim
+- **THEN** the client receives status 400 with `message` = `Content-Digest header does not match signature manifest`, before any key discovery occurs
+
+### Requirement: Configuration schema
+
+**ID**: `trust-verify-signature.configuration-schema`
+
+The plugin SHALL only apply to HTTP(S) traffic and SHALL enforce its config schema:
+
+- `signature_header_key` (string, required, default `"X-Edge-Token"`): name of the header carrying the manifest token
+- `allowed_jwks_uri_prefix` (set of strings, required): URI prefixes that a token's `jwks_uri` must equal or continue past at a `/` boundary before any JWKS fetch; typically a scheme+host and optional path segment provisioned per gateway pattern
+- `direction` (string, optional, one of `request`/`response`)
+- `manifest_type` (string, optional, one of `signature-only`/`content-digest`)
+- `iss_key_grace_period` (number, optional, default `300`): minimum age in seconds of a cached JWKS before a missing-`kid` miss triggers one refetch
+
+#### Scenario: Canonical valid config accepted
+
+**ID**: `trust-verify-signature.configuration-schema.canonical-valid-config`
+
+- **WHEN** a plugin config sets `signature_header_key` = `X-Edge-Token`, `allowed_jwks_uri_prefix` = `{"https://jwks.example.com"}`, `direction` = `request`, and `manifest_type` = `signature-only`
+- **THEN** the configuration is accepted by schema validation
+
+#### Scenario: Enumerated fields enforced
+
+**ID**: `trust-verify-signature.configuration-schema.enumerated-fields`
+
+- **WHEN** a plugin config sets `direction` or `manifest_type` to a value outside its allowed set
+- **THEN** the configuration is rejected by schema validation
+
+#### Scenario: signature_header_key defaults to X-Edge-Token
+
+**ID**: `trust-verify-signature.configuration-schema.signature-header-key-defaults-to-x-edge-token`
+
+- **WHEN** the plugin is configured without an explicit `signature_header_key`
+- **THEN** the schema applies the default `"X-Edge-Token"`, and verification reads the manifest from the `X-Edge-Token` header
+
+#### Scenario: allowed_jwks_uri_prefix is required
+
+**ID**: `trust-verify-signature.configuration-schema.allowed-jwks-uri-prefix-required`
+
+- **WHEN** a plugin config omits `allowed_jwks_uri_prefix`
+- **THEN** the configuration is rejected by schema validation
+
+## Interop / shared contract
+
+The trust-sign spec (`openspec/specs/trust-sign/spec.md`) is the **source of
+truth** for the wire format this plugin consumes. This plugin depends on the
+following subset of that contract:
+
+- **Manifest token**: a JWS compact JWT carried in the header named by `signature_header_key` (default `X-Edge-Token`, matching the producer).
+- **Token header fields consumed**: `kid` (selects the verification key from the JWKS) and `alg` (names the verification algorithm).
+- **Token payload claims consumed**: `jwks_uri` (key discovery, must match `config.allowed_jwks_uri_prefix`); `digest` when `manifest_type` is `content-digest` and `direction` is `request` (compared to the request `Content-Digest` header). The producer's `request_id`, `client_id`, `service_id`, `jti`, and `iat` claims are ignored by this plugin.
+- The producer contract marks `jwks_uri` as optional (omitted when the producer has no `jwks_uri` configured); this plugin rejects such tokens with 401 per the key-discovery requirement, so producers feeding this verifier must configure `jwks_uri`. The verifier's `allowed_jwks_uri_prefix` must cover the producer-configured `jwks_uri` values.
+- **JWKS document** (not part of the producer spec; consumed from the endpoint named by `jwks_uri`): HTTP 200, JSON object with a `keys` array of JWK objects each carrying a `kid` and public key material for the token's `alg`.

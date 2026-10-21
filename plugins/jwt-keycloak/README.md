@@ -68,19 +68,19 @@ Here's a list of all the config parameters which can be used in this plugin's co
 
 `string` | _optional_ | **default** `azp`
 
-> The claim name in the token that the plugin will try to match the kong `id`/`custom_id` against.
+> The claim name in the token that the plugin will try to match the Kong `id`/`username` or `custom_id` against. The claim value must be a non-empty string. When matching is required, missing, blank, or non-string values are rejected with HTTP 401 before a consumer lookup is attempted.
 
 #### consumer_match_claim_custom_id
 
 `boolean` | _optional_ | **default** `false`
 
-> A boolean value that indicates if the plugin should match the `consumer_match_claim` claim against the consumers `id` or `custom_id`. By default it matches the consumer against the `id`.
+> A boolean value that indicates if the plugin should match the `consumer_match_claim` claim against the consumer's `id`/`username` or `custom_id`. By default it matches the consumer against its `id` or `username`.
 
 #### consumer_match_ignore_not_found
 
 `boolean` | _optional_ | **default** `false`
 
-> A boolean value that indicates if the request should be let through regardless if the plugin is able to match the request to a kong consumer or not.
+> A boolean value that indicates if the request should be let through when the match claim is unusable or the plugin cannot find a matching Kong consumer.
 
 #### cookie_names
 

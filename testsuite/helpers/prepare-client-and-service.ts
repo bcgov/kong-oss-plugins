@@ -5,7 +5,7 @@ import {
   Response,
   APIRequestContext,
 } from "@playwright/test";
-import { provisionNewService } from "./kong";
+import { provisionNewService, KONG_ADMIN_URL, KONG_PROXY_URL } from "./kong";
 import { createClient } from "./keycloak";
 import logger from "./logger";
 
@@ -23,7 +23,7 @@ export default async function prepare(
   const iteration = Math.round(Math.random() * 100000000);
   const routePath = await provisionNewService(
     request,
-    "http:///kong.localtest.me:8001",
+    KONG_ADMIN_URL,
     iteration,
     {
       name: plugin,
@@ -33,7 +33,7 @@ export default async function prepare(
   );
 
   logger.debug(
-    { url: `http://kong.localtest.me:8000${routePath}/headers` },
+    { url: `${KONG_PROXY_URL}${routePath}/headers` },
     "new service url"
   );
   return { routePath, clientDetails };

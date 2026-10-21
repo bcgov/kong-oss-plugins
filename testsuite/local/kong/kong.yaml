@@ -1,9 +1,9 @@
 _format_version: "3.0"
 services:
   - name: test-001-oidc
-    host: httpbin.org
-    port: 443
-    protocol: https
+    host: upstream.localtest.me
+    port: 80
+    protocol: http
     routes:
       - name: test-001-oidc
         hosts:
@@ -63,9 +63,9 @@ services:
           validate_scope: "no"
 
   - name: test-002-jwt-keycloak
-    host: httpbin.org
-    port: 443
-    protocol: https
+    host: upstream.localtest.me
+    port: 80
+    protocol: http
     routes:
       - name: test-002-jwt-keycloak
         hosts:
