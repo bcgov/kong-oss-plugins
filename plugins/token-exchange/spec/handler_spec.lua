@@ -115,6 +115,7 @@ describe("token-exchange scope and audience transfer", function()
   local exchange_call
   local exit_call
   local error_logs
+  local info_logs
   local request_headers
   local handler
 
@@ -127,6 +128,7 @@ describe("token-exchange scope and audience transfer", function()
     exchange_call = nil
     exit_call = nil
     error_logs = {}
+    info_logs = {}
     request_headers = {}
 
     for _, name in ipairs({
@@ -189,6 +191,13 @@ describe("token-exchange scope and audience transfer", function()
       },
       log = {
         warn = function() end,
+        info = function(...)
+          local values = {}
+          for i = 1, select("#", ...) do
+            values[i] = tostring(select(i, ...))
+          end
+          table.insert(info_logs, table.concat(values))
+        end,
         err = function(...)
           local values = {}
           for i = 1, select("#", ...) do
@@ -223,20 +232,24 @@ describe("token-exchange scope and audience transfer", function()
   -- [Verifies: token-exchange.scope-transfer.verified-subject-scopes]
   -- [Verifies: token-exchange.audience-transfer.configured-and-original]
   -- [Verifies: token-exchange.audience-transfer.exchange-client-retained]
-  it("passes verified scopes, the target scope, and normalized audiences", function()
+  it("filters verified scopes, appends the target scope, and normalizes audiences", function()
     handler:access({
       client_id = "sdx-client",
       audience = "provider-api",
+      scopes = {"records.read", "records.write"},
       scope_source = "verified_subject_token",
       target_privacy_zone_scope = "urn:ca:bc:gov:provider"
     })
 
     assert.same({
-      "openid",
       "records.read",
       "records.write",
       "urn:ca:bc:gov:provider"
     }, exchange_call.scopes)
+    local scope_filter_log = table.concat(info_logs, "\n")
+    assert.is_truthy(scope_filter_log:find("records.read", 1, true))
+    assert.is_truthy(scope_filter_log:find("records.write", 1, true))
+    assert.is_truthy(scope_filter_log:find("openid", 1, true))
     assert.same({"provider-api", "requesting-client", "sdx-client"}, exchange_call.audiences)
     assert.equals("provider-api", exchange_call.conf.audience)
     assert.equals("Bearer exchanged-token", request_headers.Authorization)
@@ -249,12 +262,12 @@ describe("token-exchange scope and audience transfer", function()
 
     handler:access({
       client_id = "sdx-client",
+      scopes = {"records.read", "records.write"},
       scope_source = "verified_subject_token",
       target_privacy_zone_scope = "urn:ca:bc:gov:provider"
     })
 
     assert.same({
-      "openid",
       "urn:ca:bc:gov:provider",
       "records.read"
     }, exchange_call.scopes)
@@ -281,6 +294,7 @@ describe("token-exchange scope and audience transfer", function()
 
     handler:access({
       client_id = "sdx-client",
+      scopes = {"records.read", "records.write"},
       scope_source = "verified_subject_token"
     })
 
@@ -295,6 +309,7 @@ describe("token-exchange scope and audience transfer", function()
     handler:access({
       client_id = "sdx-client",
       audience = "provider-api",
+      scopes = {"records.read", "records.write"},
       scope_source = "verified_subject_token"
     })
 
@@ -336,6 +351,7 @@ describe("token-exchange scope and audience transfer", function()
       handler:access({
         client_id = "sdx-client",
         audience = "provider-api",
+        scopes = {"records.read", "records.write"},
         scope_source = "verified_subject_token"
       })
 
@@ -351,7 +367,11 @@ describe("token-exchange scope and audience transfer", function()
     for _, audience in ipairs({false, "", "sdx-client"}) do
       exchange_call = nil
       exit_call = nil
-      local conf = {client_id = "sdx-client", scope_source = "verified_subject_token"}
+      local conf = {
+        client_id = "sdx-client",
+        scopes = {"records.read", "records.write"},
+        scope_source = "verified_subject_token"
+      }
       if audience ~= false then
         conf.audience = audience
       end
@@ -363,11 +383,39 @@ describe("token-exchange scope and audience transfer", function()
     end
   end)
 
+  -- [Verifies: token-exchange.scope-transfer.managed-allowlist-required]
+  it("fails closed when the SDX-managed scope allowlist is missing or empty", function()
+    for _, scopes in ipairs({false, {}}) do
+      exchange_call = nil
+      exit_call = nil
+      local conf = {
+        client_id = "sdx-client",
+        scope_source = "verified_subject_token"
+      }
+      if scopes ~= false then
+        conf.scopes = scopes
+      end
+
+      handler:access(conf)
+
+      assert.is_nil(exchange_call)
+      assert.equals(500, exit_call.status)
+      assert.equals("SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR", exit_call.body.error.code)
+      assert.equals(
+        "SDX-managed application scope allowlist is missing or empty",
+        exit_call.reason.detail.configuration_reason
+      )
+    end
+  end)
+
   -- [Verifies: token-exchange.scope-transfer.invalid-subject-scope]
   it("fails closed when verified token context is unavailable", function()
     _G.kong.ctx.shared.jwt_keycloak_token = nil
 
-    handler:access({scopes = {"must.not.fallback"}, scope_source = "verified_subject_token"})
+    handler:access({
+      scopes = {"records.read", "records.write"},
+      scope_source = "verified_subject_token"
+    })
 
     assert.is_nil(exchange_call)
     assert.equals(500, exit_call.status)
@@ -384,7 +432,10 @@ describe("token-exchange scope and audience transfer", function()
         _G.kong.ctx.shared.jwt_keycloak_token.claims.scope = value
       end
 
-      handler:access({scope_source = "verified_subject_token"})
+      handler:access({
+        scopes = {"records.read", "records.write"},
+        scope_source = "verified_subject_token"
+      })
 
       assert.is_nil(exchange_call)
       assert.equals(500, exit_call.status)
@@ -395,13 +446,14 @@ describe("token-exchange scope and audience transfer", function()
 
   it("fails closed when a configured target privacy-zone scope is malformed", function()
     handler:access({
+      scopes = {"records.read", "records.write"},
       scope_source = "verified_subject_token",
       target_privacy_zone_scope = "scope.one scope.two"
     })
 
     assert.is_nil(exchange_call)
     assert.equals(500, exit_call.status)
-    assert.equals("E4", exit_call.body.error.code)
+    assert.equals("SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR", exit_call.body.error.code)
   end)
 
   -- [Verifies: token-exchange.configuration-error.invalid-scope]
@@ -423,6 +475,7 @@ describe("token-exchange scope and audience transfer", function()
     handler:access({
       client_id = "sdx-client",
       audience = "provider-api",
+      scopes = {"records.read", "records.write"},
       scope_source = "verified_subject_token"
     })
 
@@ -434,7 +487,7 @@ describe("token-exchange scope and audience transfer", function()
       exit_call.body.message
     )
     assert.is_nil(exit_call.headers)
-    assert.same({"openid", "records.read", "records.write"}, exit_call.reason.detail.requested_scopes)
+    assert.same({"records.read", "records.write"}, exit_call.reason.detail.requested_scopes)
     assert.equals("provider-api", exit_call.reason.detail.configured_audience)
     assert.same({"provider-api", "requesting-client", "sdx-client"}, exit_call.reason.detail.requested_audiences)
     assert.equals(400, exit_call.reason.detail.idp_status)
@@ -469,6 +522,7 @@ describe("token-exchange scope and audience transfer", function()
     handler:access({
       client_id = "sdx-client",
       audience = "provider-api",
+      scopes = {"records.read", "records.write"},
       scope_source = "verified_subject_token"
     })
 
@@ -492,6 +546,7 @@ describe("token-exchange scope and audience transfer", function()
       handler:access({
         client_id = "sdx-client",
         audience = "provider-api",
+        scopes = {"records.read", "records.write"},
         scope_source = "verified_subject_token"
       })
 

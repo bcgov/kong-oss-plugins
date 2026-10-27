@@ -22,6 +22,22 @@ local function subject_scopes(conf)
     return conf.scopes or {}
   end
 
+  if type(conf.scopes) ~= "table" or #conf.scopes == 0 then
+    return nil,
+      "SDX-managed application scope allowlist is missing or empty",
+      "configuration"
+  end
+
+  local allowed = {}
+  for _, scope in ipairs(conf.scopes) do
+    if type(scope) ~= "string" or scope == "" or scope:find("%s") then
+      return nil,
+        "SDX-managed application scope allowlist contains an invalid OAuth scope",
+        "configuration"
+    end
+    allowed[scope] = true
+  end
+
   local verified_token = kong.ctx.shared.jwt_keycloak_token
   if not verified_token then
     return nil, "verified subject token is unavailable"
@@ -32,25 +48,36 @@ local function subject_scopes(conf)
     return nil, "verified subject token has no string scope claim"
   end
 
-  local scopes = token_exchange.unique_scopes(scope_claim)
-  if #scopes == 0 then
+  local subject_scope_values = token_exchange.unique_scopes(scope_claim)
+  if #subject_scope_values == 0 then
     return nil, "verified subject token has an empty scope claim"
   end
 
   local target_scope = conf.target_privacy_zone_scope
-  if target_scope ~= nil then
-    if type(target_scope) ~= "string" or target_scope == "" or target_scope:find("%s") then
-      return nil, "target privacy-zone scope must contain exactly one non-empty OAuth scope value"
+  if target_scope ~= nil and
+    (type(target_scope) ~= "string" or target_scope == "" or target_scope:find("%s")) then
+    return nil,
+      "target privacy-zone scope must contain exactly one non-empty OAuth scope value",
+      "configuration"
+  end
+
+  local scopes = {}
+  local excluded = {}
+  local selected = {}
+  for _, scope in ipairs(subject_scope_values) do
+    if allowed[scope] or scope == target_scope then
+      table.insert(scopes, scope)
+      selected[scope] = true
+    else
+      table.insert(excluded, scope)
     end
-    for _, scope in ipairs(scopes) do
-      if scope == target_scope then
-        return scopes
-      end
-    end
+  end
+
+  if target_scope ~= nil and not selected[target_scope] then
     table.insert(scopes, target_scope)
   end
 
-  return scopes
+  return scopes, nil, nil, excluded
 end
 
 local function subject_audiences(conf)
@@ -198,9 +225,13 @@ function TokenExchangeHandler:access(conf)
 
   kong.log.warn("Token Exchange")
 
-  local requested_scopes, scope_err = subject_scopes(conf)
+  local requested_scopes, scope_err, scope_error_type, excluded_scopes =
+    subject_scopes(conf)
   if not requested_scopes then
     kong.log.err("Unable to derive token exchange scopes: ", scope_err)
+    if scope_error_type == "configuration" then
+      return configuration_error(conf, {}, {}, nil, scope_err)
+    end
     return log.exit_with_reason(
       {plugin = PLUGIN_NAME, reason = scope_err},
       500,
@@ -209,6 +240,13 @@ function TokenExchangeHandler:access(conf)
         error = {code = "E4"}
       }
     )
+  end
+
+  if conf.scope_source == "verified_subject_token" then
+    kong.log.info("Token exchange scope filter: ", cjson.encode({
+      selected_scopes = requested_scopes,
+      excluded_scopes = excluded_scopes or {}
+    }))
   end
 
   local requested_audiences, _, audience_err, original_audiences = subject_audiences(conf)

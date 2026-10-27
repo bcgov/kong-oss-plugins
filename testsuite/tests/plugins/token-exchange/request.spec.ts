@@ -272,15 +272,17 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     const subjectScopes = tokenScopes(subjectToken);
     expect(subjectScopes.length).toBeGreaterThan(0);
     const targetPrivacyZoneScope = "urn:ca:bc:gov:provider";
-    const expectedScopes = Array.from(
-      new Set([...subjectScopes, targetPrivacyZoneScope])
-    );
+    const managedScopeAllowlist = [
+      subjectScopes[0],
+      "managed.scope.not.in.subject",
+    ];
+    const expectedScopes = [subjectScopes[0], targetPrivacyZoneScope];
 
     const { routePath, routeId } = await provisionPluginRoute(request, {
       prefix: PREFIX,
       config: {
         ...config(id, tokenEndpoint("success")),
-        scopes: ["configured.scope.must.not.be.used"],
+        scopes: managedScopeAllowlist,
         scope_source: "verified_subject_token",
         target_privacy_zone_scope: targetPrivacyZoneScope,
         audience: "provider-resource",
@@ -304,7 +306,49 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     expect(captures.length).toBeGreaterThan(0);
     const capture = captures.at(-1)!;
     expect(capture.form.scope?.split(" ")).toEqual(expectedScopes);
-    expect(capture.form.scope).not.toContain("configured.scope.must.not.be.used");
+    expect(capture.form.scope).not.toContain("managed.scope.not.in.subject");
+    for (const excluded of subjectScopes.slice(1)) {
+      expect(capture.form.scope?.split(" ")).not.toContain(excluded);
+    }
+  });
+
+  // [Verifies: token-exchange.scope-transfer.managed-allowlist-required]
+  test("fails closed when verified-subject scope allowlist is empty", async ({
+    request,
+  }) => {
+    const id = clientId("verified-empty-allowlist");
+    const subjectClient = await createClient(request, {
+      standardFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+      protocolMappers: [audienceMapper("sdx exchange audience", id)],
+    });
+    const subjectToken = await clientLogin(
+      subjectClient.clientId,
+      subjectClient.clientSecret
+    );
+    const { routePath, routeId } = await provisionPluginRoute(request, {
+      prefix: PREFIX,
+      config: {
+        ...config(id, tokenEndpoint("success")),
+        scopes: [],
+        scope_source: "verified_subject_token",
+      },
+    });
+    await addJwtVerification(request, routeId, routePath, id);
+
+    const response = await proxyRequest(request, routePath, {
+      headers: { Authorization: "Bearer " + subjectToken },
+    });
+
+    expect(response.status()).toBe(500);
+    const body = await response.json();
+    expect(body.message).toContain(
+      "The SDX token-exchange client is not configured to complete this request."
+    );
+    expect(body.error).toEqual({
+      code: "SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR",
+    });
+    expect(await capturesForClient(request, id)).toEqual([]);
   });
 
   // [Verifies: token-exchange.scope-transfer.query-token-rejected]
@@ -324,6 +368,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
       prefix: PREFIX,
       config: {
         ...config(id, tokenEndpoint("success")),
+        scopes: tokenScopes(subjectToken),
         scope_source: "verified_subject_token",
       },
     });
@@ -367,6 +412,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
       config: {
         ...config(id, tokenEndpoint("success")),
         audience: configuredAudience,
+        scopes: tokenScopes(subjectToken),
         scope_source: "verified_subject_token",
       },
     });
@@ -410,6 +456,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
       prefix: PREFIX,
       config: {
         ...config(id, tokenEndpoint("success")),
+        scopes: tokenScopes(subjectToken),
         scope_source: "verified_subject_token",
       },
     });
@@ -451,6 +498,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
       config: {
         ...config(id, tokenEndpoint("success")),
         audience: "provider-resource",
+        scopes: tokenScopes(subjectToken),
         scope_source: "verified_subject_token",
       },
     });
