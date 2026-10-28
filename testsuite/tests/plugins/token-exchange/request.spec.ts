@@ -388,17 +388,21 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
   // [Verifies: token-exchange.audience-transfer.configured-and-original]
   // [Verifies: token-exchange.audience-transfer.repeated-parameters]
   // [Verifies: token-exchange.audience-transfer.exchange-client-retained]
+  // [Verifies: token-exchange.audience-transfer.authorized-party-excluded]
   test("merges the configured audience while retaining the SDX client", async ({
     request,
   }) => {
     const id = clientId("verified-subject-audiences");
+    const subjectClientId = clientId("subject-authorized-party");
     const configuredAudience = "provider-resource";
     const optionalAudience = "provider-downstream-client";
     const subjectClient = await createClient(request, {
+      clientId: subjectClientId,
       standardFlowEnabled: false,
       directAccessGrantsEnabled: false,
       protocolMappers: [
         audienceMapper("sdx exchange audience", id),
+        audienceMapper("subject client audience", subjectClientId),
         audienceMapper("configured provider audience", configuredAudience),
         audienceMapper("optional downstream audience", optionalAudience),
       ],
@@ -435,6 +439,7 @@ test.describe("token-exchange — subject extraction and endpoint request", () =
     expect(requestedAudiences).toEqual(
       expect.arrayContaining([configuredAudience, id, optionalAudience])
     );
+    expect(requestedAudiences).not.toContain(subjectClientId);
   });
 
   // [Verifies: token-exchange.audience-transfer.string-audience]

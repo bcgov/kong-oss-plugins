@@ -195,6 +195,12 @@ token and the configured consumer `audience`. The verified subject `aud` SHALL
 be accepted as either a string or an array of non-empty strings. Audience
 values SHALL use exact, case-sensitive comparison.
 
+When the verified subject token has a non-empty string `azp`, the plugin SHALL
+exclude any matching value copied from that token’s `aud` claim. This exclusion
+SHALL NOT prevent the plugin from independently adding `config.client_id` or
+the optional `config.audience`. When `azp` is absent or unusable, the plugin
+SHALL retain the original audiences unchanged.
+
 The verified subject audience SHALL contain `config.client_id`. The plugin
 SHALL retain that SDX exchange client and remove duplicate values. When the
 optional `config.audience` is set to a non-empty string, the plugin SHALL merge
@@ -220,6 +226,17 @@ legacy direct-use behavior by requesting only `config.audience` when set.
 
 - **WHEN** the verified subject `aud` is the string equal to `config.client_id` and `config.audience` is not set
 - **THEN** the exchange request contains only `[config.client_id]`
+
+#### Scenario: Original authorized-party audience is excluded
+
+**ID**: `token-exchange.audience-transfer.authorized-party-excluded`
+
+- **WHEN** the verified subject `azp` is `requesting-client` and its `aud` contains `[requesting-client, sdx-client, optional-client]`
+- **THEN** the exchange request excludes the original `requesting-client` audience and retains `sdx-client` and `optional-client`
+- **AND WHEN** `config.client_id` or `config.audience` equals `azp`
+- **THEN** that explicitly required or configured audience remains in the exchange request
+- **AND WHEN** `azp` is absent or unusable
+- **THEN** the original audiences are retained unchanged
 
 #### Scenario: SDX exchange client is retained for a subsequent exchange
 

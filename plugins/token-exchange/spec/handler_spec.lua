@@ -184,6 +184,7 @@ describe("token-exchange scope and audience transfer", function()
           jwt_keycloak_token = {
             claims = {
               scope = "openid records.read records.write records.read",
+              azp = "requesting-client",
               aud = {"requesting-client", "sdx-client", "provider-api", "sdx-client", "requesting-client"}
             }
           }
@@ -232,6 +233,7 @@ describe("token-exchange scope and audience transfer", function()
   -- [Verifies: token-exchange.scope-transfer.verified-subject-scopes]
   -- [Verifies: token-exchange.audience-transfer.configured-and-original]
   -- [Verifies: token-exchange.audience-transfer.exchange-client-retained]
+  -- [Verifies: token-exchange.audience-transfer.authorized-party-excluded]
   it("filters verified scopes, appends the target scope, and normalizes audiences", function()
     handler:access({
       client_id = "sdx-client",
@@ -250,9 +252,51 @@ describe("token-exchange scope and audience transfer", function()
     assert.is_truthy(scope_filter_log:find("records.read", 1, true))
     assert.is_truthy(scope_filter_log:find("records.write", 1, true))
     assert.is_truthy(scope_filter_log:find("openid", 1, true))
-    assert.same({"provider-api", "requesting-client", "sdx-client"}, exchange_call.audiences)
+    assert.same({"provider-api", "sdx-client"}, exchange_call.audiences)
     assert.equals("provider-api", exchange_call.conf.audience)
     assert.equals("Bearer exchanged-token", request_headers.Authorization)
+    assert.is_nil(exit_call)
+  end)
+
+  it("excludes azp only from original audiences and preserves explicit audiences", function()
+    _G.kong.ctx.shared.jwt_keycloak_token.claims.aud = {"requesting-client", "sdx-client"}
+
+    handler:access({
+      client_id = "sdx-client",
+      audience = "requesting-client",
+      scopes = {"records.read", "records.write"},
+      scope_source = "verified_subject_token"
+    })
+
+    assert.same({"requesting-client", "sdx-client"}, exchange_call.audiences)
+    assert.is_nil(exit_call)
+  end)
+
+  it("retains the required exchange client when it also equals azp", function()
+    _G.kong.ctx.shared.jwt_keycloak_token.claims.azp = "sdx-client"
+    _G.kong.ctx.shared.jwt_keycloak_token.claims.aud = {"sdx-client", "optional-provider"}
+
+    handler:access({
+      client_id = "sdx-client",
+      scopes = {"records.read", "records.write"},
+      scope_source = "verified_subject_token"
+    })
+
+    assert.same({"optional-provider", "sdx-client"}, exchange_call.audiences)
+    assert.is_nil(exit_call)
+  end)
+
+  it("preserves original audiences when the subject token has no usable azp", function()
+    _G.kong.ctx.shared.jwt_keycloak_token.claims.azp = nil
+    _G.kong.ctx.shared.jwt_keycloak_token.claims.aud = {"requesting-client", "sdx-client"}
+
+    handler:access({
+      client_id = "sdx-client",
+      scopes = {"records.read", "records.write"},
+      scope_source = "verified_subject_token"
+    })
+
+    assert.same({"requesting-client", "sdx-client"}, exchange_call.audiences)
     assert.is_nil(exit_call)
   end)
 
@@ -489,7 +533,7 @@ describe("token-exchange scope and audience transfer", function()
     assert.is_nil(exit_call.headers)
     assert.same({"records.read", "records.write"}, exit_call.reason.detail.requested_scopes)
     assert.equals("provider-api", exit_call.reason.detail.configured_audience)
-    assert.same({"provider-api", "requesting-client", "sdx-client"}, exit_call.reason.detail.requested_audiences)
+    assert.same({"provider-api", "sdx-client"}, exit_call.reason.detail.requested_audiences)
     assert.equals(400, exit_call.reason.detail.idp_status)
     assert.equals("invalid_scope", exit_call.reason.detail.idp_error)
     assert.is_nil(exit_call.reason.detail.request_id)

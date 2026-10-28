@@ -91,6 +91,10 @@ local function subject_audiences(conf)
   end
 
   local audience_claim = verified_token.claims and verified_token.claims.aud
+  local authorized_party = verified_token.claims and verified_token.claims.azp
+  if type(authorized_party) ~= "string" or authorized_party == "" then
+    authorized_party = nil
+  end
   local original_audiences = {}
   if type(audience_claim) == "string" then
     original_audiences[1] = audience_claim
@@ -112,7 +116,11 @@ local function subject_audiences(conf)
     if audience == conf.client_id then
       exchange_client_present = true
     end
-    if not seen[audience] then
+    -- The subject token authorized party identifies the client that obtained
+    -- the token, not a downstream resource. Exclude that value only when it
+    -- came from the original audience claim. Required and configured
+    -- audiences are added independently below.
+    if audience ~= authorized_party and not seen[audience] then
       table.insert(normalized, audience)
       seen[audience] = true
     end
@@ -120,6 +128,10 @@ local function subject_audiences(conf)
 
   if not exchange_client_present then
     return nil, "authorization", "verified subject token audience does not authorize the SDX exchange client", original_audiences
+  end
+  if not seen[conf.client_id] then
+    table.insert(normalized, conf.client_id)
+    seen[conf.client_id] = true
   end
   if type(conf.audience) == "string" and conf.audience ~= "" then
     if not seen[conf.audience] then
