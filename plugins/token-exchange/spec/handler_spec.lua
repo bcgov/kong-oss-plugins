@@ -115,7 +115,7 @@ describe("token-exchange scope and audience transfer", function()
   local exchange_call
   local exit_call
   local error_logs
-  local info_logs
+  local notice_logs
   local request_headers
   local handler
 
@@ -128,7 +128,7 @@ describe("token-exchange scope and audience transfer", function()
     exchange_call = nil
     exit_call = nil
     error_logs = {}
-    info_logs = {}
+    notice_logs = {}
     request_headers = {}
 
     for _, name in ipairs({
@@ -192,12 +192,12 @@ describe("token-exchange scope and audience transfer", function()
       },
       log = {
         warn = function() end,
-        info = function(...)
+        notice = function(...)
           local values = {}
           for i = 1, select("#", ...) do
             values[i] = tostring(select(i, ...))
           end
-          table.insert(info_logs, table.concat(values))
+          table.insert(notice_logs, table.concat(values))
         end,
         err = function(...)
           local values = {}
@@ -231,7 +231,7 @@ describe("token-exchange scope and audience transfer", function()
   end)
 
   -- [Verifies: token-exchange.scope-transfer.verified-subject-scopes]
-  -- [Verifies: token-exchange.audience-transfer.configured-and-original]
+  -- [Verifies: token-exchange.scope-transfer.target-privacy-zone-scope]
   -- [Verifies: token-exchange.audience-transfer.exchange-client-retained]
   -- [Verifies: token-exchange.audience-transfer.authorized-party-excluded]
   it("filters verified scopes, appends the target scope, and normalizes audiences", function()
@@ -248,7 +248,7 @@ describe("token-exchange scope and audience transfer", function()
       "records.write",
       "urn:ca:bc:gov:provider"
     }, exchange_call.scopes)
-    local scope_filter_log = table.concat(info_logs, "\n")
+    local scope_filter_log = table.concat(notice_logs, "\n")
     assert.is_truthy(scope_filter_log:find("records.read", 1, true))
     assert.is_truthy(scope_filter_log:find("records.write", 1, true))
     assert.is_truthy(scope_filter_log:find("openid", 1, true))
@@ -258,6 +258,7 @@ describe("token-exchange scope and audience transfer", function()
     assert.is_nil(exit_call)
   end)
 
+  -- [Verifies: token-exchange.audience-transfer.configured-authorized-party-retained]
   it("excludes azp only from original audiences and preserves explicit audiences", function()
     _G.kong.ctx.shared.jwt_keycloak_token.claims.aud = {"requesting-client", "sdx-client"}
 
@@ -272,6 +273,7 @@ describe("token-exchange scope and audience transfer", function()
     assert.is_nil(exit_call)
   end)
 
+  -- [Verifies: token-exchange.audience-transfer.exchange-client-authorized-party-retained]
   it("retains the required exchange client when it also equals azp", function()
     _G.kong.ctx.shared.jwt_keycloak_token.claims.azp = "sdx-client"
     _G.kong.ctx.shared.jwt_keycloak_token.claims.aud = {"sdx-client", "optional-provider"}
@@ -286,20 +288,34 @@ describe("token-exchange scope and audience transfer", function()
     assert.is_nil(exit_call)
   end)
 
+  -- [Verifies: token-exchange.audience-transfer.configured-and-original]
+  -- [Verifies: token-exchange.audience-transfer.missing-authorized-party]
   it("preserves original audiences when the subject token has no usable azp", function()
     _G.kong.ctx.shared.jwt_keycloak_token.claims.azp = nil
-    _G.kong.ctx.shared.jwt_keycloak_token.claims.aud = {"requesting-client", "sdx-client"}
+    _G.kong.ctx.shared.jwt_keycloak_token.claims.aud = {
+      "requesting-client",
+      "sdx-client",
+      "optional-provider",
+      "requesting-client"
+    }
 
     handler:access({
       client_id = "sdx-client",
+      audience = "provider-api",
       scopes = {"records.read", "records.write"},
       scope_source = "verified_subject_token"
     })
 
-    assert.same({"requesting-client", "sdx-client"}, exchange_call.audiences)
+    assert.same({
+      "provider-api",
+      "requesting-client",
+      "sdx-client",
+      "optional-provider"
+    }, exchange_call.audiences)
     assert.is_nil(exit_call)
   end)
 
+  -- [Verifies: token-exchange.scope-transfer.target-privacy-zone-scope]
   it("deduplicates the target privacy-zone scope already present in the subject token", function()
     _G.kong.ctx.shared.jwt_keycloak_token.claims.scope =
       "openid urn:ca:bc:gov:provider records.read urn:ca:bc:gov:provider"
@@ -450,6 +466,25 @@ describe("token-exchange scope and audience transfer", function()
         exit_call.reason.detail.configuration_reason
       )
     end
+  end)
+
+  -- [Verifies: token-exchange.scope-transfer.no-permitted-scopes]
+  it("fails closed when no subject scopes are permitted and no target scope is configured", function()
+    _G.kong.ctx.shared.jwt_keycloak_token.claims.scope = "openid profile email"
+
+    handler:access({
+      client_id = "sdx-client",
+      scopes = {"records.read", "records.write"},
+      scope_source = "verified_subject_token"
+    })
+
+    assert.is_nil(exchange_call)
+    assert.equals(500, exit_call.status)
+    assert.equals("E4", exit_call.body.error.code)
+    assert.equals(
+      "verified subject token contains no SDX-managed application scopes",
+      exit_call.reason.reason
+    )
   end)
 
   -- [Verifies: token-exchange.scope-transfer.invalid-subject-scope]

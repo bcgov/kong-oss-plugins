@@ -77,6 +77,10 @@ local function subject_scopes(conf)
     table.insert(scopes, target_scope)
   end
 
+  if #scopes == 0 then
+    return nil, "verified subject token contains no SDX-managed application scopes"
+  end
+
   return scopes, nil, nil, excluded
 end
 
@@ -255,7 +259,7 @@ function TokenExchangeHandler:access(conf)
   end
 
   if conf.scope_source == "verified_subject_token" then
-    kong.log.info("Token exchange scope filter: ", cjson.encode({
+    kong.log.notice("Token exchange scope filter: ", cjson.encode({
       selected_scopes = requested_scopes,
       excluded_scopes = excluded_scopes or {}
     }))

@@ -217,7 +217,7 @@ legacy direct-use behavior by requesting only `config.audience` when set.
 
 **ID**: `token-exchange.audience-transfer.configured-and-original`
 
-- **WHEN** `config.client_id = sdx-client`, `config.audience = provider-resource`, and the verified subject `aud` is `[requesting-client, sdx-client, provider-resource, optional-client, requesting-client]`
+- **WHEN** `config.client_id = sdx-client`, `config.audience = provider-resource`, the verified subject `aud` is `[requesting-client, sdx-client, optional-client, requesting-client]`, and `azp` is absent
 - **THEN** the exchange request contains `provider-resource`, `requesting-client`, `sdx-client`, and `optional-client` exactly once each, encoded as separate `audience` parameters
 
 #### Scenario: A string subject audience authorizes exchange
@@ -233,9 +233,26 @@ legacy direct-use behavior by requesting only `config.audience` when set.
 
 - **WHEN** the verified subject `azp` is `requesting-client` and its `aud` contains `[requesting-client, sdx-client, optional-client]`
 - **THEN** the exchange request excludes the original `requesting-client` audience and retains `sdx-client` and `optional-client`
-- **AND WHEN** `config.client_id` or `config.audience` equals `azp`
+
+#### Scenario: Configured authorized-party audience is retained
+
+**ID**: `token-exchange.audience-transfer.configured-authorized-party-retained`
+
+- **WHEN** the verified subject `azp` is `requesting-client`, its `aud` contains `[requesting-client, sdx-client]`, and `config.audience` is `requesting-client`
 - **THEN** that explicitly required or configured audience remains in the exchange request
-- **AND WHEN** `azp` is absent or unusable
+
+#### Scenario: Exchange client authorized party is retained
+
+**ID**: `token-exchange.audience-transfer.exchange-client-authorized-party-retained`
+
+- **WHEN** the verified subject `azp` and `config.client_id` are both `sdx-client` and its `aud` contains `[sdx-client, optional-client]`
+- **THEN** the exchange request retains `sdx-client` exactly once and retains `optional-client`
+
+#### Scenario: Missing authorized party preserves original audiences
+
+**ID**: `token-exchange.audience-transfer.missing-authorized-party`
+
+- **WHEN** `azp` is absent or unusable
 - **THEN** the original audiences are retained unchanged
 
 #### Scenario: SDX exchange client is retained for a subsequent exchange
@@ -334,8 +351,12 @@ defaults to 10,000 milliseconds when omitted. Unit tests MAY call
 When `scope_source = verified_subject_token`, the plugin SHALL obtain scopes
 only from the `scope` claim in `kong.ctx.shared.jwt_keycloak_token`, split the
 string on whitespace, remove duplicates while retaining first-seen order, and
-send that list in the token-exchange request. It SHALL NOT fall back to
-`config.scopes` when verified-token context is missing or invalid.
+intersect that list with the SDX-managed application-scope allowlist in
+`config.scopes`. It SHALL send only the resulting scopes in the token-exchange
+request and SHALL NOT fall back to unfiltered subject scopes or configured
+scopes when verified-token context is missing or invalid. The allowlist SHALL
+be non-empty and contain only valid OAuth scope values; otherwise the request
+SHALL fail as a configuration error before calling the token endpoint.
 
 When `target_privacy_zone_scope` is set in verified-subject-token mode,
 the plugin SHALL append that administrator-provisioned scope after the verified
@@ -343,6 +364,10 @@ subject scopes and de-duplicate the complete outgoing set. It SHALL ignore this
 field in configured-scope mode so the meaning of `config.scopes` does not
 change. The field is supplied by trusted control-plane configuration, never by
 the calling consumer.
+
+If no allowlisted subject scope or configured target privacy-zone scope remains,
+the plugin SHALL fail closed before calling the token endpoint. For successful
+filtering, it SHALL log the selected and excluded scope names at `notice` level.
 
 When a successful token response omits `scope`, the plugin SHALL treat the
 granted scope set as identical to the requested set. When the response includes
@@ -352,15 +377,29 @@ a different scope set, the plugin SHALL log a warning and continue.
 
 **ID**: `token-exchange.scope-transfer.verified-subject-scopes`
 
-- **WHEN** verified-token context has a non-empty string `scope` claim with duplicate values
-- **THEN** each verified subject scope is sent once and configured scopes are not sent
+- **WHEN** verified-token context has a non-empty string `scope` claim containing duplicate, allowlisted, and non-allowlisted values
+- **THEN** each allowlisted subject scope is sent once in subject-token order and every non-allowlisted scope is excluded
 
 #### Scenario: Target provider privacy-zone scope is composed once
 
 **ID**: `token-exchange.scope-transfer.target-privacy-zone-scope`
 
 - **WHEN** verified subject scopes are valid and `target_privacy_zone_scope` is provisioned
-- **THEN** the exchange request contains the verified subject scopes plus exactly one instance of the target privacy-zone scope, without configured fallback scopes
+- **THEN** the exchange request contains the allowlisted verified subject scopes plus exactly one instance of the target privacy-zone scope, without non-allowlisted or configured fallback scopes
+
+#### Scenario: SDX-managed scope allowlist is required
+
+**ID**: `token-exchange.scope-transfer.managed-allowlist-required`
+
+- **WHEN** `scope_source = verified_subject_token` and `config.scopes` is missing, empty, or contains an invalid OAuth scope value
+- **THEN** no token-endpoint request is made and the client receives status 500 with `error.code = "SDX_TOKEN_EXCHANGE_CONFIGURATION_ERROR"`
+
+#### Scenario: Empty filtered scope set fails closed
+
+**ID**: `token-exchange.scope-transfer.no-permitted-scopes`
+
+- **WHEN** no verified subject scope is in the managed allowlist and `target_privacy_zone_scope` is not configured
+- **THEN** no token-endpoint request is made and the client receives status 500 with `error.code = "E4"`
 
 #### Scenario: Configured-scope behavior is unchanged
 
