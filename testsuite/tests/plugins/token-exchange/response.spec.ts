@@ -246,7 +246,7 @@ test.describe("token-exchange — successful and failed exchanges", () => {
           })
         ),
         audience: "provider-api-secret",
-        scopes: ["configured.scope.must.not.be.used"],
+        scopes: tokenScopes(subjectToken),
         scope_source: "verified_subject_token",
       },
     });
