@@ -1,3 +1,4 @@
+import { KONG_ADMIN_URL, provisionKong } from "../../../helpers/kong";
 import { test, expect } from "@playwright/test";
 import {
   provisionPluginRoute,
@@ -104,4 +105,24 @@ test.describe("trust-verify-signature — response verification", () => {
       message: "Missing Signature in X-Edge-Token",
     });
   });
+  test("preserves a local authentication rejection without requiring a provider signature", async ({ request }) => {
+    const { routePath, routeId } = await provisionPluginRoute(request, {
+      prefix: PREFIX,
+      config: { signature_header_key: "X-Edge-Token", allowed_jwks_uri_prefix: [RSA_JWKS_URL], direction: "response" },
+    });
+    const message = 'JWT authentication rejected: Token claims invalid: ["exp"]="token expired"';
+    // Reproduce the access-phase exit used by jwt-keycloak, with a deterministic
+    // rejection independent of issuer availability and token clock skew.
+    await provisionKong(request, `${KONG_ADMIN_URL}/plugins`, {
+      name: "request-termination", route: { id: routeId },
+      config: { status_code: 401, message },
+    });
+    await expect(async () => {
+      const res = await proxyGet(request, routePath);
+      expect(res.status()).toBe(401);
+      expect(await res.json()).toEqual({ message });
+      expect(res.headers()["x-trust-verify-signature-res"]).toBeUndefined();
+    }).toPass({ timeout: 30_000 });
+  });
+
 });

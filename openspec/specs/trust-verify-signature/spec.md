@@ -240,3 +240,9 @@ following subset of that contract:
 - **Token payload claims consumed**: `jwks_uri` (key discovery, must match `config.allowed_jwks_uri_prefix`); `digest` when `manifest_type` is `content-digest` and `direction` is `request` (compared to the request `Content-Digest` header). The producer's `request_id`, `client_id`, `service_id`, `jti`, and `iat` claims are ignored by this plugin.
 - The producer contract marks `jwks_uri` as optional (omitted when the producer has no `jwks_uri` configured); this plugin rejects such tokens with 401 per the key-discovery requirement, so producers feeding this verifier must configure `jwks_uri`. The verifier's `allowed_jwks_uri_prefix` must cover the producer-configured `jwks_uri` values.
 - **JWKS document** (not part of the producer spec; consumed from the endpoint named by `jwks_uri`): HTTP 200, JSON object with a `keys` array of JWK objects each carrying a `kid` and public key material for the token's `alg`.
+
+### Local responses
+Response signature verification applies only when `kong.response.get_source()`
+is `service`. Local plugin exits (including expired JWT rejection) and gateway
+errors retain their original status and body. All upstream responses, including
+non-2xx responses, continue to require a valid signature.
