@@ -135,7 +135,15 @@ function M.sign(conf, input, hash_alg)
 end
 
 function M.verify(conf, signature, input, hash_alg)
-  local kong_public_key = get_kong_key("trust-sign-pubkey", get_public_key_location(conf))
+  local public_key_location = get_public_key_location(conf)
+  if not public_key_location or public_key_location == "" then
+    return nil, "Public key location is not configured"
+  end
+
+  local kong_public_key = get_kong_key("trust-sign-pubkey", public_key_location)
+  if not kong_public_key or kong_public_key == "" then
+    return nil, "Public key not found"
+  end
 
   kong.log.warn("Verifying with hash algorithm: ", hash_alg)
   kong.log.warn("Verifying with key: ", get_public_key_location(conf))
@@ -145,11 +153,15 @@ function M.verify(conf, signature, input, hash_alg)
 
   local cert,
     err = x509.new(kong_public_key, "PEM")
+  if not cert then
+    return nil, "Failed to load public key certificate: " .. tostring(err)
+  end
+
   local pk,
     err = cert:get_pubkey()
-  if err then
+  if not pk then
     kong.log.err("Failed to create public key object: ", err)
-    return nil
+    return nil, "Failed to create public key object: " .. tostring(err)
   end
 
   local ok,
