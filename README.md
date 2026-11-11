@@ -19,6 +19,10 @@ docker compose \
 - Admin: http://localhost:8001
 - Proxy: http://localhost:8000
 
+## Specifications
+
+Plugin behavioral contracts live in `openspec/specs/<plugin>/spec.md`. See the [trust-registry alignment decision](docs/adr/0001-trust-registry-openspec-alignment.md) for the implementation baseline and the OpenSpec workflow choice.
+
 ## Development
 
 If you are using Visual Studio Code, we recommend you install the `vscode-lua` extension.
