@@ -262,7 +262,10 @@ end
 
 -- Normalize AWS public-key material to the same contract as the local backend.
 local function get_signing_key(conf)
-  local result = get_public_key(conf.key_id)
+  if type(conf.aws_alias) ~= "string" or conf.aws_alias == "" then
+    return nil, "AWS alias is not configured"
+  end
+  local result = get_public_key(conf.aws_alias)
   if not result or result.status ~= 200 or not result.body then
     return nil, "Failed to get public key from AWS KMS"
   end

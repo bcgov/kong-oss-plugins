@@ -101,7 +101,7 @@ curl -X POST http://localhost:8001/services/{service}/plugins \
   --data "config.operation=sign" \
   --data "config.backend=aws" \
   --data "config.keyset_name=entity-signing-keys" \
-  --data "config.key_id=arn:aws:kms:ca-central-1:111122223333:key/abcd-..." \
+  --data "config.aws_alias=alias/entity-signing" \
   --data "config.signature_algorithm=ECDSA_SHA_512" \
   --data "config.signature_header_key=Authorization"
 ```
@@ -116,7 +116,7 @@ plugins:
       operation: sign
       backend: aws
       keyset_name: entity-signing-keys
-      key_id: "arn:aws:kms:ca-central-1:111122223333:key/abcd-..."
+      aws_alias: "alias/entity-signing"
       signature_algorithm: ECDSA_SHA_512
       signature_header_key: Authorization
 ```
@@ -132,7 +132,7 @@ plugins:
 | `config.direction`            | string |                 | false    | When `sign` is the operation, controls whether the counter-signature is applied to the `request` or the `response`. Ignored for `create_key`.          |
 | `config.backend`              | string | `local`         | false    | KMS backend to use. One of `local`, `aws`.                                                                                                             |
 | `config.operation`            | string | `create_key`    | true     | Operation to perform. One of `create_key`, `sign`, `verify`. (`verify` is reserved — see Changelog.)                                                   |
-| `config.key_id`               | string |                 | false    | KMS key identifier (ARN, key id, or alias) used for `sign`. Not required for `create_key` (a new key is created) or for the `local` backend.           |
+| `config.aws_alias`            | string |                 | AWS sign | AWS KMS alias name (`alias/entity-signing`) or alias ARN. Each plugin configuration selects its own alias. Ignored by local signing; not required for key creation. |
 | `config.keyset_name`          | string |                 | sign | Kong key set containing exactly one matching public key with a `kid`. |
 | `config.private_key_location` | string |                 | local sign | Private-key file path, unless `KONG_SIGNING_CERT_KEY` is set (takes precedence). |
 | `config.signature_algorithm`  | string | `ECDSA_SHA_512` | false    | KMS signing algorithm. One of `RSASSA_PSS_SHA_256`, `RSASSA_PSS_SHA_384`, `RSASSA_PSS_SHA_512`, `ECDSA_SHA_256`, `ECDSA_SHA_384`, `ECDSA_SHA_512`.     |
@@ -171,7 +171,9 @@ The response contains:
 }
 ```
 
-The CSR can be submitted to a CA. The `key_id` is the value to plug into `config.key_id` for subsequent `sign` operations.
+The CSR can be submitted to a CA. For subsequent AWS signing operations, set
+`config.aws_alias` to an alias pointing to the returned `key_id`. The key-creation
+response retains `key_id`; AWS API calls also continue using their `KeyId` field.
 
 ### Counter-sign a request
 
@@ -188,6 +190,10 @@ to the request sent upstream.
 With `direction=response` and `operation=sign`, the same logic runs in the response buffered `response` phase against the upstream's response header, setting `X-Entity-Sig` on the response returned to the client.
 
 ## AWS public-key registration
+
+`config.key_id` has been removed. Migrate existing AWS signing configurations to
+`config.aws_alias`; if they previously used a key ID or key ARN, create or select
+an alias pointing to that key.
 
 For `backend=aws`, `get_signing_key` calls the existing `GetPublicKey` API,
 requires HTTP 200, validates `KeyUsage=SIGN_VERIFY`, and confirms the configured

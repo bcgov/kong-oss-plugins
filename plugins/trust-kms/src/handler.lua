@@ -75,7 +75,6 @@ function TrustKMSHandler:access(conf)
 
   if conf.direction == "request" and operation == "sign" then
     local request = kong.service.request
-    local key_id = conf.key_id
 
     local edge_token = kong.request.get_header(conf.signature_header_key)
     if not edge_token or edge_token == nil then
@@ -112,8 +111,7 @@ function TrustKMSHandler:access(conf)
 
   -- if conf.direction == "request" and operation == "verify" then
   --   local request = kong.service.request
-  --   local key_id = conf.key_id
-
+  --
   --   local signature = kong.request.get_header("X-Entity-Sig")
   --   if signature == nil then
   --     return kong.response.exit(400, {message = "X-Entity-Sig header not present"})
@@ -384,8 +382,7 @@ function TrustKMSHandler:response(conf)
   end
 
   -- if operation == "verify" then
-  --   local key_id = conf.key_id
-
+  --
   --   local edge_token = kong.response.get_header(conf.signature_header_key)
   --   if not edge_token then
   --     kong.log.warn("Missing edge token for verification", conf.signature_header_key)
@@ -414,7 +411,6 @@ function TrustKMSHandler:response(conf)
 end
 
 function do_counter_sign_work(conf, edge_token)
-  local key_id = conf.key_id
   local kms_signature_algorithm = conf.signature_algorithm
 
   -- split edge_token into parts and take the 3rd part
@@ -450,7 +446,6 @@ function do_counter_sign_work(conf, edge_token)
     local signature_raw,
       error = filter.sign(conf, tok_signature, hash_alg, key.private_key)
 
-    -- local signature_raw = kms_local.sign(key_id, tok_signature, kms_signature_algorithm)
     if signature_raw == nil then
       return nil, "Failed to get signature" .. (error or "")
     end

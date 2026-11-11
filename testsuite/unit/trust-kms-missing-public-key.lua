@@ -58,7 +58,8 @@ stub("ltn12")
 stub("resty.aws.config", { global = {} })
 stub("resty.aws", function()
   return { KMS = function() return {
-    getPublicKey = function()
+    getPublicKey = function(_, request)
+      assert(request.KeyId == "alias/signing", "must look up the configured alias")
       assert(not in_response, "AWS public-key lookup must run in access")
       return { status = aws_status, body = aws_body }
     end,
@@ -126,7 +127,7 @@ for _, direction in ipairs({ "request", "response" }) do
     kong.ctx.shared = {}
     kong.ctx.plugin = {}
     local conf = { operation = "sign", backend = case.backend or "local", direction = direction,
-      signature_header_key = "X-Edge-Token", keyset_name = "entity-keys", private_key_location = "/ignored.key", key_id = "alias/signing", signature_algorithm = algorithm }
+      signature_header_key = "X-Edge-Token", keyset_name = "entity-keys", private_key_location = "/ignored.key", aws_alias = "alias/signing", signature_algorithm = algorithm }
     if case.no_config then conf.keyset_name = nil end
     handler:access(conf)
     if direction == "response" and not response then
