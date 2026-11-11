@@ -21,6 +21,18 @@ local PLUGIN_NAME = "trust-kms"
 
 local kong = kong
 
+local function registered_signing_key(conf)
+  local backend = conf.backend == "aws" and kms_aws or kms_local
+  local key, err = backend.get_signing_key(conf)
+  if not key then return nil, err end
+  local kid, kid_err = jwk_sign.resolve_public_kid(conf, key.public_key)
+  if not kid then
+    return nil, "Signing key is not uniquely registered: " .. tostring(kid_err)
+  end
+  key.kid = kid
+  return key
+end
+
 local function get_ids_from_service()
   local svc = kong.router.get_service()
   -- split svc tags by ":" and find the tags for client and service
@@ -47,6 +59,19 @@ local TrustKMSHandler = {
 function TrustKMSHandler:access(conf)
   local operation = conf.operation
   local kms_signature_algorithm = conf.signature_algorithm
+
+  if conf.direction == "response" and operation == "sign" then
+    -- Resolve registration before proxying, retaining the exact key for the response.
+    local key, err = registered_signing_key(conf)
+    if not key then
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "counter-sign failed: " .. err},
+        500,
+        {message = "Failed to counter-sign: " .. err}
+      )
+    end
+    kong.ctx.plugin.signing_key = key
+  end
 
   if conf.direction == "request" and operation == "sign" then
     local request = kong.service.request
@@ -310,7 +335,8 @@ function TrustKMSHandler:access(conf)
   end
 end
 
-function TrustKMSHandler:header_filter(conf)
+-- The buffered response phase permits AWS KMS network I/O.
+function TrustKMSHandler:response(conf)
   if conf.direction ~= "response" then
     return
   end
@@ -399,28 +425,34 @@ function do_counter_sign_work(conf, edge_token)
     return nil, "Invalid edge token format"
   end
 
+  local key, key_err
+  if conf.direction == "response" then
+    key = kong.ctx.plugin.signing_key
+    key_err = "Signing key was not validated in access phase"
+  else
+    key, key_err = registered_signing_key(conf)
+  end
+  if not key then return nil, key_err end
+
   local signature
   if conf.backend == "aws" then
-    local aws_signature = kms_aws.sign(key_id, tok_signature, kms_signature_algorithm)
+    local aws_signature = kms_aws.sign(key.key_id, tok_signature, kms_signature_algorithm)
     if aws_signature == nil then
       return nil, "Failed to get signature from KMS"
+    end
+    if aws_signature.KeyId ~= key.key_id then
+      return nil, "AWS signing key does not match the registered public key"
     end
     signature = aws_signature["Signature"]
     kong.log.warn("Generated signature from KMS: ", cjson.encode(signature))
   else
     local hash_alg = "sha256"
     local signature_raw,
-      error = filter.sign(conf, tok_signature, hash_alg)
+      error = filter.sign(conf, tok_signature, hash_alg, key.private_key)
 
     -- local signature_raw = kms_local.sign(key_id, tok_signature, kms_signature_algorithm)
     if signature_raw == nil then
       return nil, "Failed to get signature" .. (error or "")
-    end
-
-    local verified,
-      err = filter.verify(conf, signature_raw, tok_signature, hash_alg)
-    if not verified then
-      return nil, "Failed to verify signature: " .. (err or "")
     end
 
     signature = base64.encode_base64url(signature_raw) -- URL-safe, no padding issues

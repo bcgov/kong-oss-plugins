@@ -99,8 +99,9 @@ local function get_kong_key(key, location)
   return pkey
 end
 
-function M.sign(conf, input, hash_alg)
-  local kong_private_key = get_kong_key("trust-sign-pkey", get_private_key_location(conf))
+function M.sign(conf, input, hash_alg, private_pem)
+  -- Callers that validate key registration pass the same bytes used for matching.
+  local kong_private_key = private_pem or get_kong_key("trust-sign-pkey", get_private_key_location(conf))
 
   kong.log.warn("Signing with hash algorithm: ", hash_alg)
   kong.log.warn("Signing with key: ", get_private_key_location(conf))

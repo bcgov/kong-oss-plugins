@@ -8,14 +8,16 @@ local env_private_key_location = os.getenv("KONG_SIGNING_CERT_KEY")
 local env_public_key_location = os.getenv("KONG_SIGNING_CERT")
 local string = require("resty.string")
 
-function create_key()
+local get_private_key, get_public_key
+
+local function create_key()
   return get_private_key()
 end
 
-function disable_key(key_id)
+local function disable_key(key_id)
 end
 
-function sign(key_id, message, algo)
+local function sign(key_id, message, algo)
   -- use the private key to sign the message using the algo
   local private_key = get_private_key()
   if private_key == nil then
@@ -39,7 +41,7 @@ function sign(key_id, message, algo)
   return signature_bytes
 end
 
-function verify(key_id, message, signature, algo)
+local function verify(key_id, message, signature, algo)
   -- verify the signature using the public key
   local public_key = get_public_key(key_id)
   if public_key == nil then
@@ -106,7 +108,24 @@ function get_private_key()
   return pkey
 end
 
+-- Return the public component of the exact cached private key used to sign.
+-- No mounted certificate is needed for counter-signing.
+local function get_signing_key(conf)
+  local location = jwk_sign.get_private_key_location(conf)
+  if not location or location == "" then
+    return nil, "Private key location is not configured"
+  end
+  local private_pem = jwk_sign.get_kong_key("trust_sign_pkey_" .. location, location)
+  if not private_pem then return nil, "Unable to load private key" end
+  local key, err = openssl_pkey.new(private_pem)
+  if not key then return nil, "Unable to parse private key: " .. tostring(err) end
+  local public_pem, export_err = key:to_PEM("public")
+  if not public_pem then return nil, "Unable to export public key: " .. tostring(export_err) end
+  return { public_key = public_pem, private_key = private_pem }
+end
+
 return {
+  get_signing_key = get_signing_key,
   create_key = create_key,
   disable_key = disable_key,
   sign = sign,

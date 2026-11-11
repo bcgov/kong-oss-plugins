@@ -9,6 +9,18 @@ return {
         type = "record",
         fields = {
           {
+            keyset_name = {
+              type = "string",
+              description = "Kong key set containing the registered public key; required for signing"
+            }
+          },
+          {
+            private_key_location = {
+              type = "string",
+              description = "Local signing key path; KONG_SIGNING_CERT_KEY takes precedence"
+            }
+          },
+          {
             direction = {
               type = "string",
               one_of = {
