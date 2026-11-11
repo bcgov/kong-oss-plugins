@@ -19,7 +19,7 @@ local function random_str(len)
   return result
 end
 
-function create_key(org_name, serial_number, common_name, requester_name, requester_email)
+local function create_key(org_name, serial_number, common_name, requester_name, requester_email)
   -- Configure AWS credentials
   local config = {
     region = os.getenv("AWS_REGION")
@@ -113,7 +113,7 @@ function create_key(org_name, serial_number, common_name, requester_name, reques
   return result["body"]
 end
 
-function disable_key(key_id)
+local function disable_key(key_id)
   -- Configure AWS credentials
   local config = {
     region = os.getenv("AWS_REGION")
@@ -145,7 +145,7 @@ function disable_key(key_id)
   return result
 end
 
-function sign(key_id, message, algo)
+local function sign(key_id, message, algo)
   -- Configure AWS credentials
   local config = {
     region = os.getenv("AWS_REGION")
@@ -187,7 +187,7 @@ function sign(key_id, message, algo)
   return result["body"]
 end
 
-function verify(key_id, message, signature, algo)
+local function verify(key_id, message, signature, algo)
   -- Configure AWS credentials
   local config = {
     region = os.getenv("AWS_REGION")
@@ -228,7 +228,7 @@ function verify(key_id, message, signature, algo)
   return result["body"]
 end
 
-function get_public_key(key_id)
+local function get_public_key(key_id)
   -- Configure AWS credentials
   local config = {
     region = os.getenv("AWS_REGION")
@@ -260,7 +260,35 @@ function get_public_key(key_id)
   return result
 end
 
+-- Normalize AWS public-key material to the same contract as the local backend.
+local function get_signing_key(conf)
+  if type(conf.aws_alias) ~= "string" or conf.aws_alias == "" then
+    return nil, "AWS alias is not configured"
+  end
+  local result = get_public_key(conf.aws_alias)
+  if not result or result.status ~= 200 or not result.body then
+    return nil, "Failed to get public key from AWS KMS"
+  end
+  local body = result.body
+  if body.KeyUsage ~= "SIGN_VERIFY" then return nil, "AWS key is not a signing key" end
+  local supported = false
+  for _, algorithm in ipairs(body.SigningAlgorithms or {}) do
+    if algorithm == conf.signature_algorithm then supported = true end
+  end
+  if not supported then return nil, "AWS key does not support the configured signing algorithm" end
+  if not body.KeyId or body.KeyId == "" then return nil, "AWS public key response has no key identifier" end
+  local der = type(body.PublicKey) == "string" and ngx.decode_base64(body.PublicKey)
+  if not der then return nil, "Invalid AWS public key encoding" end
+  local key, err = require("resty.openssl.pkey").new(der, {format = "DER", type = "pu"})
+  if not key then return nil, "Invalid AWS public key: " .. tostring(err) end
+  local public_pem, export_err = key:to_PEM("public")
+  if not public_pem then return nil, "Unable to export AWS public key: " .. tostring(export_err) end
+  -- Pin signing to the returned key ARN, not a mutable configured alias.
+  return { public_key = public_pem, key_id = body.KeyId }
+end
+
 return {
+  get_signing_key = get_signing_key,
   create_key = create_key,
   disable_key = disable_key,
   sign = sign,

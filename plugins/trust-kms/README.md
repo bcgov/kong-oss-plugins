@@ -28,9 +28,9 @@ The plugin runs in one of two **directions** (`request` or `response`) and perfo
 - Reads the edge token from the configured header (`config.signature_header_key`).
 - Splits the token on `.` and takes the third (signature) segment.
 - Counter-signs that segment with the KMS backend:
-  - `aws`: calls `KMS:sign` with the configured `signature_algorithm` and returns the base64 signature.
-  - `local`: signs the segment with the local private key, verifies it round-trips, and base64url-encodes the result.
-- Writes the signature into the `X-Entity-Sig` header on the request (`access` phase) or response (`header_filter` phase).
+  - `aws`: retrieves the public key, requires a unique matching registration in `config.keyset_name`, and calls `KMS:sign` with the resolved key ARN and configured `signature_algorithm`.
+  - `local`: requires exactly one public-key registration matching the private key in `config.keyset_name`, then signs the segment, verifies it round-trips, and base64url-encodes the result.
+- Writes the signature into the `X-Entity-Sig` header on the request (`access` phase) or response (buffered `response` phase).
 
 ### Get started with the `trust-kms` plugin
 
@@ -50,6 +50,44 @@ export KONG_SIGNING_CERT_KEY=/path/to/signing-private.pem
 export KONG_SIGNING_CERT=/path/to/signing-cert.pem
 ```
 
+For counter-signing with either backend, register the corresponding public key (PEM or JWK,
+with a `kid`) in a Kong key set and set `config.keyset_name` to that set's name.
+`config.private_key_location` can supply the private-key path when
+`KONG_SIGNING_CERT_KEY` is absent. For example:
+
+```yaml
+plugins:
+  - name: trust-kms
+    config:
+      direction: request
+      operation: sign
+      backend: local
+      keyset_name: entity-signing-keys
+      private_key_location: /path/to/signing-private.pem
+      signature_header_key: X-Edge-Token
+```
+
+Both backends use trust-sign's shared `resolve_public_kid` lookup, including its
+30-second registration cache keyed by key-set name and canonical public key.
+Missing key sets, unmatched keys, ambiguous matches, or DAO
+errors fail counter-signing with HTTP 500 without setting `X-Entity-Sig`.
+For local signing, the same cached private-key bytes supply the public component
+and the signature. Private-key
+files are cached by path without expiry; restart Kong after replacing a key at
+the same path. Registration changes can take up to 30 seconds to be observed.
+For response signing, registration is checked during `access` and the validated
+backend key is retained in `kong.ctx.plugin`. Counter-signing runs in Kong's
+buffered `response` phase so AWS KMS network I/O is allowed. This enables
+response buffering for services using the plugin; Kong's buffered proxy
+limitations apply (including HTTP/2 or gRPC upstreams). See
+[Kong handler phases](https://developer.konghq.com/custom-plugins/handler.lua/).
+The matched `kid` validates registration; `X-Entity-Sig` remains a raw encoded
+signature and does not carry a `kid`.
+
+`KONG_SIGNING_CERT` is no longer needed for local counter-signing; the registered
+public key replaces the mounted-certificate check. Local CSR creation still uses
+the certificate.
+
 ## Configuration reference
 
 ### Configuration
@@ -62,7 +100,8 @@ curl -X POST http://localhost:8001/services/{service}/plugins \
   --data "config.direction=request" \
   --data "config.operation=sign" \
   --data "config.backend=aws" \
-  --data "config.key_id=arn:aws:kms:ca-central-1:111122223333:key/abcd-..." \
+  --data "config.keyset_name=entity-signing-keys" \
+  --data "config.aws_alias=alias/entity-signing" \
   --data "config.signature_algorithm=ECDSA_SHA_512" \
   --data "config.signature_header_key=Authorization"
 ```
@@ -76,7 +115,8 @@ plugins:
       direction: request
       operation: sign
       backend: aws
-      key_id: "arn:aws:kms:ca-central-1:111122223333:key/abcd-..."
+      keyset_name: entity-signing-keys
+      aws_alias: "alias/entity-signing"
       signature_algorithm: ECDSA_SHA_512
       signature_header_key: Authorization
 ```
@@ -92,7 +132,9 @@ plugins:
 | `config.direction`            | string |                 | false    | When `sign` is the operation, controls whether the counter-signature is applied to the `request` or the `response`. Ignored for `create_key`.          |
 | `config.backend`              | string | `local`         | false    | KMS backend to use. One of `local`, `aws`.                                                                                                             |
 | `config.operation`            | string | `create_key`    | true     | Operation to perform. One of `create_key`, `sign`, `verify`. (`verify` is reserved — see Changelog.)                                                   |
-| `config.key_id`               | string |                 | false    | KMS key identifier (ARN, key id, or alias) used for `sign`. Not required for `create_key` (a new key is created) or for the `local` backend.           |
+| `config.aws_alias`            | string |                 | AWS sign | AWS KMS alias name (`alias/entity-signing`) or alias ARN. Each plugin configuration selects its own alias. Ignored by local signing; not required for key creation. |
+| `config.keyset_name`          | string |                 | sign | Kong key set containing exactly one matching public key with a `kid`. |
+| `config.private_key_location` | string |                 | local sign | Private-key file path, unless `KONG_SIGNING_CERT_KEY` is set (takes precedence). |
 | `config.signature_algorithm`  | string | `ECDSA_SHA_512` | false    | KMS signing algorithm. One of `RSASSA_PSS_SHA_256`, `RSASSA_PSS_SHA_384`, `RSASSA_PSS_SHA_512`, `ECDSA_SHA_256`, `ECDSA_SHA_384`, `ECDSA_SHA_512`.     |
 | `config.signature_header_key` | string |                 | false    | Header to read the edge token from when `operation=sign`. The third (signature) segment of the token is what gets counter-signed.                      |
 
@@ -129,7 +171,9 @@ The response contains:
 }
 ```
 
-The CSR can be submitted to a CA. The `key_id` is the value to plug into `config.key_id` for subsequent `sign` operations.
+The CSR can be submitted to a CA. For subsequent AWS signing operations, set
+`config.aws_alias` to an alias pointing to the returned `key_id`. The key-creation
+response retains `key_id`; AWS API calls also continue using their `KeyId` field.
 
 ### Counter-sign a request
 
@@ -143,7 +187,33 @@ to the request sent upstream.
 
 ### Counter-sign a response
 
-With `direction=response` and `operation=sign`, the same logic runs in the response `header_filter` phase against the upstream's response header, setting `X-Entity-Sig` on the response returned to the client.
+With `direction=response` and `operation=sign`, the same logic runs in the response buffered `response` phase against the upstream's response header, setting `X-Entity-Sig` on the response returned to the client.
+
+## AWS public-key registration
+
+`config.key_id` has been removed. Migrate existing AWS signing configurations to
+`config.aws_alias`; if they previously used a key ID or key ARN, create or select
+an alias pointing to that key.
+
+For `backend=aws`, `get_signing_key` calls the existing `GetPublicKey` API,
+requires HTTP 200, validates `KeyUsage=SIGN_VERIFY`, and confirms the configured
+signature algorithm is supported. It decodes the base64 DER SubjectPublicKeyInfo
+and exports public PEM for the shared resolver. No private key leaves KMS.
+
+Both backend adapters return public PEM; `resolve_public_kid` canonicalizes it,
+loads the configured Kong key set, and requires exactly one PEM/JWK match with a
+`kid`. Backend acquisition or kid-resolution failures return HTTP 500 before
+signing. Trust-sign's JWT path derives its public key and uses this resolver too.
+
+Signing uses the immutable key ARN returned by `GetPublicKey`, rather than the
+configured alias. The returned signing key identifier must also match that ARN.
+This prevents alias reassignment between lookup and signing from selecting an
+unchecked key. The public key is retrieved for each signing request (also during
+`access` for response signing); registration matches are cached for 30 seconds.
+AWS requires `kms:GetPublicKey` permission in addition to `kms:Sign`.
+
+See [AWS GetPublicKey](https://docs.aws.amazon.com/kms/latest/APIReference/API_GetPublicKey.html)
+for the public-key format, metadata, and permissions.
 
 ## Changelog
 
