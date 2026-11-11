@@ -105,6 +105,7 @@ test.describe("trust-verify-signature — response verification", () => {
       message: "Missing Signature in X-Edge-Token",
     });
   });
+  // [Verifies: trust-verify-signature.response-verification.local-exit-preserved]
   test("preserves a local authentication rejection without requiring a provider signature", async ({ request }) => {
     const { routePath, routeId } = await provisionPluginRoute(request, {
       prefix: PREFIX,

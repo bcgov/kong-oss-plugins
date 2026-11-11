@@ -56,7 +56,7 @@ With `direction = request`, the plugin SHALL read the inbound request header nam
 
 **ID**: `trust-verify-signature.response-verification`
 
-With `direction = response`, the plugin SHALL read the upstream response header named by `config.signature_header_key` and verify it as a JWT manifest per the manifest-check and key-discovery requirements, regardless of the upstream response status code. On success the plugin SHALL add the response header `X-Trust-Verify-Signature-Res: OK` and pass the response (including the signature header) through to the client. On failure the plugin SHALL replace the upstream response: the client receives the error status and a JSON body whose `message` field describes the failure instead of the upstream status and body.
+With `direction = response`, the plugin SHALL perform response signature verification only when `kong.response.get_source()` is `service`. Local plugin exits and gateway errors SHALL retain their original status and body without adding `X-Trust-Verify-Signature-Res`. For service responses, the plugin SHALL read the upstream response header named by `config.signature_header_key` and verify it as a JWT manifest per the manifest-check and key-discovery requirements, regardless of the upstream response status code. On success the plugin SHALL add the response header `X-Trust-Verify-Signature-Res: OK` and pass the response (including the signature header) through to the client. On failure the plugin SHALL replace the upstream response: the client receives the error status and a JSON body whose `message` field describes the failure instead of the upstream status and body.
 
 #### Scenario: Valid response token is verified and marked
 
@@ -71,6 +71,13 @@ With `direction = response`, the plugin SHALL read the upstream response header 
 
 - **WHEN** the upstream response has no header named by `config.signature_header_key`
 - **THEN** the client receives status 401 with a JSON body whose `message` is `Missing Signature in <signature_header_key>`, and the upstream body is not delivered
+
+#### Scenario: Local exit preserves the original response
+
+**ID**: `trust-verify-signature.response-verification.local-exit-preserved`
+
+- **WHEN** `direction` is `response` and an access-phase plugin rejects the request using `kong.response.exit` without proxying to a service
+- **THEN** the client receives the original status and JSON body, and `X-Trust-Verify-Signature-Res` is absent
 
 ### Requirement: Issuer key discovery and signature verification
 
@@ -240,9 +247,3 @@ following subset of that contract:
 - **Token payload claims consumed**: `jwks_uri` (key discovery, must match `config.allowed_jwks_uri_prefix`); `digest` when `manifest_type` is `content-digest` and `direction` is `request` (compared to the request `Content-Digest` header). The producer's `request_id`, `client_id`, `service_id`, `jti`, and `iat` claims are ignored by this plugin.
 - The producer contract marks `jwks_uri` as optional (omitted when the producer has no `jwks_uri` configured); this plugin rejects such tokens with 401 per the key-discovery requirement, so producers feeding this verifier must configure `jwks_uri`. The verifier's `allowed_jwks_uri_prefix` must cover the producer-configured `jwks_uri` values.
 - **JWKS document** (not part of the producer spec; consumed from the endpoint named by `jwks_uri`): HTTP 200, JSON object with a `keys` array of JWK objects each carrying a `kid` and public key material for the token's `alg`.
-
-### Local responses
-Response signature verification applies only when `kong.response.get_source()`
-is `service`. Local plugin exits (including expired JWT rejection) and gateway
-errors retain their original status and body. All upstream responses, including
-non-2xx responses, continue to require a valid signature.
