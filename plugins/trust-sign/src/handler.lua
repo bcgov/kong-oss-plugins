@@ -4,8 +4,11 @@ local filter = require("kong.plugins.trust-sign.signature_base")
 local jwk_sign = require("kong.plugins.trust-sign.sign")
 local request_id_get = require("kong.observability.tracing.request_id").get
 local kong_meta = require "kong.meta"
+local log = require("kong.plugins.plugin-log.log")
 local btoa = ngx.encode_base64
 local kong = kong
+
+local PLUGIN_NAME = "trust-sign"
 
 local TrustSignHandler = {
   PRIORITY = 630,
@@ -16,8 +19,8 @@ local function get_ids_from_service()
   local svc = kong.router.get_service()
   -- split svc tags by ":" and find the tags for client and service
   local svc_tags = svc and svc.tags or {}
-  local client_tag = ""
-  local service_tag = ""
+  local client_tag
+  local service_tag
   for _, tag in ipairs(svc_tags) do
     local key,
       value = tag:match("^(.-):(.-)$")
@@ -100,16 +103,23 @@ function TrustSignHandler:access(conf)
     jwks_uri = conf.jwks_uri
   }
 
-  local jwt = jwk_sign.sign_jwt(conf, manifest)
+  local jwt, sign_err = jwk_sign.sign_jwt(conf, manifest)
+  if not jwt then
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "request signing failed: " .. tostring(sign_err)},
+      500,
+      {
+        message = "Signing failed",
+        error = sign_err
+      }
+    )
+  end
   request.set_header(conf.signature_header_key, jwt)
+  log.continue_with_reason({plugin = PLUGIN_NAME, reason = "request manifest signed"})
 end
 
 function TrustSignHandler:header_filter(conf)
   if conf.direction ~= "response" then
-    return
-  end
-
-  if kong.response.get_source() ~= "service" then
     return
   end
 
@@ -118,14 +128,26 @@ function TrustSignHandler:header_filter(conf)
   local body_digest = kong.response.get_header("Content-Digest")
 
   if body_digest == nil then
+    local alg = "sha-256"
     kong.log.warn("Content-Digest header not present, generating digest")
-    local body = kong.service.response.get_raw_body()
+    -- kong.service.response.get_raw_body() requires buffered upstream
+    -- proxying. Kong-generated responses (request-termination, other
+    -- early exits) never proxy, so buffered_proxying is unset — calling
+    -- get_raw_body then throws and aborts the response. Skip digest in
+    -- that case; the response-digest requirement covers upstream bodies.
+    local body
+    if ngx.ctx.buffered_proxying then
+      body = kong.service.response.get_raw_body()
+    else
+      kong.log.warn("No buffered upstream body (Kong-generated response); skipping Content-Digest")
+    end
     if body == nil then
       kong.log.warn("Body is nil - no raw body available")
     elseif body == "" then
-      kong.log.warn("Body is empty string")
+      local dig = digest_mod.digest(body, alg)
+      body_digest = alg .. "=:" .. btoa(dig) .. ":"
+      kong.response.set_header("Content-Digest", body_digest)
     else
-      local alg = "sha-256"
       local dig = digest_mod.digest(body, alg)
       body_digest = alg .. "=:" .. btoa(dig) .. ":"
       kong.response.set_header("Content-Digest", body_digest)
@@ -171,15 +193,27 @@ function TrustSignHandler:header_filter(conf)
       jwks_uri = conf.jwks_uri
     }
 
-    local jwt = jwk_sign.sign_jwt(conf, manifest)
+    local jwt, sign_err = jwk_sign.sign_jwt(conf, manifest)
+    if not jwt then
+      return log.exit_with_reason(
+        {plugin = PLUGIN_NAME, reason = "bare response signing failed: " .. tostring(sign_err)},
+        500,
+        {
+          message = "Signing failed",
+          error = sign_err
+        }
+      )
+    end
     kong.response.set_header(conf.signature_header_key, jwt)
+    log.continue_with_reason({plugin = PLUGIN_NAME, reason = "bare response manifest signed"})
     return
   end
 
   local req_token_jwt,
     err = jwt_decoder:new(req_token)
   if err then
-    return kong.response.exit(
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "inbound X-Edge-Token failed to parse: " .. tostring(err)},
       403,
       {
         message = "Bad token",
@@ -198,8 +232,19 @@ function TrustSignHandler:header_filter(conf)
     jwks_uri = conf.jwks_uri
   }
 
-  local jwt = jwk_sign.sign_jwt(conf, manifest)
+  local jwt, sign_err = jwk_sign.sign_jwt(conf, manifest)
+  if not jwt then
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "response signing failed: " .. tostring(sign_err)},
+      500,
+      {
+        message = "Signing failed",
+        error = sign_err
+      }
+    )
+  end
   kong.response.set_header(conf.signature_header_key, jwt)
+  log.continue_with_reason({plugin = PLUGIN_NAME, reason = "response manifest signed"})
 end
 
 return TrustSignHandler

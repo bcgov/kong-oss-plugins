@@ -1,23 +1,10 @@
-# Lua / LuaRocks
-luarocks/
-*.rock
-*.src.rock
+# OpenSpec agent commands / skills / prompts (local tooling)
+.cursor/commands/
+.cursor/skills/openspec-*/
+.claude/skills/openspec-*/
 
-# OS
-.DS_Store
-Thumbs.db
+.github/prompts/
+.github/skills/openspec-*/
 
-# Editor
-.vscode/
-.idea/
-*.swp
-*.tmp
-
-# Logs
-*.log
-
-# Local OpenSpec CLI install
-.tools/
-
-# Claude Code local settings (may contain personal config)
-.claude/settings.local.json
+# spec-to-test clean-room session flag (Cursor + Claude Code)
+.claude/clean-room.active

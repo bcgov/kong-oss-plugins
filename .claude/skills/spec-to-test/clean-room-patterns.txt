@@ -1,0 +1,11 @@
+# Shared clean-room deny patterns for spec-to-test (Cursor .cursorignore + Claude PreToolUse).
+# One pattern per line; # comments and blank lines ignored.
+# Trailing / = directory tree (the dir and everything under it).
+# Do NOT list test output paths — generation must write/delete there.
+
+plugins/*/src/
+openspec/specs/*/coverage.md
+testsuite/helpers/keycloak.ts
+testsuite/helpers/e2e-test.ts
+testsuite/helpers/prepare-client-and-service.ts
+testsuite/helpers/api.ts

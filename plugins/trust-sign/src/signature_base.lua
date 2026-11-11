@@ -1,6 +1,9 @@
 local pl_file = require "pl.file"
+local x509 = require "resty.openssl.x509"
 local openssl_digest = require "resty.openssl.digest"
 local openssl_pkey = require "resty.openssl.pkey"
+local env_private_key_location = os.getenv("KONG_SIGNING_CERT_KEY")
+local env_public_key_location = os.getenv("KONG_SIGNING_CERT")
 
 local M = {}
 
@@ -57,8 +60,12 @@ function M.get_signature_base(headers, kong_request, signature_label, signature_
   return message
 end
 
+local function get_public_key_location(conf)
+  return conf.public_key_location or env_public_key_location
+end
+
 local function get_private_key_location(conf)
-  return conf.private_key_location
+  return conf.private_key_location or env_private_key_location
 end
 
 --- Read contents of file from given location
@@ -114,6 +121,36 @@ function M.sign(conf, input, hash_alg)
 
   local vdigest = openssl_digest.new(hash_alg)
   assert(vdigest:update(input))
+
+  local ok,
+    err = pk:verify(signature, vdigest)
+  kong.log.warn("Verify: ", ok, err)
+
+  if not ok then
+    kong.log.err("Signature verification failed: ", err)
+    return nil
+  end
+
+  return signature
+end
+
+function M.verify(conf, signature, input, hash_alg)
+  local kong_public_key = get_kong_key("trust-sign-pubkey", get_public_key_location(conf))
+
+  kong.log.warn("Verifying with hash algorithm: ", hash_alg)
+  kong.log.warn("Verifying with key: ", get_public_key_location(conf))
+
+  local vdigest = openssl_digest.new(hash_alg)
+  assert(vdigest:update(input))
+
+  local cert,
+    err = x509.new(kong_public_key, "PEM")
+  local pk,
+    err = cert:get_pubkey()
+  if err then
+    kong.log.err("Failed to create public key object: ", err)
+    return nil
+  end
 
   local ok,
     err = pk:verify(signature, vdigest)

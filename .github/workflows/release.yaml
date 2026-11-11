@@ -1,0 +1,87 @@
+name: Plugin release
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, labeled, unlabeled, edited, closed]
+permissions:
+  contents: read
+jobs:
+  policy:
+    if: github.event.action != 'closed' || github.event.pull_request.merged
+    runs-on: ubuntu-latest
+    outputs:
+      bump: ${{ steps.label.outputs.bump }}
+    steps:
+      - name: Validate promotion and release label
+        id: label
+        run: |
+          set -euo pipefail
+          jq -e '.pull_request | .base.ref=="main" and .head.ref=="dev" and .head.repo.full_name==.base.repo.full_name' "$GITHUB_EVENT_PATH" > /dev/null
+          BUMP=$(jq -er '[.pull_request.labels[].name|select(startswith("release="))] | if length==1 then .[0]|capture("^release=(?<bump>major|minor|patch)$").bump else error("Choose one release=major/minor/patch label") end' "$GITHUB_EVENT_PATH")
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+  release:
+    needs: policy
+    if: github.event.action == 'closed' && github.event.pull_request.merged
+    runs-on: ubuntu-latest
+    concurrency:
+      group: plugin-releases
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --global semver@7.7.3
+      - name: Choose repository version
+        id: version
+        env:
+          BUMP: ${{ needs.policy.outputs.bump }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          SHA=$(git rev-parse HEAD)
+          test "$(git rev-list --parents -n 1 HEAD | awk '{print NF}')" = 3
+          test "$(git rev-parse HEAD^2)" = "$HEAD_SHA"
+          EXISTING=$(git tag --points-at "$SHA" --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)
+          test "$(printf '%s\n' "$EXISTING" | grep -c . || true)" -le 1
+          PREVIOUS=$(git tag --list 'v*' --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$' | grep -Fxv "${EXISTING:-no-tag}" | sed -n '1p' || true)
+          if [[ -n "$PREVIOUS" ]]; then git merge-base --is-ancestor "$PREVIOUS" "$SHA"; fi
+          TAG="$EXISTING"
+          if [[ -z "$TAG" ]]; then
+            CURRENT=${PREVIOUS#v}
+            CURRENT=${CURRENT%%-*} # Preserve the base version of historical vX.Y.Z-N tags.
+            TAG="v$(semver "${CURRENT:-0.0.0}" --increment "$BUMP")"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "previous=$PREVIOUS" >> "$GITHUB_OUTPUT"
+      - name: Publish repository release with plugin changes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          set -euo pipefail
+          SHA=$(git rev-parse HEAD)
+          if git rev-parse "refs/tags/$TAG" > /dev/null 2>&1; then
+            test "$(git rev-parse "$TAG^{commit}")" = "$SHA"
+          fi
+          if DRAFT=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            test "$DRAFT" = false || { echo "Review and publish the existing draft $TAG before retrying." >&2; exit 1; }
+            exit 0
+          fi
+          RANGE="${PREVIOUS:+$PREVIOUS..}$SHA"
+          printf 'Source: %s\nPromotion: %s\n' "$SHA" "$PR_URL" > notes.md
+          for PLUGIN in plugins/*/; do
+            CHANGES=$(git log --format='- %s (%h)' "$RANGE" -- "$PLUGIN")
+            if [[ -n "$CHANGES" ]]; then printf '\n## %s\n%s\n' "$(basename "$PLUGIN")" "$CHANGES" >> notes.md; fi
+          done
+          printf '\n## Repository and tooling changes\n' >> notes.md
+          git log --format='- %s (%h)' "$RANGE" -- . ':!plugins' >> notes.md
+          gh release create "$TAG" --target "$SHA" --title "$TAG" --notes-file notes.md

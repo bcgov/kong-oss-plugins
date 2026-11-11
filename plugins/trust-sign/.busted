@@ -1,0 +1,10 @@
+return {
+  default = {
+    lua = "spec/resty-runner.lua",
+    -- lpath replaces busted's defaults, so the ./src patterns must be restated
+    lpath = "./src/?.lua;./src/?/?.lua;./src/?/init.lua;../_testlib/?.lua",
+    verbose = true,
+    coverage = false,
+    output = "gtest",
+  },
+}

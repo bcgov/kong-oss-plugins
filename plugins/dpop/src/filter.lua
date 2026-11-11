@@ -13,7 +13,10 @@ local resty_openssl = require "resty.openssl"
 local pkey = require "resty.openssl.pkey"
 local bn = require "resty.openssl.bn"
 local json = require "cjson.safe"
+local log = require("kong.plugins.plugin-log.log")
 local kong = kong
+
+local PLUGIN_NAME = "dpop"
 
 local function base64_decode_url(input)
   local remainder = #input % 4
@@ -33,7 +36,11 @@ local function send_error_response(status, error_code, description)
     error = error_code,
     error_description = description
   }
-  return kong.response.exit(status, body)
+  return log.exit_with_reason(
+    {plugin = PLUGIN_NAME, reason = tostring(error_code) .. ": " .. tostring(description)},
+    status,
+    body
+  )
 end
 
 local function extract_dpop_proof()
@@ -368,6 +375,7 @@ function M.validate_dpop(config)
   if not dpop_proof then
     if config.anonymous then
       kong.client.authenticate(nil, config.anonymous)
+      log.continue_with_reason({plugin = PLUGIN_NAME, reason = "no proof; anonymous fallback"})
       return
     end
     return send_error_response(401, "invalid_request", err)
@@ -406,6 +414,7 @@ function M.validate_dpop(config)
   -- end
 
   kong.service.request.set_header("X-DPoP-Validated", "true")
+  log.continue_with_reason({plugin = PLUGIN_NAME, reason = "DPoP proof validated"})
 end
 
 return M

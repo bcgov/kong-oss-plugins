@@ -1,8 +1,9 @@
 import { APIRequestContext } from "playwright";
-import { provisionKong } from "./kong";
+import { KONG_ADMIN_URL, KONG_PROXY_URL, provisionKong } from "./kong";
+import { upstreamServiceDefaults } from "./upstream";
 import logger from "./logger";
 
-const ADMIN_URL = "http://kong.localtest.me:8001";
+const ADMIN_URL = KONG_ADMIN_URL;
 
 export type JwksProvision = {
   proxyBaseUrl: string;
@@ -66,9 +67,7 @@ export async function provisionJwksRoutes(
   await provisionKong(request, `${ADMIN_URL}/services`, {
     id: svcId,
     name: `trust-registry-ai-svc-${uid}`,
-    host: "httpbin.org",
-    port: 80,
-    protocol: "http",
+    ...upstreamServiceDefaults,
   });
 
   await provisionKong(request, `${ADMIN_URL}/routes`, {
@@ -119,7 +118,7 @@ export async function provisionJwksRoutes(
 
   // Kong CP→DP propagation takes a moment. Retry the all-keys endpoint until
   // it becomes active (same pattern as callAPI's 404-retry in the test suite).
-  const probeUrl = `http://${proxyHost}:8000/.well-known/jwks.json`;
+  const probeUrl = `${KONG_PROXY_URL}/.well-known/jwks.json`;
   for (let attempt = 0; attempt < 20; attempt++) {
     try {
       const probe = await request.get(probeUrl);
@@ -129,7 +128,7 @@ export async function provisionJwksRoutes(
   }
 
   return {
-    proxyBaseUrl: `http://${proxyHost}:8000`,
+    proxyBaseUrl: KONG_PROXY_URL,
     cleanup,
   };
 }

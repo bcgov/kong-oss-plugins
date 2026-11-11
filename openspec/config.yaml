@@ -1,10 +1,13 @@
 schema: spec-driven
 
-context: |
-  Kong OSS plugin repository. Lua (LuaJIT), Kong PDK only.
-  Plugin layout: plugins/<name>/src/{handler,schema}.lua + rockspec.
-  Follow patterns from existing plugins; do not read plugins/trust-registry or plugins/trust-registry-ai.
-  Output plugin: plugins/trust-registry-ai-openspec/
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.

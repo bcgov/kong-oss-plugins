@@ -10,7 +10,16 @@ return {
         fields = {
           {
             signature_header_key = {
-              type = "string"
+              type = "string",
+              required = true,
+              default = "X-Edge-Token"
+            }
+          },
+          {
+            allowed_jwks_uri_prefix = {
+              type = "set",
+              elements = {type = "string"},
+              required = true
             }
           },
           {

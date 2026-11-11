@@ -24,7 +24,8 @@ RUN (cd plugins/dpop && luarocks make)
 RUN (cd plugins/jwt-keycloak && luarocks make)
 RUN (cd plugins/mtls-auth && luarocks make)
 RUN (cd plugins/mtls-acl && luarocks make)
-RUN (cd plugins/openid-authzen && luarocks make)
+RUN (cd plugins/pep && luarocks make)
+RUN (cd plugins/plugin-log && luarocks make)
 RUN (cd plugins/response-signer && luarocks make)
 RUN (cd plugins/token-exchange && luarocks make)
 RUN (cd plugins/trust-hello && luarocks make)
@@ -36,9 +37,10 @@ RUN (cd plugins/trust-sign && luarocks make)
 RUN (cd plugins/trust-timestamp && luarocks make)
 RUN (cd plugins/trust-verify-digest && luarocks make)
 RUN (cd plugins/trust-verify-signature && luarocks make)
+
 RUN (cd plugins/trust-registry-ai && luarocks make kong-plugin-trust-registry-ai-1.0.0-0.rockspec)
 
 USER kong
 WORKDIR /
 
-ENV KONG_PLUGINS="bundled, dpop, jwt-keycloak, oidc, oidc-consumer, mtls-auth, mtls-acl, openid-authzen, response-signer, token-exchange, trust-hello, trust-jwks, trust-kms, trust-ledger, trust-registry, trust-sign, trust-timestamp, trust-verify-digest, trust-verify-signature, trust-registry-ai"
+ENV KONG_PLUGINS="bundled, dpop, jwt-keycloak, oidc, oidc-consumer, mtls-auth, mtls-acl, pep, plugin-log, response-signer, token-exchange, trust-hello, trust-jwks, trust-kms, trust-ledger, trust-registry, trust-sign, trust-timestamp, trust-verify-digest, trust-verify-signature, trust-registry-ai"

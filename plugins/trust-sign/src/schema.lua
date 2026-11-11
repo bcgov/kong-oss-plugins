@@ -23,7 +23,7 @@ return {
             }
           },
           {
-            keyid = {
+            keyset_name = {
               type = "string",
               required = true
             }
@@ -43,7 +43,9 @@ return {
           -- },
           {
             signature_header_key = {
-              type = "string"
+              type = "string",
+              required = true,
+              default = "X-Edge-Token"
             }
           },
           {

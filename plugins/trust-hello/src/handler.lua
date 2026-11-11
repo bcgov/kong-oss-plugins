@@ -3,8 +3,11 @@ local openssl_pkey = require("resty.openssl.pkey")
 local hello = require("kong.plugins.trust-hello.hello")
 local cjson = require "cjson"
 local kong_meta = require "kong.meta"
+local log = require("kong.plugins.plugin-log.log")
 local encode_base64 = ngx.encode_base64
 local kong = kong
+
+local PLUGIN_NAME = "trust-hello"
 
 local TrustHelloHandler = {
   PRIORITY = 940,
@@ -33,7 +36,8 @@ function TrustHelloHandler:certificate(conf)
   kong.log.warn(cjson.encode(response))
 
   -- Return JSON response
-  return kong.response.exit(
+  return log.exit_with_reason(
+    {plugin = PLUGIN_NAME, reason = "returning collected TLS/certificate hello data to caller"},
     200,
     response,
     {

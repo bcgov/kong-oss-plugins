@@ -9,6 +9,9 @@ local cjson = require "cjson"
 local base64 = require "ngx.base64"
 local pem2jwks = require("kong.plugins.trust-registry.pem_to_jwks")
 local jwt_decoder = require "kong.plugins.jwt.jwt_parser"
+local log = require("kong.plugins.plugin-log.log")
+
+local PLUGIN_NAME = "trust-jwks"
 
 local function tm(message)
   kong.log.err("TS: ", os.clock(), " : ", message)
@@ -395,7 +398,8 @@ function JWKValidatorHandler:access(conf)
 
   if not result then
     kong.log.err("JWK validation failed: " .. err)
-    return kong.response.exit(
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "JWKS fetch or TLS certificate validation failed: " .. tostring(err)},
       403,
       {
         message = "JWK validation failed",
@@ -412,7 +416,8 @@ function JWKValidatorHandler:access(conf)
 
   if not pub_jwk then
     kong.log.err("Error converting PEM to JWK: ", err)
-    return kong.response.exit(
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "could not convert TLS certificate public key (PEM) into JWK form: " .. tostring(err)},
       403,
       {
         message = "Failed to convert public key to JWK"
@@ -426,7 +431,8 @@ function JWKValidatorHandler:access(conf)
   local jwks_jwt,
     err = jwt_decoder:new(signed_jwks)
   if err then
-    return kong.response.exit(
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "signed JWKS payload is not a valid JWT: " .. tostring(err)},
       403,
       {
         message = "Bad token",
@@ -437,7 +443,8 @@ function JWKValidatorHandler:access(conf)
 
   local err = jwks_jwt:verify_signature(pub_jwk)
   if err then
-    return kong.response.exit(
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "signed JWKS signature did not verify against the TLS certificate's public key: " .. tostring(err)},
       403,
       {
         message = "Signature verification failed",
@@ -453,7 +460,8 @@ function JWKValidatorHandler:access(conf)
   local err = validate_organization(cert_info, expected_org, expected_domain)
   if err then
     kong.log.err("Organization/Domain validation failed: " .. err)
-    return kong.response.exit(
+    return log.exit_with_reason(
+      {plugin = PLUGIN_NAME, reason = "TLS certificate organization/domain did not match the JWKS claims (expected org='" .. tostring(expected_org) .. "', domain='" .. tostring(expected_domain) .. "'): " .. tostring(err)},
       403,
       {
         message = "Organization/Domain validation failed",
@@ -482,7 +490,12 @@ function JWKValidatorHandler:access(conf)
     kong.response.set_header("X-Cert-Info", cert_info_b64)
   end
 
-  kong.response.exit(200, jwks, {["Content-Type"] = "application/json"})
+  log.exit_with_reason(
+    {plugin = PLUGIN_NAME, reason = "TLS certificate and signed JWKS validated; returning verified JWKS to caller"},
+    200,
+    jwks,
+    {["Content-Type"] = "application/json"}
+  )
 end
 
 return JWKValidatorHandler

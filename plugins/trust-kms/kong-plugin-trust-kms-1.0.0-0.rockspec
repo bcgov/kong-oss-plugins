@@ -31,7 +31,8 @@ build = {
   modules = {
     ["kong.plugins."..plugin_name..".handler"] = "src/handler.lua",
     ["kong.plugins."..plugin_name..".schema"] = "src/schema.lua",
-    ["kong.plugins."..plugin_name..".kms"] = "src/kms.lua",
+    ["kong.plugins."..plugin_name..".backends.aws"] = "src/backends/aws.lua",
+    ["kong.plugins."..plugin_name..".backends.local"] = "src/backends/local.lua",
     ["kong.plugins."..plugin_name..".csr"] = "src/csr.lua",
   }
 }

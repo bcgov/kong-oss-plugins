@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "n": "!!!not-valid-base64!!!",
+      "e": "AQAB",
+      "kid": "malformed",
+      "use": "sig",
+      "alg": "RS256"
+    }
+  ]
+}

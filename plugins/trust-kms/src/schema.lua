@@ -18,6 +18,16 @@ return {
             }
           },
           {
+            backend = {
+              type = "string",
+              default = "local",
+              one_of = {
+                "local",
+                "aws"
+              }
+            }
+          },
+          {
             operation = {
               type = "string",
               default = "create_key",

@@ -1,5 +1,12 @@
 local typedefs = require "kong.db.schema.typedefs"
 
+local function validate_single_scope(value)
+  if value == "" or value:find("%s") then
+    return nil, "must contain exactly one non-empty OAuth scope value"
+  end
+  return true
+end
+
 return {
   name = "token-exchange",
   fields = {
@@ -43,11 +50,24 @@ return {
           {
             expiration = {
               type = "number",
-              default = 60
+              default = 60,
+              gt = 0
+            }
+          },
+          {
+            timeout = {
+              type = "number",
+              default = 10000
             }
           },
           {
             key_id = {
+              type = "string",
+              required = false
+            }
+          },
+          {
+            keyset_name = {
               type = "string",
               required = false
             }
@@ -59,6 +79,23 @@ return {
                 type = "string"
               },
               default = {}
+            }
+          },
+          {
+            scope_source = {
+              type = "string",
+              default = "configured",
+              one_of = {
+                "configured",
+                "verified_subject_token"
+              }
+            }
+          },
+          {
+            target_privacy_zone_scope = {
+              type = "string",
+              required = false,
+              custom_validator = validate_single_scope
             }
           },
           {

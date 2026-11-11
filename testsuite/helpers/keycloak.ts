@@ -34,6 +34,21 @@ export async function clientLogin(clientId: string, clientSecret: string) {
   return result.access_token;
 }
 
+export function audienceMapper(name: string, audience: string) {
+  return {
+    name,
+    protocol: "openid-connect",
+    protocolMapper: "oidc-audience-mapper",
+    consentRequired: false,
+    config: {
+      "included.custom.audience": audience,
+      "id.token.claim": "false",
+      "access.token.claim": "true",
+      "introspection.token.claim": "true",
+    },
+  };
+}
+
 export async function createClient(
   request: APIRequestContext,
   overrides = {},
@@ -52,8 +67,9 @@ export async function createClient(
   payload.id = uuid;
 
   const requestBody = mergeDeep(payload, overrides, {
-    description: JSON.stringify(overrides, null, 2),
+    description: JSON.stringify(overrides),
   });
+  requestBody.description = requestBody.description.slice(0, 255);
   setRequestBody(requestBody);
   setHeaders({
     Authorization: "Bearer " + adminToken,

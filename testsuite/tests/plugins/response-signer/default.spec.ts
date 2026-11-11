@@ -1,14 +1,18 @@
 import { test, expect } from "@playwright/test";
 import { callAPI, setRequestBody } from "../../../helpers/api";
 import logger from "../../../helpers/logger";
-import { provisionNewService } from "../../../helpers/kong";
+import {
+  KONG_ADMIN_URL,
+  provisionNewService,
+  waitForRouteReady,
+} from "../../../helpers/kong";
 
 test.describe("response-signer plugin - happy paths", () => {
   test("using defaults", async ({ page, request }) => {
     const iteration = Math.round(Math.random() * 100000000);
     const routePath = await provisionNewService(
       request,
-      "http:///kong.localtest.me:8001",
+      KONG_ADMIN_URL,
       iteration,
       {
         name: "response-signer",
@@ -19,6 +23,7 @@ test.describe("response-signer plugin - happy paths", () => {
       },
       { clientId: null, clientSecret: null }
     );
+    await waitForRouteReady(request, routePath);
 
     logger.debug(
       { url: `http://kong.localtest.me:8000${routePath}/headers` },
