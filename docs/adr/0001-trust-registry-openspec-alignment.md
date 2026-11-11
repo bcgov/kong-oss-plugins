@@ -20,10 +20,8 @@ Use `openspec/specs/trust-registry/spec.md` as the normative behavioral contract
 
 ## Consequences
 
-The baseline is a compatibility choice, not a claim that it has no defects. Quirks include empty keyset object serialization, unchanged stored JWK content (including private members if accepted), and incomplete error normalization. Document as-implemented behavior with quirk tags; review fixes explicitly. Admin validation and missing test seams can prevent reproducing malformed persisted entities or DAO faults; report these coverage gaps rather than weakening assertions or mocking the complete handler.
+There is one supported `trust-registry` plugin and one normative behavioral specification. The plugin publishes only public RSA, EC, and OKP parameters and supported JWK metadata. It omits symmetric, unsupported, and malformed individual keys, returns an array for empty results, and returns generic JSON 500 responses on database failures without partial results or upstream fall-through. Unknown keysets return 404.
 
-OpenSpec is the supported specification workflow. Preserve useful architectural decisions in ADRs rather than retaining a second planning system. Public-key publication, safe error handling, and array serialization remain review focal points before production use.
+Busted tests use an injected DAO collection helper to exercise persistence failures and malformed entities that Kong Admin validation prevents creating. Playwright tests verify the public HTTP contract against the shared Kong stack. Tests assert the specified behavior and cite stable scenario IDs.
 
-## Follow-up: corrected publication contract
-
-The baseline quirks are now corrected: empty keysets return arrays, stored keys are restricted to public asymmetric parameters and supported metadata, malformed individual keys are omitted, and DAO failures return generic 500 responses without partial results. An injected collection helper allows deterministic tests for the previously blocked persistence faults. The normative spec and tests define the corrected behavior; the earlier compatibility decision above describes the initial consolidation.
+OpenSpec is the supported specification workflow. Architectural decisions belong in ADRs rather than a second planning system. Changes to plugin behavior update the normative specification and its tests together.
