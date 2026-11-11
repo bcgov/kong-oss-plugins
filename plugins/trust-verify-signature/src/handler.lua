@@ -65,6 +65,13 @@ end
 
 function TrustVerifySignatureHandler:header_filter(conf)
   if conf.direction == "response" then
+    -- Authentication may exit in access before any provider request is made.
+    -- Preserve local failures; every proxied response still requires a signature,
+    -- including non-2xx provider responses.
+    if kong.response.get_source() ~= "service" then
+      return
+    end
+
     kong.log.warn("X-Trust-Verify-Signature-Res")
     local sig = kong.response.get_header(conf.signature_header_key)
     if not sig then
