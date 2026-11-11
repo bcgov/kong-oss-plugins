@@ -21,7 +21,18 @@ docker compose \
 
 ## Specifications
 
-Plugin behavioral contracts live in `openspec/specs/<plugin>/spec.md`. See the [trust-registry alignment decision](docs/adr/0001-trust-registry-openspec-alignment.md) for the implementation baseline and the OpenSpec workflow choice.
+Plugin behavioral contracts live in `openspec/specs/<plugin>/spec.md`. Each specification has a `coverage.md` review map. See the [testing guide](testsuite/README.md) for the shared specification and test-generation workflow.
+
+### Plugin-specific documentation
+
+| Plugin specification | Supporting documentation |
+|---|---|
+| [mtls-auth](openspec/specs/mtls-auth/spec.md) | [Plugin setup and configuration](plugins/mtls-auth/README.md) |
+| [mtls-acl](openspec/specs/mtls-acl/spec.md) | Shared certificate-context contract defined in the [mtls-auth spec](openspec/specs/mtls-auth/spec.md#interop--shared-contract) |
+| [token-exchange](openspec/specs/token-exchange/spec.md) | [Local test harness](testsuite/local/token-exchange/README.md) |
+| [trust-registry](openspec/specs/trust-registry/spec.md) | [ADR: implementation and OpenSpec workflow](docs/adr/0001-trust-registry-openspec-alignment.md) |
+| [trust-sign](openspec/specs/trust-sign/spec.md) | [Shared signing contract](openspec/specs/trust-sign/spec.md#interop--shared-contract) consumed by trust-verify-signature |
+| [trust-verify-signature](openspec/specs/trust-verify-signature/spec.md) | Shared wire format defined in the [trust-sign spec](openspec/specs/trust-sign/spec.md#interop--shared-contract) |
 
 ## Development
 
