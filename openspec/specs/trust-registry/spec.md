@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Publish public keys registered in Kong as a JWKS response from routes using trust-registry. This specification records the existing implementation, including reviewable quirks; it does not adopt either experimental AI implementation.
+Publish public keys registered in Kong as a JWKS response from routes using trust-registry. This specification defines safe public-key publication and explicit failure handling for the existing trust-registry implementation.
 
 ## Requirements
 
@@ -53,9 +53,8 @@ The plugin SHALL choose a keyset using the named route URI capture `key_set` fir
 
 #### Scenario: Empty keyset
 **ID**: `trust-registry.keyset-selection.empty-set`
-- **TAG**: quirk — An ordinary empty Lua table serializes as an object rather than the JWKS-required array.
 - **WHEN** config.key_set names an existing keyset with no keys
-- **THEN** the response is status 200 with JSON body {"keys":{}} and Content-Type application/json
+- **THEN** the response is status 200 with JSON body {"keys":[]} and Content-Type application/json
 
 #### Scenario: Method is route controlled
 **ID**: `trust-registry.keyset-selection.post-request`
@@ -65,23 +64,32 @@ The plugin SHALL choose a keyset using the named route URI capture `key_set` fir
 ### Requirement: Stored JWK publication
 **ID**: `trust-registry.stored-jwk`
 
-The plugin SHALL publish a stored JWK by decoding its JSON unchanged; stored JWK takes precedence over PEM on a key entity. It does not rewrite its kid from the Kong entity or add use. Stored JWK content is passed through, including any private members if present.
+The plugin SHALL publish only public asymmetric JWK members. Stored JWK takes precedence over PEM. Preserve kid, use, alg, key_ops, x5u, x5c, x5t and x5t#S256 metadata and the public parameters RSA(n,e), EC(crv,x,y), or OKP(crv,x). Omit all other members, including private parameters and unknown extensions. Symmetric oct keys and unsupported key types SHALL be omitted. Malformed JSON, non-object JSON, and missing, non-string, or empty required public parameters SHALL be omitted without aborting valid sibling keys. Do not rewrite kid from the Kong entity or add use. Unit tests MAY call `build` (`require "jwks"`) with injected keys/keysets DAOs to exercise persisted invalid data that Kong Admin rejects.
 
 #### Scenario: JWK passes through
 **ID**: `trust-registry.stored-jwk.pass-through`
 - **WHEN** a selected key contains a public RSA JWK with kid and use="enc"
 - **THEN** the published JWK equals the stored JWK, including kid and use="enc"
 
-#### Scenario: Stored private members pass through
+#### Scenario: Stored private members removed
 **ID**: `trust-registry.stored-jwk.private-members`
-- **TAG**: quirk — The baseline does not sanitize stored JWKs; only public JWKs should be registered. Do not treat this as a desired security contract.
 - **WHEN** a selected key has a stored JWK containing a private RSA d member
-- **THEN** the published JWK retains that d member
+- **THEN** the published JWK contains only public RSA parameters and supported metadata, with no d, p, q, dp, dq, qi, oth or unknown members
+
+#### Scenario: Symmetric key omitted
+**ID**: `trust-registry.stored-jwk.symmetric-key`
+- **WHEN** a selected key contains kty="oct" and a secret k alongside a valid public key
+- **THEN** the symmetric key is omitted and the valid public key is published
+
+#### Scenario: Invalid public parameters omitted
+**ID**: `trust-registry.stored-jwk.invalid-parameters`
+- **WHEN** selected stored JWKs contain non-object JSON, an unsupported kty, or missing required public parameters
+- **THEN** each invalid key is omitted without aborting publication of valid sibling keys
 
 ### Requirement: PEM publication
 **ID**: `trust-registry.pem-publication`
 
-The plugin SHALL convert PEM public keys to JWK using native OpenSSL public JWK serialization, set kid to the Kong key entity kid, and add use="sig". For RSA this includes kty, n and e; for EC it includes kty, crv, x and y. Private PEM material is not exported.
+The plugin SHALL convert PEM public keys to JWK using native OpenSSL public JWK serialization, set kid to the Kong key entity kid, and add use="sig". For RSA this includes kty, n and e; for EC it includes kty, crv, x and y. Private PEM material is not exported. Unit tests MAY call `build` (`require "jwks"`) with injected DAOs to exercise malformed PEM rejected by Kong Admin.
 
 #### Scenario: RSA public key
 **ID**: `trust-registry.pem-publication.rsa`
@@ -111,30 +119,27 @@ The conversion helper SHALL return nil and a nonempty error when PEM parsing fai
 ### Requirement: Failure behavior
 **ID**: `trust-registry.failure-behavior`
 
-The baseline does not normalize database errors or malformed stored JSON into an explicit JSON error response.
+The plugin SHALL return status 500 with JSON body {"message":"Internal server error"} and Content-Type application/json on database lookup or iteration failure. Do not return a partial JWKS, fall through to upstream, or disclose database error details. A missing keyset without a database error remains 404. Malformed individual key data SHALL be skipped so valid siblings can be published. Unit tests MAY call `build` (`require "jwks"`) with injected keys/keysets DAOs for deterministic database faults.
 
 #### Scenario: Database keyset lookup failure
 **ID**: `trust-registry.failure-behavior.lookup-error`
-- **TAG**: quirk — Lookup failure is indistinguishable from a missing keyset.
 - **WHEN** keyset lookup returns nil plus a database error for a captured keyset
-- **THEN** the plugin returns status 404 and {"message":"Key set not found"}
+- **THEN** the plugin returns status 500 with {"message":"Internal server error"}, Content-Type application/json, and no database error details
 
 #### Scenario: Key iteration failure
 **ID**: `trust-registry.failure-behavior.iterator-error`
-- **TAG**: quirk — There is no explicit 500 response.
 - **WHEN** key enumeration yields an error
-- **THEN** the access handler returns without producing a JWKS response and request processing continues upstream
+- **THEN** the plugin returns status 500 with {"message":"Internal server error"}, Content-Type application/json, no partial keys, and no upstream fall-through
 
 #### Scenario: Invalid stored JSON
 **ID**: `trust-registry.failure-behavior.invalid-jwk`
-- **TAG**: quirk — No protected JSON decode is used.
 - **WHEN** a selected key contains syntactically invalid JWK JSON
-- **THEN** JSON decoding raises an error rather than skipping that key
+- **THEN** the invalid key is omitted; valid sibling keys are returned with status 200 and Content-Type application/json; if none remain the body is {"keys":[]}
 
 ## Out of scope
 
-- Runtime fault injection for database lookup/iterator errors and invalid persisted JWK JSON has no exported pure seam; these scenarios remain blocked for clean-room tests. Kong Admin validation can prevent creating these states.
-- The malformed-PEM publication scenario may be blocked by Kong Admin validation; the conversion helper still permits testing parsing failure.
+- Database faults and invalid persisted entities are tested through the injected DAO seam because Kong Admin validation prevents constructing some states.
+- The injected DAO seam covers malformed-PEM publication; the conversion helper also tests parsing failure.
 - No independent URL matcher, method gate, authentication policy, caching contract, or environment-variable input is implemented by this plugin. Route configuration governs reachability.
-- Private stored JWK acceptance depends on Kong entity validation; if rejected by Kong, its publication scenario needs a seam rather than bypassing validation.
+
 - Logging text and internal plugin-log context, DAO pagination mechanics, plugin priority/version, packaging metadata, and serialization-library internals are outside the behavioral contract.

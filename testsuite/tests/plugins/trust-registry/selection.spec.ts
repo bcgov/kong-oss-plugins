@@ -69,10 +69,10 @@ test('unknown configured set returns 404', async ({ request }) => {
     }, { timeout: 30000 }).toEqual({ status: 404, body: { message: 'Key set not found' } });
 });
 // [Verifies: trust-registry.keyset-selection.empty-set]
-test('empty set serializes keys as object', async ({ request }) => {
+test('empty set serializes keys as array', async ({ request }) => {
     const a = await set(request);
     const route = await provisionPluginRoute(request, { prefix: PREFIX, config: { key_set: a.name } });
-    expect(await published(request, route.routePath)).toEqual({ keys: {} });
+    expect(await published(request, route.routePath)).toEqual({ keys: [] });
 });
 // [Verifies: trust-registry.keyset-selection.post-request]
 test('POST returns same JWKS as GET', async ({ request }) => {

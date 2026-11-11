@@ -33,11 +33,11 @@ test('stored JWK preserves kid and enc use', async ({ request }) => {
     expect(await published(request, route.routePath)).toEqual({ keys: [jwk] });
 });
 // [Verifies: trust-registry.stored-jwk.private-members]
-test('stored JWK retains private d', async ({ request }) => {
+test('stored JWK publishes public parameters only', async ({ request }) => {
     const a = await set(request);
     const privateJwk = require('crypto').createPrivateKey(pem('rsa-2048.pem')).export({ format: 'jwk' });
     const jwk = { ...privateJwk, kid: `${PREFIX}-private` };
     await key(request, a, { jwk: JSON.stringify(jwk) });
     const route = await provisionPluginRoute(request, { prefix: PREFIX, config: { key_set: a.name } });
-    expect(await published(request, route.routePath)).toEqual({ keys: [jwk] });
+    expect(await published(request, route.routePath)).toEqual({ keys: [{ ...rsa, kid: jwk.kid }] });
 });
