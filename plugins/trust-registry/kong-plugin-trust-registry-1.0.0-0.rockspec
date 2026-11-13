@@ -10,7 +10,7 @@ supported_platforms = { "linux", "macosx" }
 source = {
   url = "git://github.com/bcgov/kong-oss-plugins",
   tag = "v1.0.0",
-  dir = "plugins/dpop/src"
+  dir = "plugins/trust-registry"
 }
 
 description = {
@@ -28,6 +28,7 @@ dependencies = {
 build = {
   type = "builtin",
   modules = {
+    ["kong.plugins."..plugin_name..".jwks"] = "src/jwks.lua",
     ["kong.plugins."..plugin_name..".handler"] = "src/handler.lua",
     ["kong.plugins."..plugin_name..".schema"] = "src/schema.lua",
     ["kong.plugins."..plugin_name..".pem_to_jwks"] = "src/pem_to_jwks.lua",
