@@ -19,7 +19,8 @@
 | Token payload claim `jwks_uri` | input | Requirement: Issuer key discovery (`allowed-jwks-uri-used`, `jwks-uri-not-allowed-401`, `jwks-cache-keyed-by-uri`) |
 | Token payload claim `digest` | input | Requirement: Content-digest manifest check (`missing-digest-claim-401`, `matching-content-digest-accepted`, `mismatched-content-digest-400`); request direction only |
 | JWKS endpoint response (status, JSON shape, JWK entries) | input | Requirement: Issuer key discovery (`jwks-fetch-failure-401`, `malformed-jwk-401`, `signature-mismatch-401`) |
-| Upstream response status (any code, incl. Kong-generated) | input | Requirement: Response signature verification (prose: verified regardless of status) |
+| Upstream response status (any code, when response source is `service`) | input | Requirement: Response signature verification (prose: verified regardless of upstream status) |
+| Response source (`service`, local exit, or gateway error) | input | Requirement: Response signature verification (prose: only service responses are verified; local exits and gateway errors preserve status and body); scenario `local-exit-preserved` |
 | `X-Trust-Verify-Signature-Req` request header (`OK`) | output | Requirement: Request signature verification |
 | `X-Trust-Verify-Signature-Res` response header (`OK`) | output | Requirement: Response signature verification |
 | Signature header pass-through on success | output | Requirements: Request/Response signature verification (THEN clauses) |
